@@ -3,8 +3,8 @@ import withPWAInit from "@ducanh2912/next-pwa";
 const withPWA = withPWAInit({
   dest: "public",
   disable: false, // TEMPORARILY ENABLED for mobile PWA install testing
-  cacheOnFrontEndNav: true,
-  aggressiveFrontEndNavCaching: true,
+  cacheOnFrontEndNav: false,
+  aggressiveFrontEndNavCaching: false,
   reloadOnOnline: true,
   workboxOptions: {
     disableDevLogs: true,
@@ -13,10 +13,6 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
   reactStrictMode: true,
-  devIndicators: {
-    buildActivity: false,
-    appIsrStatus: false,
-  },
   turbopack: {},
   typescript: {
     ignoreBuildErrors: true,

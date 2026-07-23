@@ -244,7 +244,7 @@ function QCDetailsDrawer({
               {record.photos?.map((photo, i) => (
                 <div key={i} className="rounded-lg border border-border overflow-hidden h-32 bg-muted relative">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={`${process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.foxenterprises.co.in"}${photo}`} alt="QC Evidence" className="w-full h-full object-cover" />
+                  <img src={`http://127.0.0.1:8000${photo}`} alt="QC Evidence" className="w-full h-full object-cover" />
                 </div>
               ))}
             </div>

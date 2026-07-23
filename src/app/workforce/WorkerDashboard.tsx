@@ -275,7 +275,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
       formData.append("longitude", String(location?.lng || 0));
       formData.append("accuracy", String(location?.accuracy || 0));
       formData.append("photo", dataURLtoBlob(previewImage), `punch_${Date.now()}.jpg`);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.foxenterprises.co.in/api";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
       const res = await fetch(`${apiUrl}/attendance/punch`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
       if (!res.ok) throw new Error("Failed to record attendance");
       toast.success(`${punchAction} successful!`);
@@ -303,7 +303,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
         formData.append("latitude", String(item.latitude || 0)); formData.append("longitude", String(item.longitude || 0));
         formData.append("accuracy", String(item.accuracy || 0));
         if (item.photo_base64) formData.append("photo", dataURLtoBlob(item.photo_base64), `offline_${Date.now()}.jpg`);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.foxenterprises.co.in/api";
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
         const res = await fetch(`${apiUrl}/attendance/punch`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
         if (!res.ok) throw new Error("Failed to sync");
         synced++;
