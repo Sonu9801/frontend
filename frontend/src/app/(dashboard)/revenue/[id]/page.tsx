@@ -50,12 +50,7 @@ export default function SalesInvoiceDetailsPage({ params }: { params: Promise<{ 
     }
   };
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.6:8000";
-  let BASE_URL = API_URL.replace(/\/api\/?$/, "");
-  // Replace 0.0.0.0 with localhost for browser compatibility
-  if (BASE_URL.includes("0.0.0.0")) {
-    BASE_URL = BASE_URL.replace("0.0.0.0", "localhost");
-  }
+  const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "https://api.foxenterprises.co.in";
 
   const getFileUrl = (path: string) => {
     if (!path) return "";

@@ -5,17 +5,7 @@ export function useWebSocket() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    // Dynamically get the host to support testing from other devices on the same network
-    const getWsUrl = () => {
-      if (typeof window === "undefined") return "ws://localhost:8000/ws";
-      const host = window.location.hostname;
-      // If deployed, you might want to use process.env.NEXT_PUBLIC_WS_URL here instead
-      return `ws://${host}:8000/ws`;
-    };
-    
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL && !process.env.NEXT_PUBLIC_WS_URL.includes("127.0.0.1") && !process.env.NEXT_PUBLIC_WS_URL.includes("localhost") 
-      ? process.env.NEXT_PUBLIC_WS_URL 
-      : getWsUrl();
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "wss://api.foxenterprises.co.in/ws";
     
     let ws: WebSocket;
     let timeoutId: NodeJS.Timeout;
