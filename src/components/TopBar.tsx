@@ -10,6 +10,7 @@ import { useTheme } from "next-themes";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useNotifications, useMarkNotificationClicked, useMarkAllNotificationsRead } from "@/hooks/useQueries";
+import { authApi } from "@/lib/api";
 
 export function TopBar() {
   const { theme, setTheme } = useTheme();
@@ -54,7 +55,12 @@ export function TopBar() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      console.error("Backend logout failed:", e);
+    }
     logout();
     router.push("/login");
   };

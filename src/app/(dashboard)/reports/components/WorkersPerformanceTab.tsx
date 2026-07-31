@@ -16,20 +16,26 @@ export function WorkersPerformanceTab({
   // Convert dateRange/filters to a YYYY-MM if needed, or pass the selected month
   // For simplicity, assuming current month if not specifically passed in a standard format
   const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const { data: performanceData = [], isLoading } = useWorkerPerformance(currentMonth);
+  const { data: performanceDataRaw, isLoading } = useWorkerPerformance(currentMonth);
+
+  const performanceData = useMemo(() => {
+    if (Array.isArray(performanceDataRaw)) return performanceDataRaw;
+    if (performanceDataRaw && Array.isArray(performanceDataRaw.items)) return performanceDataRaw.items;
+    return [];
+  }, [performanceDataRaw]);
 
   const tableData = useMemo(() => {
     return performanceData.map((d: any) => ({
-      ID: d.employee_id || d.id,
-      Name: d.name,
+      ID: d.employeeId || d.employee_id || d.id,
+      Name: d.name || d.worker_name || "Unknown",
       Department: d.department || "Unassigned",
-      "Platform No.": d.items_built ? d.items_built.join(", ") : "-",
-      "Jobs Completed": d.jobs_completed,
-      "Self Assigned": d.self_assigned,
-      "Supervisor Assigned": d.supervisor_assigned,
-      "Expected Time (min)": d.expected_minutes,
-      "Actual Time (min)": d.actual_minutes,
-      "Efficiency (%)": d.efficiency_percent
+      "Platform No.": d.items_built ? (Array.isArray(d.items_built) ? d.items_built.join(", ") : d.items_built) : (d.todayAssignment || "-"),
+      "Jobs Completed": d.jobs_completed ?? d.completedJobs ?? 0,
+      "Self Assigned": d.self_assigned ?? 0,
+      "Supervisor Assigned": d.supervisor_assigned ?? 0,
+      "Expected Time (min)": d.expected_minutes ?? 0,
+      "Actual Time (min)": d.actual_minutes ?? 0,
+      "Efficiency (%)": d.efficiency_percent ?? d.efficiency ?? 0
     }));
   }, [performanceData]);
 
@@ -44,12 +50,12 @@ export function WorkersPerformanceTab({
 
   const chartData = useMemo(() => {
     return performanceData
-      .filter((d: any) => d.jobs_completed > 0)
+      .filter((d: any) => (d.jobs_completed || d.completedJobs || 0) > 0)
       .slice(0, 10)
       .map((d: any) => ({
-        name: d.name.split(" ")[0], // first name for chart
-        Efficiency: d.efficiency_percent,
-        Jobs: d.jobs_completed
+        name: (d.name || d.worker_name || "Worker").split(" ")[0],
+        Efficiency: d.efficiency_percent ?? d.efficiency ?? 0,
+        Jobs: d.jobs_completed ?? d.completedJobs ?? 0
       }));
   }, [performanceData]);
 

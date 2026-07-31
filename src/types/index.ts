@@ -218,4 +218,5 @@ export interface ProductionJob {
   qcStatus?: string;
   platform_number?: string | null;
   vehicle_number?: string | null;
+  photos?: any[];
 }

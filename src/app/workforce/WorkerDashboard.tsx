@@ -11,7 +11,7 @@ import { useWebSocket } from "@/hooks/useWebSocket";
 import Webcam from "react-webcam";
 import { 
   MapPin, Clock, Fingerprint, Calendar as CalendarIcon, 
-  AlertCircle, CheckCircle2, LogOut, RotateCcw, CloudUpload, History, FileText,
+  AlertCircle, CheckCircle2, LogOut, LogIn, RotateCcw, CloudUpload, History, FileText,
   MessageSquareWarning, MessageSquare, X, Plus, UserCircle, Bell,
   File, Settings, Phone, Building, Briefcase, Download, QrCode,
   ChevronRight, ArrowRight, Activity, Loader2,
@@ -36,10 +36,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ProductionJob } from "@/types";
 
 // Geofence constants
-const COMPANY_LAT = 28.4736262;
-const COMPANY_LNG = 77.2918577;
-const RADIUS_METERS = 50000000; // 50,000 km for testing
-const COMPANY_ADDRESS = "57T, Gurukul Rd, Indraprastha Industrial Area, Sector 27A, Faridabad, Haryana 121003";
+const COMPANY_LAT = 28.477930;  // Fox Enterprises - Faridabad
+const COMPANY_LNG = 77.298560;  // Fox Enterprises - Faridabad
+const RADIUS_METERS = 1000;     // 1 km geofence radius
+const COMPANY_ADDRESS = "Fox Enterprises, Faridabad, Haryana";
 
 export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, onLogout: () => void, setWorker: (w:any)=>void }) {
   const router = useRouter();
@@ -232,7 +232,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
     }
 
     if (currentDist === null || currentDist > RADIUS_METERS) {
-      toast.error("You are outside the permitted attendance area.");
+      toast.error("You are outside the allowed office location. Please move closer to the office to mark attendance.");
       return; // DO NOT ALLOW BYPASS
     }
 
@@ -511,7 +511,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                         </>
                       ) : (
                         <>
-                          <Fingerprint size={22} strokeWidth={2.5} /> 
+                          <LogIn size={22} strokeWidth={2.5} /> 
                           <span className="tracking-wide uppercase mt-0.5">Punch In</span>
                         </>
                       )}
@@ -571,7 +571,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                      {/* Column 1: Punch In */}
                      <div className="flex flex-row items-center justify-center gap-1.5 sm:gap-2 w-1/4">
                        <div className="w-[30px] h-[30px] sm:w-[34px] sm:h-[34px] rounded-full bg-green-50 dark:bg-green-900/30 flex items-center justify-center shrink-0">
-                         <Fingerprint size={16} strokeWidth={2} className="text-[#00A843] dark:text-[#4ADE80]" />
+                         <LogIn size={16} strokeWidth={2} className="text-[#00A843] dark:text-[#4ADE80]" />
                        </div>
                        <div className="flex flex-col overflow-hidden">
                          <span className="text-[9px] sm:text-[10px] font-[500] text-[#6B7280] dark:text-gray-400 leading-tight truncate">Punch In</span>
@@ -839,7 +839,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
               onClick={() => handlePunchClick(isPunchedIn ? "Punch Out" : "Punch In")}
               className={`w-[70px] h-[70px] rounded-full flex items-center justify-center text-white transition-transform active:scale-95 border-[4px] border-white dark:border-zinc-950 pointer-events-auto bg-gradient-to-r from-[#4F6BFF] to-[#5A43F2] shadow-[0_8px_24px_rgba(79,107,255,0.4)]`}
             >
-              {isPunchedIn ? <LogOut size={34} strokeWidth={2} /> : <Fingerprint size={34} strokeWidth={2} />}
+              {isPunchedIn ? <LogOut size={34} strokeWidth={2} /> : <LogIn size={34} strokeWidth={2} />}
             </button>
             <span className="text-[11px] font-[700] text-[#111827] dark:text-gray-300 mt-1.5 pointer-events-auto">
               {getTranslation(langIndex, isPunchedIn ? "Punch Out" : "Punch In")}
@@ -872,10 +872,23 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
             <div className="px-5 py-5 flex items-center justify-between text-white bg-gradient-to-b from-black/60 to-transparent absolute top-0 left-0 right-0 z-30">
               <button onClick={() => setShowCameraModal(false)} className="p-2.5 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30 transition-colors ml-auto"><X size={20} /></button>
             </div>
-            <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden bg-black z-10">
-              {!previewImage ? (
-                <Webcam audio={false} ref={webcamRef} screenshotFormat="image/jpeg" videoConstraints={{ facingMode: "user", width: { ideal: 1080 }, height: { ideal: 1920 } }} className="absolute inset-0 w-full h-full object-cover" />
-              ) : <img src={previewImage} className="absolute inset-0 w-full h-full object-cover" alt="Preview" />}
+            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10 pb-[230px]">
+              <div className="relative w-[280px] h-[280px] sm:w-[320px] sm:h-[320px] rounded-full overflow-hidden border-4 border-dashed border-blue-500 shadow-2xl flex items-center justify-center bg-zinc-950">
+                {!previewImage ? (
+                  <Webcam 
+                    audio={false} 
+                    ref={webcamRef} 
+                    screenshotFormat="image/jpeg" 
+                    videoConstraints={{ facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }} 
+                    className="w-full h-full object-cover scale-x-[-1]" 
+                  />
+                ) : (
+                  <img src={previewImage} className="w-full h-full object-cover scale-x-[-1]" alt="Preview" />
+                )}
+              </div>
+              <p className="text-white/60 text-xs font-semibold tracking-wide uppercase mt-4 text-center">
+                Center your face in the frame
+              </p>
             </div>
             
             <div className="absolute bottom-0 left-0 right-0 bg-white rounded-t-[24px] p-6 z-30 shadow-[0_-10px_40px_rgba(0,0,0,0.3)] pb-[calc(env(safe-area-inset-bottom)+24px)] flex flex-col animate-in slide-in-from-bottom-10">

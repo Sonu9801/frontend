@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Loader2, HardHat, Hammer, PaintBucket } from "lucide-react";
+import { X, Loader2, HardHat } from "lucide-react";
 import { toast } from "sonner";
 import { componentsApi } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,6 +18,7 @@ export function SelfAssignModal({
   workerId: number;
 }) {
   const [componentType, setComponentType] = useState("Platform");
+  const [customType, setCustomType] = useState("");
   const [componentNumber, setComponentNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();
@@ -31,10 +32,12 @@ export function SelfAssignModal({
       return;
     }
     
+    const finalType = componentType === "Other" ? (customType.trim() || "Other") : componentType;
+    
     setLoading(true);
     try {
-      await componentsApi.startTask(componentType, componentNumber);
-      toast.success(`${componentType} task started successfully!`);
+      await componentsApi.startTask(finalType, componentNumber);
+      toast.success(`${finalType} task started successfully!`);
       queryClient.invalidateQueries({ queryKey: ["workerComponents", workerId] });
       onClose();
     } catch (err: any) {
@@ -75,9 +78,25 @@ export function SelfAssignModal({
                 <option value="Gate">Gate</option>
                 <option value="Aircutter">Aircutter</option>
                 <option value="Paint">Paint</option>
+                <option value="Model">Model</option>
+                <option value="Band">Band</option>
+                <option value="Cutting">Cutting</option>
                 <option value="Other">Other</option>
               </select>
             </div>
+
+            {componentType === "Other" && (
+              <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                <Label>Type Custom Work / Component Name</Label>
+                <Input
+                  placeholder="Enter custom work type..."
+                  value={customType}
+                  onChange={(e) => setCustomType(e.target.value)}
+                  className="h-12 rounded-xl border-gray-200 dark:border-zinc-700 bg-gray-50 dark:bg-zinc-800/50"
+                  autoFocus
+                />
+              </div>
+            )}
             
             <div className="space-y-2">
               <Label>Component Number / ID</Label>
@@ -94,7 +113,7 @@ export function SelfAssignModal({
             
             <Button
               type="submit"
-              disabled={loading || !componentNumber}
+              disabled={loading || !componentNumber || (componentType === "Other" && !customType.trim())}
               className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg mt-2"
             >
               {loading ? <Loader2 className="animate-spin mr-2" /> : "Start Work"}

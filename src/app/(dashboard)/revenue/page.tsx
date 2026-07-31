@@ -6,6 +6,7 @@ import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRevenue, useRevenueDashboardStats, useRevenueAnalytics, useDeleteSalesInvoice, useUpdateSalesInvoice } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
 import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "../invoices/components/InvoiceAnalyticsCharts";
@@ -22,58 +23,42 @@ import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
 
 export default function RevenueDashboardPage() {
   const router = useRouter();
-  const { data: invoices = [], isLoading: isLoadingInvoices } = useRevenue();
-  const { data: stats, isLoading: isLoadingStats } = useRevenueDashboardStats();
-  const { data: analyticsData } = useRevenueAnalytics();
-  const updateInvoice = useUpdateSalesInvoice();
-  
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editRecord, setEditRecord] = useState<any>(null);
-  
-  const role = useAuthStore((state: any) => state.role);
-  const canUpload = ["admin", "owner", "finance_manager"].includes(role);
-  const deleteInvoice = useDeleteSalesInvoice();
-
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
   const [oemFilter, setOemFilter] = useState("All");
-  const [workTypeFilter, setWorkTypeFilter] = useState("All");
   const [customerFilter, setCustomerFilter] = useState("All");
 
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv: any) => {
-      const statusOk = statusFilter === "All" || inv.approval_status === statusFilter;
-      const paymentOk = paymentFilter === "All" || inv.payment_status === paymentFilter;
-      const oemOk = oemFilter === "All" || inv.oem === oemFilter;
-      const workTypeOk = workTypeFilter === "All" || inv.work_type === workTypeFilter;
-      const customerOk = customerFilter === "All" || inv.customer_name === customerFilter;
-      
-      let dateOk = true;
-      if (dateFilter !== "All") {
-        const invDate = new Date(inv.invoice_date || inv.created_at);
-        const today = new Date();
-        if (dateFilter === "Today") {
-          dateOk = invDate.toDateString() === today.toDateString();
-        } else if (dateFilter === "This Month") {
-          dateOk = invDate.getMonth() === today.getMonth() && invDate.getFullYear() === today.getFullYear();
-        } else if (dateFilter === "This Year") {
-          dateOk = invDate.getFullYear() === today.getFullYear();
-        } else if (dateFilter.includes("-")) {
-          // Custom Month logic (YYYY-MM)
-          const [yyyy, mm] = dateFilter.split("-");
-          dateOk = invDate.getFullYear() === parseInt(yyyy) && (invDate.getMonth() + 1) === parseInt(mm);
-        }
-      }
+  const { data: invoicesData, isLoading: isLoadingInvoices } = useRevenue({
+    page,
+    pageSize,
+    approval_status: statusFilter !== "All" ? statusFilter : undefined,
+    payment_status: paymentFilter !== "All" ? paymentFilter : undefined,
+    oem: oemFilter !== "All" ? oemFilter : undefined,
+    customer: customerFilter !== "All" ? customerFilter : undefined,
+  });
+  const { data: stats, isLoading: isLoadingStats } = useRevenueDashboardStats();
+  const { data: analyticsData } = useRevenueAnalytics();
+  const updateInvoice = useUpdateSalesInvoice();
 
-      return statusOk && paymentOk && dateOk && oemOk && workTypeOk && customerOk;
-    });
-  }, [invoices, statusFilter, paymentFilter, dateFilter, oemFilter, workTypeFilter, customerFilter]);
-  
-  // Extract unique values for filter dropdowns
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
+
+  const role = useAuthStore((state: any) => state.role);
+  const canUpload = ["admin", "owner", "finance_manager"].includes(role);
+  const deleteInvoice = useDeleteSalesInvoice();
+
+  const invoices = invoicesData?.items ?? [];
+  const totalInvoices = invoicesData?.total ?? 0;
+  const totalPages = invoicesData?.total_pages ?? 1;
+
+  // Extract unique values (from current page)
   const uniqueOems = useMemo(() => Array.from(new Set(invoices.map((inv: any) => inv.oem).filter(Boolean))), [invoices]);
-  const uniqueWorkTypes = useMemo(() => Array.from(new Set(invoices.map((inv: any) => inv.work_type).filter(Boolean))), [invoices]);
   const uniqueCustomers = useMemo(() => Array.from(new Set(invoices.map((inv: any) => inv.customer_name).filter(Boolean))), [invoices]);
+
+
 
   const columns: ColumnDef<any>[] = useMemo(() => [
     {
@@ -114,25 +99,10 @@ export default function RevenueDashboardPage() {
       sortable: true,
     },
     {
-      id: "vehicle_number",
-      header: "Vehicle No",
-      accessor: (d: any) => (
-        <span className="text-xs font-mono">{d.vehicle_number || "-"}</span>
-      ),
-    },
-    {
       id: "oem",
       header: "OEM",
       accessor: (d: any) => (
         <span className="text-xs font-semibold">{d.oem || "-"}</span>
-      ),
-      sortable: true,
-    },
-    {
-      id: "work_type",
-      header: "Work Type",
-      accessor: (d: any) => (
-        <span className="text-xs">{d.work_type || "-"}</span>
       ),
       sortable: true,
     },
@@ -341,21 +311,7 @@ export default function RevenueDashboardPage() {
           </p>
         </div>
 
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-primary"><IndianRupee size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Avg Invoice Value</p>
-          <p className="text-2xl font-bold font-display text-primary">
-            ₹{(stats?.average_invoice_value || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
 
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-success"><CheckCircle2 size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Collection Rate</p>
-          <p className="text-2xl font-bold font-display text-success">
-            {(stats?.collection_rate || 0).toFixed(1)}%
-          </p>
-        </div>
 
         <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-10 text-success"><Banknote size={48} /></div>
@@ -454,14 +410,7 @@ export default function RevenueDashboardPage() {
               {uniqueOems.map((o: any) => <option key={o} value={o}>{o}</option>)}
             </select>
             
-            <select
-              value={workTypeFilter}
-              onChange={(e) => setWorkTypeFilter(e.target.value)}
-              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              <option value="All">All Work Types</option>
-              {uniqueWorkTypes.map((w: any) => <option key={w} value={w}>{w}</option>)}
-            </select>
+
 
             <select
               value={customerFilter}
@@ -477,9 +426,19 @@ export default function RevenueDashboardPage() {
         <div className="p-0">
           <DataTable
             columns={columns}
-            data={filteredInvoices}
+            data={invoices}
             rowId={(d) => String(d.id)}
             searchKey={(d) => `${d.invoice_number} ${d.customer_name} ${d.customer_gstin} ${d.vehicle_number} ${d.po_number}`}
+            hidePagination={true}
+          />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={totalInvoices}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            isLoading={isLoadingInvoices}
           />
         </div>
       </div>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useAttendanceLogs, useAttendanceExceptions, useApproveException, useDeleteAttendance } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
 import AttendanceDetailsDrawer from "./AttendanceDetailsDrawer";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,13 @@ import { useUpdateAttendance } from "@/hooks/useQueries";
 import { toast } from "sonner";
 
 export default function LogsTab() {
-  const { data: logs, isLoading } = useAttendanceLogs();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const { data: logsData, isLoading } = useAttendanceLogs({ page, pageSize });
+  const logs = logsData?.items ?? [];
+  const totalLogs = logsData?.total ?? 0;
+  const totalPages = logsData?.total_pages ?? 1;
+
   const { data: exceptions } = useAttendanceExceptions();
   const approveMutation = useApproveException();
   const updateAttendance = useUpdateAttendance();
@@ -219,9 +226,19 @@ export default function LogsTab() {
       <div className="flex-1 p-5 overflow-hidden">
         <DataTable
           columns={columns}
-          data={logs || []}
+          data={logs}
           searchKey={(row) => `${row.employee_name} ${row.employee_id} ${row.department} ${row.status}`}
           rowId={(row) => row.id.toString()}
+          hidePagination={true}
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={totalLogs}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          isLoading={isLoading}
         />
       </div>
       <AttendanceDetailsDrawer 

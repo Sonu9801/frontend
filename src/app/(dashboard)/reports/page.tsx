@@ -21,12 +21,17 @@ import { ComponentReportsTab } from "./components/ComponentReportsTab";
 import { WorkersPerformanceTab } from "./components/WorkersPerformanceTab";
 
 export default function ReportsPage() {
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: workers = [], isLoading: isLoadingWorkers } = useWorkers();
-  const { data: qcRecords = [], isLoading: isLoadingQC } = useQCRecords();
-  const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData, isLoading: isLoadingWorkers } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
+  const { data: qcData, isLoading: isLoadingQC } = useQCRecords({ pageSize: 1000 });
+  const qcRecords = qcData?.items ?? [];
+  const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({ pageSize: 1000 });
+  const dispatchRecords = dispatchData?.items ?? [];
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
-  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoices();
+  const { data: invoicesData, isLoading: isLoadingInvoices } = useInvoices({ pageSize: 1000 });
+  const invoices = invoicesData?.items ?? [];
   const role = useAuthStore(state => state.role);
   const username = useAuthStore(state => state.name);
 
@@ -46,15 +51,15 @@ export default function ReportsPage() {
 
   // Security Filtering
   const filteredVehicles = role === "oem" 
-    ? vehicles.filter(v => v.oemName.toLowerCase() === username?.toLowerCase()) 
+    ? vehicles.filter((v: any) => v.oemName.toLowerCase() === username?.toLowerCase()) 
     : vehicles;
     
   const filteredDispatch = role === "oem"
-    ? dispatchRecords.filter(d => filteredVehicles.some(v => v.id === d.vehicleId.toString()))
+    ? dispatchRecords.filter((d: any) => filteredVehicles.some((v: any) => v.id === d.vehicleId.toString()))
     : dispatchRecords;
 
   const filteredQC = role === "oem"
-    ? qcRecords.filter(q => filteredVehicles.some(v => v.id === q.vehicleId.toString()))
+    ? qcRecords.filter((q: any) => filteredVehicles.some((v: any) => v.id === q.vehicleId.toString()))
     : qcRecords;
 
   const handlePrint = () => {
@@ -243,7 +248,7 @@ export default function ReportsPage() {
                   <WorkersPerformanceTab dateRange={dateRange} filters={filters} />
                 </TabsContent>
                 <TabsContent value="components">
-                  <ComponentReportsTab />
+                  <ComponentReportsTab dateRange={dateRange} filters={filters} />
                 </TabsContent>
               </>
             )}

@@ -64,21 +64,34 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     faceRegistrationStatus: "Pending"
   });
 
+  const KNOWN_DEPARTMENTS = [
+    "Fabrication", "Paint", "Assembly", "Quality", "Dispatch", "Management", 
+    "CNC Machine", "Laser Cutting Machine", "Helper", "Welder", "Driver"
+  ];
+  
+  const [isCustomDepartment, setIsCustomDepartment] = useState(false);
+  const [customDepartment, setCustomDepartment] = useState("");
+
   useEffect(() => {
     if (worker) {
-      setForm({
-        name: worker.name,
-        employeeId: worker.employeeId,
-        mobileNumber: worker.mobileNumber || "",
-        email: worker.email || "",
-        dateOfBirth: worker.dateOfBirth || "",
-        gender: worker.gender || "Male",
-        
-        department: worker.department,
-        designation: worker.designation || "",
-        role: worker.role || "Worker",
-        joiningDate: worker.joiningDate || "",
-        employmentStatus: worker.employmentStatus || "Active",
+        const initialDept = worker.department || "";
+        const isCustom = initialDept !== "" && !KNOWN_DEPARTMENTS.includes(initialDept);
+        setIsCustomDepartment(isCustom);
+        setCustomDepartment(isCustom ? initialDept : "");
+
+        setForm({
+          name: worker.name,
+          employeeId: worker.employeeId,
+          mobileNumber: worker.mobileNumber || "",
+          email: worker.email || "",
+          dateOfBirth: worker.dateOfBirth || "",
+          gender: worker.gender || "Male",
+          
+          department: isCustom ? "Other" : (initialDept || "Fabrication"),
+          designation: worker.designation || "",
+          role: worker.role || "Worker",
+          joiningDate: worker.joiningDate || "",
+          employmentStatus: worker.employmentStatus || "Active",
         
         shiftType: worker.shiftType || "General Shift",
         shiftStart: worker.shiftStart || "09:30",
@@ -112,6 +125,8 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
         ...prev,
         employeeId: "Auto-generated on save"
       }));
+      setIsCustomDepartment(false);
+      setCustomDepartment("");
     }
   }, [worker, open]);
 
@@ -120,9 +135,11 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     setIsSubmitting(true);
     
     try {
+      const finalDepartment = isCustomDepartment ? customDepartment : form.department;
       
       const payload = {
         ...form,
+        department: finalDepartment,
         salaryProfile: {
           salaryType: form.salaryType,
           monthlySalary: form.monthlySalary ? parseFloat(form.monthlySalary) : null,
@@ -238,17 +255,30 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
               <div className="px-6 grid grid-cols-2 gap-4">
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Department</Label>
-                  <Select value={form.department} onValueChange={v => setForm({...form, department: v})}>
+                  <Select 
+                    value={form.department} 
+                    onValueChange={v => {
+                      setForm({...form, department: v});
+                      setIsCustomDepartment(v === "Other");
+                    }}
+                  >
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select dept" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Fabrication">Fabrication</SelectItem>
-                      <SelectItem value="Paint">Paint</SelectItem>
-                      <SelectItem value="Assembly">Assembly</SelectItem>
-                      <SelectItem value="Quality">Quality</SelectItem>
-                      <SelectItem value="Dispatch">Dispatch</SelectItem>
-                      <SelectItem value="Management">Management</SelectItem>
+                      {KNOWN_DEPARTMENTS.map(dept => (
+                        <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                      ))}
+                      <SelectItem value="Other">Other (Type custom)</SelectItem>
                     </SelectContent>
                   </Select>
+                  {isCustomDepartment && (
+                    <Input 
+                      placeholder="Enter custom department" 
+                      value={customDepartment}
+                      onChange={e => setCustomDepartment(e.target.value)}
+                      className="mt-2"
+                      required
+                    />
+                  )}
                 </div>
                 <div className="col-span-2 sm:col-span-1">
                   <Label>Role</Label>

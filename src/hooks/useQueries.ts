@@ -10,21 +10,22 @@ import {
   notificationsApi,
   attendanceApi,
   payrollApi,
-  jobsApi
+  jobsApi,
+  performanceApi
 } from "@/lib/api";
 import type { Vehicle, Worker, QCRecord, DispatchRecord, ActivityEvent } from "@/types";
 
-export function useVehicles() {
-  return useQuery<Vehicle[]>({
-    queryKey: ["vehicles"],
-    queryFn: vehiclesApi.getAll,
+export function useVehicles(params?: { page?: number; pageSize?: number; search?: string }) {
+  return useQuery<any>({
+    queryKey: ["vehicles", params?.page, params?.pageSize, params?.search],
+    queryFn: () => vehiclesApi.getAll(params),
   });
 }
 
-export function useWorkers() {
-  return useQuery<Worker[]>({
-    queryKey: ["workers"],
-    queryFn: workersApi.getAll,
+export function useWorkers(params?: { page?: number; pageSize?: number; search?: string; department?: string; status?: string }) {
+  return useQuery<any>({
+    queryKey: ["workers", params?.page, params?.pageSize, params?.search, params?.department, params?.status],
+    queryFn: () => workersApi.getAll(params),
   });
 }
 
@@ -35,6 +36,28 @@ export function useWorkerPerformance(month?: string) {
   });
 }
 
+export function usePerformanceDashboard(params?: { date?: string; month?: string; department?: string; supervisor_id?: number }) {
+  return useQuery({
+    queryKey: ["performanceDashboard", params?.date, params?.month, params?.department, params?.supervisor_id],
+    queryFn: () => performanceApi.getDashboard(params),
+  });
+}
+
+export function usePerformanceWorkers(params?: { date?: string; page?: number; page_size?: number; search?: string; sort_by?: string; sort_order?: string; department?: string }) {
+  return useQuery({
+    queryKey: ["performanceWorkers", params?.date, params?.page, params?.page_size, params?.search, params?.sort_by, params?.sort_order, params?.department],
+    queryFn: () => performanceApi.getWorkers(params),
+  });
+}
+
+export function usePerformanceWorker(workerId: string | number | null, params?: { date?: string; history_days?: number }) {
+  return useQuery({
+    queryKey: ["performanceWorker", workerId, params?.date, params?.history_days],
+    queryFn: () => workerId ? performanceApi.getWorker(workerId, params) : null,
+    enabled: !!workerId
+  });
+}
+
 export function useAttendanceSettings() {
   return useQuery({
     queryKey: ["attendanceSettings"],
@@ -42,24 +65,24 @@ export function useAttendanceSettings() {
   });
 }
 
-export function useQCRecords() {
-  return useQuery<QCRecord[]>({
-    queryKey: ["qcRecords"],
-    queryFn: qualityApi.getAll,
+export function useQCRecords(params?: { page?: number; pageSize?: number; search?: string }) {
+  return useQuery<any>({
+    queryKey: ["qcRecords", params?.page, params?.pageSize, params?.search],
+    queryFn: () => qualityApi.getAll(params),
   });
 }
 
-export function useDispatchRecords() {
-  return useQuery<DispatchRecord[]>({
-    queryKey: ["dispatchRecords"],
-    queryFn: dispatchApi.getAll,
+export function useDispatchRecords(params?: { page?: number; pageSize?: number; search?: string }) {
+  return useQuery<any>({
+    queryKey: ["dispatchRecords", params?.page, params?.pageSize, params?.search],
+    queryFn: () => dispatchApi.getAll(params),
   });
 }
 
-export function useInvoices() {
-  return useQuery<any[]>({
-    queryKey: ["invoices"],
-    queryFn: invoicesApi.getAll,
+export function useInvoices(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string }) {
+  return useQuery<any>({
+    queryKey: ["invoices", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.vendor, params?.department, params?.category],
+    queryFn: () => invoicesApi.getAll(params),
   });
 }
 
@@ -98,10 +121,10 @@ export function useAttendanceAnalytics() {
   });
 }
 
-export function useAttendanceLogs() {
-  return useQuery({
-    queryKey: ["attendanceLogs"],
-    queryFn: () => attendanceApi.getLogs(),
+export function useAttendanceLogs(params?: { page?: number; pageSize?: number; search?: string; status?: string; department?: string; date_from?: string; date_to?: string }) {
+  return useQuery<any>({
+    queryKey: ["attendanceLogs", params?.page, params?.pageSize, params?.search, params?.status, params?.department, params?.date_from, params?.date_to],
+    queryFn: () => attendanceApi.getLogs(params),
   });
 }
 
@@ -331,10 +354,10 @@ export function useUpdateInvoice() {
 }
 
 // Revenue Hooks
-export function useRevenue() {
-  return useQuery<any[]>({
-    queryKey: ["revenue"],
-    queryFn: revenueApi.getAll,
+export function useRevenue(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string }) {
+  return useQuery<any>({
+    queryKey: ["revenue", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.customer, params?.oem, params?.work_type, params?.start_date, params?.end_date],
+    queryFn: () => revenueApi.getAll(params),
   });
 }
 

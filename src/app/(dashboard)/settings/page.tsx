@@ -43,6 +43,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
+import { Pagination } from "@/components/ui/Pagination";
 
 type SettingsSection =
   | "profile"
@@ -90,12 +91,10 @@ const SECTIONS: {
 ];
 
 const ROLES = [
-  "Factory Owner",
-  "Production Manager",
-  "Supervisor",
-  "Worker",
-  "Quality Inspector",
-  "Dispatch Team",
+  "admin",
+  "manager",
+  "supervisor",
+  "oem",
 ];
 
 const TIMEZONES = [
@@ -181,22 +180,30 @@ const LOGIN_HISTORY = [
 ];
 
 function RoleBadge({ userRole }: { userRole: string }) {
-  const role = userRole;
+  if (!userRole) return null;
+  const role = userRole.toLowerCase();
   const color =
-    role === "Factory Owner"
+    role === "admin" || role === "factory owner"
       ? "bg-primary/10 text-primary border-primary/20"
-      : role === "Production Manager"
+      : role === "manager" || role === "production manager"
         ? "bg-warning/10 text-warning border-warning/20"
-        : role === "Quality Inspector"
-          ? "bg-success/10 text-success border-success/20"
-          : role === "Supervisor"
-            ? "bg-secondary text-secondary-foreground border-border"
+        : role === "supervisor"
+          ? "bg-secondary text-secondary-foreground border-border"
+          : role === "oem"
+            ? "bg-success/10 text-success border-success/20"
             : "bg-muted text-muted-foreground border-border";
+
+  let label = userRole;
+  if (role === "admin" || role === "factory owner") label = "Admin";
+  else if (role === "manager" || role === "production manager") label = "Manager";
+  else if (role === "supervisor") label = "Supervisor";
+  else if (role === "oem") label = "OEM";
+
   return (
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium border ${color}`}
     >
-      {role}
+      {label}
     </span>
   );
 }
@@ -534,18 +541,24 @@ function FactorySection() {
 
 function TeamSection() {
   const queryClient = useQueryClient();
-  const { data: team = [], isLoading } = useQuery({
-    queryKey: ["teamMembers"],
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const { data: teamData, isLoading } = useQuery({
+    queryKey: ["teamMembers", page, pageSize],
     queryFn: async () => {
-      const res = await api.get("/users");
+      const res = await api.get("/users", { params: { page, page_size: pageSize } });
       return res.data;
     }
   });
+  const team = teamData?.items ?? [];
+  const totalTeam = teamData?.total ?? 0;
+  const totalPages = teamData?.total_pages ?? 1;
 
   const [showInvite, setShowInvite] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteName, setInviteName] = useState("");
-  const [inviteRole, setInviteRole] = useState(ROLES[3]);
+  const [inviteRole, setInviteRole] = useState(ROLES[1]);
 
   const inviteMutation = useMutation({
     mutationFn: async (payload: any) => {
@@ -649,7 +662,15 @@ function TeamSection() {
                 <SelectContent>
                   {ROLES.map((r) => (
                     <SelectItem key={r} value={r}>
-                      {r}
+                      {r === "admin"
+                        ? "Admin"
+                        : r === "manager"
+                          ? "Manager"
+                          : r === "supervisor"
+                            ? "Supervisor"
+                            : r === "oem"
+                              ? "OEM"
+                              : r}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -678,7 +699,7 @@ function TeamSection() {
           </motion.div>
         )}
       </AnimatePresence>
-      <div className="border border-border rounded-lg overflow-hidden shadow-subtle">
+      <div className="border border-border rounded-lg overflow-hidden shadow-subtle mb-4">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30">
@@ -719,7 +740,7 @@ function TeamSection() {
                 </td>
                 <td className="px-4 py-3">
                   <button
-                    type="button"
+                     type="button"
                     onClick={() => remove(m.id)}
                     className="text-muted-foreground hover:text-destructive transition-colors"
                     data-ocid={`settings.team.delete_button.${i + 1}`}
@@ -732,6 +753,15 @@ function TeamSection() {
           </tbody>
         </table>
       </div>
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={totalTeam}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        isLoading={isLoading}
+      />
     </SectionCard>
   );
 }

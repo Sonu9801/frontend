@@ -39,7 +39,8 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
 
   const { data: analytics } = useAttendanceAnalytics();
-  const { data: logs } = useAttendanceLogs();
+  const { data: logsData } = useAttendanceLogs({ pageSize: 1000 });
+  const logs = logsData?.items ?? [];
   const { data: payrollSummary } = usePayrollSummary();
 
   const totalEmployees = analytics?.total || 0;

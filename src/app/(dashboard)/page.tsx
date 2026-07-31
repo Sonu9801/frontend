@@ -134,7 +134,8 @@ function ActivityItem({
 }
 
 export default function DashboardPage() {
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
   const { searchQuery } = useUIStore();
 

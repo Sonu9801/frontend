@@ -291,10 +291,14 @@ function QCRecordRow({ record, index }: { record: QCRecord; index: number }) {
 
 export default function VehicleDetailPage() {
   const { id } = useParams() as { id: string };
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: workers = [], isLoading: isLoadingWorkers } = useWorkers();
-  const { data: qcRecords = [], isLoading: isLoadingQC } = useQCRecords();
-  const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData, isLoading: isLoadingWorkers } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
+  const { data: qcData, isLoading: isLoadingQC } = useQCRecords({ pageSize: 1000 });
+  const qcRecords = qcData?.items ?? [];
+  const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({ pageSize: 1000 });
+  const dispatchRecords = dispatchData?.items ?? [];
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
 
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
@@ -798,12 +802,12 @@ export default function VehicleDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-2.5">
-                    {assignedWorkers.map((w) => (
+                    {assignedWorkers.map((w: any) => (
                       <div key={w.id} className="flex items-center gap-2.5">
                         <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center text-primary text-[10px] font-bold flex-shrink-0 font-display">
                           {w.name
                             .split(" ")
-                            .map((n) => n[0])
+                            .map((n: string) => n[0])
                             .join("")}
                         </div>
                         <div className="min-w-0 flex-1">
@@ -1008,7 +1012,7 @@ export default function VehicleDetailPage() {
                   </div>
                 </div>
               ) : (
-                vehicleQC.map((qc, i) => (
+                vehicleQC.map((qc: any, i: number) => (
                   <QCRecordRow key={qc.id} record={qc} index={i} />
                 ))
               )}

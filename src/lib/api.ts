@@ -1,7 +1,10 @@
 import axios from "axios";
 
 const getApiUrl = () => {
-  if (typeof window === "undefined") return process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000/api";
+  if (typeof window === "undefined") {
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+    return `${base}/api`;
+  }
   return "/api";
 };
 
@@ -9,6 +12,7 @@ const API_URL = getApiUrl();
 
 export const api = axios.create({
   baseURL: API_URL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
     "ngrok-skip-browser-warning": "true"
@@ -53,8 +57,86 @@ const processQueue = (error: any, token: string | null = null) => {
 };
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Backwards-compatibility for older live backend returning flat arrays
+    if (Array.isArray(response.data) && response.config.url && (
+      response.config.url.includes("/workers") ||
+      response.config.url.includes("/vehicles") ||
+      response.config.url.includes("/invoices") ||
+      response.config.url.includes("/revenue") ||
+      response.config.url.includes("/quality") ||
+      response.config.url.includes("/dispatch") ||
+      response.config.url.includes("/users") ||
+      response.config.url.includes("/attendance/logs/detailed")
+    )) {
+      let items = [...response.data];
+      const params = response.config.params || {};
+
+      // 1. Client-side Search Filter
+      if (params.search) {
+        const query = params.search.toLowerCase().trim();
+        items = items.filter((item: any) => 
+          (item.name && item.name.toLowerCase().includes(query)) ||
+          (item.employee_id && item.employee_id.toLowerCase().includes(query)) ||
+          (item.employeeId && item.employeeId.toLowerCase().includes(query)) ||
+          (item.vehicleNumber && item.vehicleNumber.toLowerCase().includes(query)) ||
+          (item.trackingId && item.trackingId.toLowerCase().includes(query)) ||
+          (item.oemName && item.oemName.toLowerCase().includes(query))
+        );
+      }
+
+      // 2. Client-side Department Filter
+      if (params.department && params.department !== "All") {
+        const dept = params.department.toLowerCase().trim();
+        items = items.filter((item: any) => 
+          (item.department && item.department.toLowerCase() === dept) ||
+          (item.department && dept === "qc" && item.department.toLowerCase() === "quality") ||
+          (item.department && dept === "quality" && item.department.toLowerCase() === "qc")
+        );
+      }
+
+      // 3. Client-side Status Filter
+      if (params.status && params.status !== "All") {
+        const status = params.status.toLowerCase().trim();
+        items = items.filter((item: any) => 
+          item.status && item.status.toLowerCase() === status
+        );
+      }
+
+      // 4. Client-side Pagination
+      const page = params.page ? parseInt(params.page) : 1;
+      const pageSize = params.page_size ? parseInt(params.page_size) : 10;
+      const total = items.length;
+      const totalPages = Math.max(1, Math.ceil(total / pageSize));
+      const offset = (page - 1) * pageSize;
+      const paginatedItems = items.slice(offset, offset + pageSize);
+
+      response.data = {
+        items: paginatedItems,
+        total: total,
+        page: page,
+        page_size: pageSize,
+        total_pages: totalPages
+      };
+    }
+    return response;
+  },
   async (error) => {
+    // Normalize Pydantic validation errors (arrays of objects) into a clean string to prevent React rendering crashes
+    if (error.response?.data?.detail) {
+      const detail = error.response.data.detail;
+      if (Array.isArray(detail)) {
+        error.response.data.detail = detail
+          .map((err: any) => {
+            const field = err.loc ? err.loc[err.loc.length - 1] : "";
+            return `${field ? `'${field}' ` : ""}${err.msg}`;
+          })
+          .join(", ");
+      } else if (typeof detail === "object") {
+        error.response.data.detail = JSON.stringify(detail);
+      }
+    }
+
     const originalRequest = error.config;
     
     // Ignore if the request was to /auth/login, /auth/refresh, or /auth/register to prevent infinite loops
@@ -79,11 +161,12 @@ api.interceptors.response.use(
 
       try {
         const refreshToken = typeof window !== "undefined" ? (localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken")) : null;
-        if (!refreshToken) {
-          throw new Error("No refresh token available");
-        }
         
-        const response = await axios.post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken });
+        const response = await axios.post(
+          `${API_URL}/auth/refresh`,
+          refreshToken ? { refresh_token: refreshToken } : {},
+          { withCredentials: true }
+        );
         const newToken = response.data.access_token;
         
         if (typeof window !== "undefined") {
@@ -105,16 +188,21 @@ api.interceptors.response.use(
         processQueue(null, newToken);
         originalRequest.headers.Authorization = 'Bearer ' + newToken;
         return api(originalRequest);
-      } catch (err) {
+      } catch (err: any) {
         processQueue(err, null);
-        if (typeof window !== "undefined") {
-          const isWorker = !!localStorage.getItem("worker_token");
-          if (isWorker) {
-            localStorage.clear();
-            window.location.href = '/workforce/login';
-          } else {
-            useAuthStore.getState().logout();
-            window.location.href = '/login';
+        
+        // Only log out if it's an actual rejection from the server (e.g. 401/400) 
+        // and not just a network drop/timeout.
+        if (err.response && (err.response.status === 401 || err.response.status === 400 || err.response.status === 403)) {
+          if (typeof window !== "undefined") {
+            const isWorker = !!localStorage.getItem("worker_token");
+            if (isWorker) {
+              localStorage.clear();
+              window.location.href = '/workforce/login';
+            } else {
+              useAuthStore.getState().logout();
+              window.location.href = '/login';
+            }
           }
         }
         return Promise.reject(err);
@@ -140,10 +228,24 @@ api.interceptors.response.use(
 );
 
 export const authApi = {
-  register: async (email: string, name: string, role = "operator", dealer_name?: string) => {
+  register: async (email: string, name: string, password?: string, role = "operator", dealer_name?: string) => {
     const payload: any = { email, name, role };
+    if (password) payload.password = password;
     if (dealer_name) payload.dealer_name = dealer_name;
     const response = await api.post("/auth/register", payload);
+    return response.data;
+  },
+  login: async (username: string, password: string) => {
+    const formData = new URLSearchParams();
+    formData.append("username", username);
+    formData.append("password", password);
+    const response = await api.post("/auth/login", formData, {
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    });
+    return response.data;
+  },
+  logout: async () => {
+    const response = await api.post("/auth/logout");
     return response.data;
   },
   requestOtp: async (email: string) => {
@@ -154,8 +256,13 @@ export const authApi = {
     const response = await api.post("/auth/verify-otp", { email, otp_code });
     return response.data;
   },
-  refresh: async (refreshToken: string) => {
-    const response = await api.post("/auth/refresh", { refresh_token: refreshToken });
+  refresh: async (refreshToken?: string) => {
+    const payload = refreshToken ? { refresh_token: refreshToken } : {};
+    const response = await api.post("/auth/refresh", payload);
+    return response.data;
+  },
+  getSetupStatus: async () => {
+    const response = await api.get("/auth/setup-status");
     return response.data;
   },
   me: async () => {
@@ -165,8 +272,8 @@ export const authApi = {
 };
 
 export const vehiclesApi = {
-  getAll: async () => {
-    const response = await api.get("/vehicles");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string }) => {
+    const response = await api.get("/vehicles", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -204,8 +311,8 @@ export const vehiclesApi = {
 };
 
 export const workersApi = {
-  getAll: async () => {
-    const response = await api.get("/workers");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; department?: string; status?: string }) => {
+    const response = await api.get("/workers", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search, department: params?.department, status: params?.status } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -244,8 +351,8 @@ export const workersApi = {
 };
 
 export const qualityApi = {
-  getAll: async () => {
-    const response = await api.get("/quality");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string }) => {
+    const response = await api.get("/quality", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -279,8 +386,8 @@ export const qualityApi = {
 };
 
 export const dispatchApi = {
-  getAll: async () => {
-    const response = await api.get("/dispatch");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string }) => {
+    const response = await api.get("/dispatch", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search } });
     return response.data;
   },
   create: async (data: any) => {
@@ -298,8 +405,8 @@ export const dispatchApi = {
 };
 
 export const invoicesApi = {
-  getAll: async () => {
-    const response = await api.get("/invoices");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string }) => {
+    const response = await api.get("/invoices", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -337,8 +444,8 @@ export const invoicesApi = {
 };
 
 export const revenueApi = {
-  getAll: async () => {
-    const response = await api.get("/revenue");
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string }) => {
+    const response = await api.get("/revenue", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -414,8 +521,8 @@ export const attendanceApi = {
     const response = await api.get("/attendance/analytics");
     return response.data;
   },
-  getLogs: async () => {
-    const response = await api.get("/attendance/logs/detailed");
+  getLogs: async (params?: { page?: number; pageSize?: number; search?: string; status?: string; department?: string; date_from?: string; date_to?: string }) => {
+    const response = await api.get("/attendance/logs/detailed", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
     return response.data;
   },
   getAll: async () => {
@@ -496,12 +603,20 @@ export const jobsApi = {
     const response = await api.post("/jobs/assign", data);
     return response.data;
   },
+  getWorkerTodayJobs: async (workerId: string | number) => {
+    const response = await api.get(`/jobs/worker/${workerId}/today`);
+    return response.data;
+  },
   getWorkerJobs: async (workerId: string | number) => {
     const response = await api.get(`/jobs/worker/${workerId}`);
     return response.data;
   },
   updateStatus: async (jobId: string | number, data: any) => {
     const response = await api.patch(`/jobs/${jobId}/status`, data);
+    return response.data;
+  },
+  getWorkerJobHistory: async (workerId: string | number) => {
+    const response = await api.get(`/jobs/worker/${workerId}/history`);
     return response.data;
   }
 };
@@ -558,6 +673,29 @@ export const componentsApi = {
   },
   getAllTasks: async () => {
     const response = await api.get("/components");
+    return response.data;
+  },
+  deleteTask: async (task_id: number) => {
+    const response = await api.delete(`/components/${task_id}`);
+    return response.data;
+  }
+};
+
+export const performanceApi = {
+  getDashboard: async (params?: { date?: string; month?: string; department?: string; supervisor_id?: number }) => {
+    const response = await api.get("/performance/dashboard", { params });
+    return response.data;
+  },
+  getWorkers: async (params?: { date?: string; page?: number; page_size?: number; search?: string; sort_by?: string; sort_order?: string; department?: string }) => {
+    const response = await api.get("/performance/workers", { params });
+    return response.data;
+  },
+  getWorker: async (workerId: string | number, params?: { date?: string; history_days?: number }) => {
+    const response = await api.get(`/performance/worker/${workerId}`, { params });
+    return response.data;
+  },
+  approveWorker: async (workerId: string | number, data: { date?: string; remarks?: string; status?: string }) => {
+    const response = await api.post(`/performance/worker/${workerId}/approve`, data);
     return response.data;
   }
 };

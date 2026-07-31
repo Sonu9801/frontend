@@ -24,7 +24,8 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(false);
   const [selectedStage, setSelectedStage] = useState<string>(stage || "Platform");
-  
+  const [customStage, setCustomStage] = useState<string>("");
+
   // Only show active workforce
   const availableWorkers = workers.filter(w => w.employmentStatus === "Active");
 
@@ -49,16 +50,18 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
     }
     if (!vehicle) return;
     
+    const finalStage = selectedStage === "Other" ? (customStage.trim() || "other") : selectedStage.toLowerCase();
+
     setLoading(true);
     try {
       await jobsApi.assign({
         vehicle_id: parseInt(vehicle.id, 10),
-        stage: selectedStage.toLowerCase(), // sending the selected stage from dropdown
+        stage: finalStage, // sending the selected or custom stage
         worker_ids: Array.from(selectedWorkerIds),
         expected_duration_minutes: 120, // Default duration
         supervisor_id: user?.id,
       });
-      toast.success(`Job assigned successfully for ${selectedStage}`);
+      toast.success(`Job assigned successfully for ${finalStage}`);
       onAssignComplete();
     } catch (error: any) {
       toast.error(error.response?.data?.detail || "Failed to assign job");
@@ -89,9 +92,26 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
               <option value="Gate">Gate</option>
               <option value="Aircutter">Aircutter</option>
               <option value="Paint">Paint</option>
+              <option value="Model">Model</option>
+              <option value="Band">Band</option>
+              <option value="Cutting">Cutting</option>
               <option value="Other">Other</option>
             </select>
           </div>
+
+          {selectedStage === "Other" && (
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-2 block">Specify Custom Stage / Work Name</label>
+              <Input 
+                type="text" 
+                placeholder="Type custom stage name..."
+                value={customStage}
+                onChange={(e) => setCustomStage(e.target.value)}
+                className="h-10 text-sm bg-background"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-semibold text-muted-foreground mb-2 block">Platform No.</label>

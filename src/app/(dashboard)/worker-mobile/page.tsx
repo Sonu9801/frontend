@@ -551,8 +551,10 @@ function HistorySheet({ onClose }: { onClose: () => void }) {
 }
 
 export default function WorkerMobilePage() {
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: workers = [], isLoading: isLoadingWorkers } = useWorkers();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData, isLoading: isLoadingWorkers } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
 
   const updateStageMutation = useUpdateVehicleStage();
 
@@ -729,7 +731,7 @@ export default function WorkerMobilePage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {queuedVehicles.map((vehicle, i) => (
+                {queuedVehicles.map((vehicle: any, i: number) => (
                   <JobQueueCard
                     key={vehicle.id}
                     vehicle={vehicle}

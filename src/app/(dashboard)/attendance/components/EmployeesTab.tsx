@@ -7,26 +7,43 @@ import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
+import { useWorkers } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
+
 interface EmployeesTabProps {
-  workers: Worker[];
-  isLoading: boolean;
+  // no longer passing workers down, fetching inside component
 }
 
-export default function EmployeesTab({ workers, isLoading }: EmployeesTabProps) {
+const KNOWN_DEPARTMENTS = [
+  "Fabrication", "Paint", "Assembly", "Quality", "Dispatch", "Management", 
+  "CNC Machine", "Laser Cutting Machine", "Helper", "Welder", "Driver"
+];
+
+export default function EmployeesTab() {
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [departmentFilter, setDepartmentFilter] = useState("All");
+  const [customDeptFilter, setCustomDeptFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState("All");
 
-  const activeEmployees = workers.filter(w => w.employmentStatus === "Active").length;
-  const supervisors = workers.filter(w => w.role === "Supervisor").length;
-
-  const filteredWorkers = workers.filter(w => {
-     if (departmentFilter !== "All" && w.department !== departmentFilter) return false;
-     if (roleFilter !== "All" && w.role !== roleFilter) return false;
-     return true;
+  const { data: workersData, isLoading } = useWorkers({
+    page,
+    pageSize,
+    department: departmentFilter !== "All" && departmentFilter !== "Other" ? departmentFilter : undefined,
   });
+
+  const workers = workersData?.items ?? [];
+  const totalWorkers = workersData?.total ?? 0;
+  const totalPages = workersData?.total_pages ?? 1;
+
+  const activeEmployees = workers.filter((w: any) => w.employmentStatus === "Active").length;
+  const supervisors = workers.filter((w: any) => w.role === "Supervisor").length;
+
+  const uniqueDepartments = KNOWN_DEPARTMENTS;
+
 
   const columns: ColumnDef<Worker>[] = [
     {
@@ -99,21 +116,21 @@ export default function EmployeesTab({ workers, isLoading }: EmployeesTabProps) 
           <div className="p-3 rounded-lg bg-primary/10 text-primary"><Users size={20} /></div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">Total Employees</p>
-            <h3 className="text-2xl font-bold">{workers.length}</h3>
+            <h3 className="text-2xl font-bold">{totalWorkers}</h3>
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
           <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-500"><UserCheck size={20} /></div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">Active Employees</p>
-            <h3 className="text-2xl font-bold">{activeEmployees}</h3>
+            <h3 className="text-2xl font-bold">{activeEmployees} (this page)</h3>
           </div>
         </div>
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
           <div className="p-3 rounded-lg bg-blue-500/10 text-blue-500"><Briefcase size={20} /></div>
           <div>
             <p className="text-xs font-medium text-muted-foreground">Workers / Supervisors</p>
-            <h3 className="text-2xl font-bold">{workers.length - supervisors} / {supervisors}</h3>
+            <h3 className="text-2xl font-bold">{workers.length - supervisors} / {supervisors} (this page)</h3>
           </div>
         </div>
       </div>
@@ -127,16 +144,27 @@ export default function EmployeesTab({ workers, isLoading }: EmployeesTabProps) 
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
              <select 
                value={departmentFilter} 
-               onChange={(e) => setDepartmentFilter(e.target.value)}
+               onChange={(e) => {
+                 setDepartmentFilter(e.target.value);
+                 if (e.target.value !== "Other") setCustomDeptFilter("");
+               }}
                className="flex-1 sm:flex-none bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none"
              >
                <option value="All">All Departments</option>
-               <option value="Fabrication">Fabrication</option>
-               <option value="Assembly">Assembly</option>
-               <option value="Paint">Paint</option>
-               <option value="Quality">Quality</option>
-               <option value="Dispatch">Dispatch</option>
+               {uniqueDepartments.map(dept => (
+                 <option key={dept} value={dept}>{dept}</option>
+               ))}
+               <option value="Other">Other (Custom)</option>
              </select>
+             {departmentFilter === "Other" && (
+                <input 
+                  type="text"
+                  placeholder="Type department..."
+                  value={customDeptFilter}
+                  onChange={(e) => setCustomDeptFilter(e.target.value)}
+                  className="flex-1 sm:flex-none w-32 bg-background border border-input rounded-lg px-3 py-2 text-sm focus:outline-none"
+                />
+             )}
              <select 
                value={roleFilter} 
                onChange={(e) => setRoleFilter(e.target.value)}
@@ -160,13 +188,23 @@ export default function EmployeesTab({ workers, isLoading }: EmployeesTabProps) 
 
         <DataTable
           columns={columns}
-          data={filteredWorkers}
+          data={workers}
           searchKey={(row) => `${row.name} ${row.employeeId} ${row.department} ${row.mobileNumber}`}
           onRowClick={(row) => {
             setSelectedWorker(row);
             setIsProfileOpen(true);
           }}
           rowId={(row) => row.id}
+          hidePagination={true}
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={totalWorkers}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          isLoading={isLoading}
         />
       </div>
 

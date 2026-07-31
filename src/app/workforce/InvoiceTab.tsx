@@ -7,11 +7,12 @@ import { useRouter } from "next/navigation";
 import { AddInvoiceDialog } from "@/components/invoices/AddInvoiceDialog";
 
 export function InvoiceTab({ activeUser }: { activeUser: any }) {
-  const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ["invoices"],
-    queryFn: invoicesApi.getAll,
+  const { data: invoicesData, isLoading } = useQuery({
+    queryKey: ["invoices", 1, 1000],
+    queryFn: () => invoicesApi.getAll({ page: 1, pageSize: 1000 }),
     refetchInterval: 60000,
   });
+  const invoices = invoicesData?.items ?? [];
 
   const { data: stats } = useQuery({
     queryKey: ["invoiceStats"],

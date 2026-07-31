@@ -124,6 +124,20 @@ const STAGE_CONFIG: Record<
     borderClass: "border-l-success",
     progressClass: "bg-success",
   },
+  hold: {
+    label: "On Hold",
+    color: "text-warning",
+    headerClass: "bg-warning/10 border-b border-warning/30",
+    borderClass: "border-l-warning",
+    progressClass: "bg-warning",
+  },
+  readytodispatch: {
+    label: "Ready to Dispatch",
+    color: "text-success",
+    headerClass: "bg-success/10 border-b border-success/30",
+    borderClass: "border-l-success",
+    progressClass: "bg-success",
+  },
 };
 
 const PRODUCT_CATEGORIES = [
@@ -552,8 +566,10 @@ export default function ProductionPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: workers = [] } = useWorkers();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
   
   const [assignJobState, setAssignJobState] = useState<{vehicle: Vehicle, stage: Stage} | null>(null);
 
@@ -616,7 +632,7 @@ export default function ProductionPage() {
   const draggingId = useRef<string | null>(null);
 
   const workerMap = useMemo(() => {
-    return workers.reduce<Record<string, string>>((acc, w) => {
+    return (workers || []).reduce((acc: Record<string, string>, w: any) => {
       acc[w.id] = w.name;
       return acc;
     }, {});

@@ -159,7 +159,12 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   // For now, we display all active (non-completed) platforms as "assigned" platforms for the supervisor.
   const assignedPlatforms = platforms.filter((p: any) => p.current_stage !== "dispatch" && p.current_stage !== "rtd");
 
-  const handleLogoutAction = () => {
+  const handleLogoutAction = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      console.error("Backend logout failed:", e);
+    }
     useAuthStore.getState().logout();
     router.push("/login");
   };

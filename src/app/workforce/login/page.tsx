@@ -128,7 +128,7 @@ export default function WorkerKioskLogin() {
                   Authenticating...
                 </span>
               ) : (
-                "Punch In"
+                "Log In"
               )}
             </Button>
           </form>

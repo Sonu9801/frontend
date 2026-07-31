@@ -6,6 +6,7 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDispatchRecords, useVehicles, useUpdateDispatchRecord } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
 import type { DispatchRecord, Vehicle } from "@/types";
 import { Calendar, ExternalLink, MapPin, Package, Truck, Edit, History, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
@@ -80,7 +81,16 @@ function DispatchExpand({ record }: { record: DispatchRecord }) {
 }
 
 export default function DispatchPage() {
-  const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [carrierFilter, setCarrierFilter] = useState("All");
+
+  const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({ page, pageSize });
+  const dispatchRecords = dispatchData?.items ?? [];
+  const totalDispatch = dispatchData?.total ?? 0;
+  const totalPages = dispatchData?.total_pages ?? 1;
+
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
   const updateDispatchMutation = useUpdateDispatchRecord();
 
@@ -91,9 +101,6 @@ export default function DispatchPage() {
   const [editRecord, setEditRecord] = useState<DispatchRecord | null>(null);
   const [historyRecord, setHistoryRecord] = useState<DispatchRecord | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [carrierFilter, setCarrierFilter] = useState("All");
-
   const stats = useMemo(() => {
     const scheduled = dispatchRecords.filter((d: DispatchRecord) => d.status.toLowerCase() === "scheduled").length;
     const inTransit = dispatchRecords.filter((d: DispatchRecord) => d.status.toLowerCase() === "in_transit").length;
@@ -101,15 +108,15 @@ export default function DispatchPage() {
     return { scheduled, inTransit, delivered };
   }, [dispatchRecords]);
 
+  // Client-side carrier filter (carrier not in backend filter yet)
   const filtered = useMemo(() => {
     return dispatchRecords.filter((d: DispatchRecord) => {
       const statusOk = statusFilter === "All" || d.status.toLowerCase() === statusFilter.toLowerCase();
-      const carrierOk =
-        carrierFilter === "All" ||
-        d.carrier.toLowerCase().includes(carrierFilter.toLowerCase());
+      const carrierOk = carrierFilter === "All" || d.carrier.toLowerCase().includes(carrierFilter.toLowerCase());
       return statusOk && carrierOk;
     });
   }, [dispatchRecords, statusFilter, carrierFilter]);
+
 
   const columns: ColumnDef<DispatchRecord>[] = useMemo(() => [
     {
@@ -293,6 +300,7 @@ export default function DispatchPage() {
         columns={columns}
         data={filtered}
         rowId={(d) => String(d.id)}
+        hidePagination={true}
         searchKey={(d) => {
           const v = vehicles.find((v: Vehicle) => v.id === d.vehicleId.toString());
           return `${v?.trackingId ?? d.vehicleId} ${v?.vehicleNumber ?? ""} ${d.carrier} ${d.trackingNumber}`;
@@ -329,7 +337,7 @@ export default function DispatchPage() {
           <>
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               data-ocid="dispatch.status_filter"
               className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
@@ -358,6 +366,15 @@ export default function DispatchPage() {
             </select>
           </>
         }
+      />
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={totalDispatch}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        isLoading={isLoadingDispatch}
       />
 
       <EditRecordDialog

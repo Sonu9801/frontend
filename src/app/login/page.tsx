@@ -9,25 +9,24 @@ import { Button } from "@/components/ui/button";
 import { Loader2, ArrowRight, Mail, ShieldCheck, UserPlus, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-type AuthStep = "email" | "otp" | "register";
+type AuthStep = "login" | "register" | "accept-invite";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [password, setPassword] = useState("");
   const [regName, setRegName] = useState("");
   const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
   const [regRole, setRegRole] = useState("operator");
   const [regDealerName, setRegDealerName] = useState("");
 
-  const [step, setStep] = useState<AuthStep>("email");
+  const [step, setStep] = useState<AuthStep>("login");
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
-  const [otpSentEmail, setOtpSentEmail] = useState("");
+  const [setupRequired, setSetupRequired] = useState(false);
 
   const router = useRouter();
   const { login: loginStore, initialize } = useAuthStore();
-
-  const otpRefs = React.useRef<(HTMLInputElement | null)[]>([]);
 
   React.useEffect(() => {
     initialize();
@@ -42,73 +41,53 @@ export default function LoginPage() {
       } else {
         router.push("/");
       }
-    } else {
-      setCheckingAuth(false);
+      return;
     }
+
+    // Check search params for invite/error
+    const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const emailParam = searchParams?.get("email") || "";
+    const inviteParam = searchParams?.get("invite") === "true";
+    const errorParam = searchParams?.get("error") || "";
+
+    if (errorParam === "invite_only") {
+      toast.error("This Google account has not been invited. Please contact your system administrator.");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+
+    const checkSetupAndInvite = async () => {
+      try {
+        const { setup_required } = await authApi.getSetupStatus();
+        setSetupRequired(setup_required);
+        
+        if (setup_required) {
+          setRegRole("admin");
+          setStep("register");
+        } else if (inviteParam && emailParam) {
+          setRegEmail(emailParam);
+          setStep("accept-invite");
+        }
+      } catch (err) {
+        console.error("Failed to check setup status:", err);
+      } finally {
+        setCheckingAuth(false);
+      }
+    };
+
+    checkSetupAndInvite();
   }, [initialize, router]);
 
-  const handleOtpChange = (index: number, value: string) => {
-    if (value.length > 1) value = value.slice(-1);
-    if (value && !/^\d$/.test(value)) return;
-
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    if (value && index < 5) {
-      otpRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
-      otpRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handleOtpPaste = (e: React.ClipboardEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
-    if (pasted.length === 6) {
-      setOtp(pasted.split(""));
-      otpRefs.current[5]?.focus();
-    }
-  };
-
-  const handleRequestOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email) {
-      toast.error("Please enter your email address");
+    if (!email || !password) {
+      toast.error("Please enter email/mobile and password");
       return;
     }
 
     setLoading(true);
     try {
-      await authApi.requestOtp(email);
-      setOtpSentEmail(email);
-      setStep("otp");
-      toast.success("OTP sent to your email!");
-    } catch (err: any) {
-      console.error(err);
-      const detail = err.response?.data?.detail || "Failed to send OTP";
-      toast.error(detail);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const otpCode = otp.join("");
-    if (otpCode.length !== 6) {
-      toast.error("Please enter the complete 6-digit OTP");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await authApi.verifyOtp(otpSentEmail, otpCode);
-      loginStore(data.access_token, data.refresh_token, data.email, data.name, data.role);
+      const data = await authApi.login(email, password);
+      loginStore(data.access_token, data.refresh_token, data.email || data.username, data.name, data.role);
       toast.success("Successfully signed in!");
       if (data.role?.toLowerCase() === "worker") {
         router.push("/workforce");
@@ -119,7 +98,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error(err);
-      const detail = err.response?.data?.detail || "Invalid OTP";
+      const detail = err.response?.data?.detail || "Incorrect username or password";
       toast.error(detail);
     } finally {
       setLoading(false);
@@ -128,17 +107,29 @@ export default function LoginPage() {
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!regEmail || !regName) {
+    if (!regEmail || !regName || !regPassword) {
       toast.error("Please fill in all fields");
+      return;
+    }
+    if (regPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
       return;
     }
 
     setLoading(true);
     try {
-      await authApi.register(regEmail, regName, regRole, regRole === "oem" ? regDealerName : undefined);
+      await authApi.register(
+        regEmail,
+        regName,
+        regPassword,
+        regRole,
+        regRole === "oem" ? regDealerName : undefined
+      );
       toast.success("Account created! You can now sign in.");
       setEmail(regEmail);
-      setStep("email");
+      setPassword(regPassword);
+      setSetupRequired(false);
+      setStep("login");
     } catch (err: any) {
       console.error(err);
       const detail = err.response?.data?.detail || "Registration failed";
@@ -148,17 +139,11 @@ export default function LoginPage() {
     }
   };
 
-  const handleResendOtp = async () => {
-    setLoading(true);
-    try {
-      await authApi.requestOtp(otpSentEmail);
-      setOtp(["", "", "", "", "", ""]);
-      toast.success("New OTP sent!");
-    } catch (err: any) {
-      toast.error(err.response?.data?.detail || "Failed to resend OTP");
-    } finally {
-      setLoading(false);
-    }
+  const handleGoogleLogin = () => {
+    // Must be absolute URL to backend (not proxied), since this is a browser redirect.
+    // NEXT_PUBLIC_API_URL is the backend host (e.g. http://localhost:8000)
+    const backendHost = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+    window.location.href = `${backendHost}/api/auth/google`;
   };
 
   if (checkingAuth) {
@@ -235,10 +220,10 @@ export default function LoginPage() {
 
           <div className="bg-card/60 glass-effect border border-border/50 rounded-2xl p-8 shadow-elevated">
             <AnimatePresence mode="wait">
-              {/* ─── STEP 1: Email Input ─── */}
-              {step === "email" && (
+              {/* ─── STEP 1: Login Form ─── */}
+              {step === "login" && (
                 <motion.div
-                  key="email-step"
+                  key="login-step"
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 20 }}
@@ -252,18 +237,32 @@ export default function LoginPage() {
                       <h2 className="text-2xl font-display font-bold">Welcome Back</h2>
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-sm mb-8">Enter your email to receive a one-time verification code.</p>
+                  <p className="text-muted-foreground text-sm mb-6">Enter your credentials or use social single sign-on.</p>
 
-                  <form onSubmit={handleRequestOtp} className="space-y-5">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email Address</label>
+                  <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Email or Mobile</label>
                       <input
-                        type="email"
+                        type="text"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@company.com"
-                        className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
                         autoFocus
+                        suppressHydrationWarning
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between items-center">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Password</label>
+                      </div>
+                      <input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
                         suppressHydrationWarning
                       />
                     </div>
@@ -278,11 +277,11 @@ export default function LoginPage() {
                         {loading ? (
                           <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Sending OTP
+                            Signing In
                           </>
                         ) : (
                           <>
-                            Send Verification Code
+                            Sign In
                             <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
                           </>
                         )}
@@ -290,21 +289,33 @@ export default function LoginPage() {
                     </div>
                   </form>
 
-                  <div className="mt-6 pt-6 border-t border-border/50 text-center flex flex-col gap-3">
-                    <p className="text-sm text-muted-foreground">
-                      Don&apos;t have an account?{" "}
-                      <button
-                        onClick={() => setStep("register")}
-                        className="text-primary font-semibold hover:underline underline-offset-4 transition-colors"
-                      >
-                        Create one
-                      </button>
-                    </p>
+
+
+                  <div className="mt-6 pt-5 border-t border-border/50 text-center flex flex-col gap-2.5">
+                    {setupRequired ? (
+                      <p className="text-sm text-muted-foreground">
+                        System setup is required.{" "}
+                        <button
+                          type="button"
+                          onClick={() => setStep("register")}
+                          className="text-primary font-semibold hover:underline underline-offset-4 transition-colors"
+                          suppressHydrationWarning
+                        >
+                          Setup Admin Account
+                        </button>
+                      </p>
+                    ) : (
+                      <p className="text-sm text-muted-foreground" suppressHydrationWarning>
+                        Registration is invite-only. If you have been invited, please check your email.
+                      </p>
+                    )}
                     <p className="text-sm text-muted-foreground">
                       Are you a worker?{" "}
                       <button
+                        type="button"
                         onClick={() => router.push("/workforce/login")}
                         className="text-primary font-semibold hover:underline underline-offset-4 transition-colors"
+                        suppressHydrationWarning
                       >
                         Log in here
                       </button>
@@ -313,91 +324,8 @@ export default function LoginPage() {
                 </motion.div>
               )}
 
-              {/* ─── STEP 2: OTP Verification ─── */}
-              {step === "otp" && (
-                <motion.div
-                  key="otp-step"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: -20 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <button
-                    onClick={() => { setStep("email"); setOtp(["", "", "", "", "", ""]); }}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back
-                  </button>
-
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
-                      <ShieldCheck className="w-5 h-5 text-green-500" />
-                    </div>
-                    <div>
-                      <h2 className="text-2xl font-display font-bold">Verify OTP</h2>
-                    </div>
-                  </div>
-                  <p className="text-muted-foreground text-sm mb-8">
-                    We sent a 6-digit code to{" "}
-                    <strong className="text-foreground">{otpSentEmail}</strong>
-                  </p>
-
-                  <form onSubmit={handleVerifyOtp} className="space-y-6">
-                    <div className="flex justify-center gap-1.5 sm:gap-2.5" onPaste={handleOtpPaste}>
-                      {otp.map((digit, idx) => (
-                        <input
-                          key={idx}
-                          ref={(el) => { otpRefs.current[idx] = el; }}
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={1}
-                          value={digit}
-                          onChange={(e) => handleOtpChange(idx, e.target.value)}
-                          onKeyDown={(e) => handleOtpKeyDown(idx, e)}
-                          className="w-10 h-12 sm:w-12 sm:h-14 text-center text-lg sm:text-xl font-bold bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
-                          suppressHydrationWarning
-                        />
-                      ))}
-                    </div>
-
-                    <Button
-                      type="submit"
-                      className="w-full h-12 rounded-xl text-base font-semibold group transition-all duration-300 hover:shadow-lg hover:shadow-primary/25"
-                      disabled={loading || otp.join("").length !== 6}
-                      suppressHydrationWarning
-                    >
-                      {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                          Verifying
-                        </>
-                      ) : (
-                        <>
-                          Verify & Sign In
-                          <ShieldCheck className="ml-2 h-4 w-4" />
-                        </>
-                      )}
-                    </Button>
-                  </form>
-
-                  <div className="mt-6 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Didn&apos;t receive the code?{" "}
-                      <button
-                        onClick={handleResendOtp}
-                        disabled={loading}
-                        className="text-primary font-semibold hover:underline underline-offset-4 transition-colors disabled:opacity-50"
-                      >
-                        Resend OTP
-                      </button>
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ─── REGISTER ─── */}
-              {step === "register" && (
+              {/* ─── REGISTER OR ACCEPT INVITE ─── */}
+              {(step === "register" || step === "accept-invite") && (
                 <motion.div
                   key="register-step"
                   initial={{ opacity: 0, x: 20 }}
@@ -405,87 +333,90 @@ export default function LoginPage() {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.25 }}
                 >
-                  <button
-                    onClick={() => setStep("email")}
-                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
-                  >
-                    <ArrowLeft className="w-4 h-4" />
-                    Back to Sign In
-                  </button>
+                  {!setupRequired && (
+                    <button
+                      type="button"
+                      onClick={() => setStep("login")}
+                      className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5"
+                      suppressHydrationWarning
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                      Back to Sign In
+                    </button>
+                  )}
 
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
                       <UserPlus className="w-5 h-5 text-blue-500" />
                     </div>
                     <div>
-                      <h2 className="text-2xl font-display font-bold">Create Account</h2>
+                      <h2 className="text-2xl font-display font-bold">
+                        {setupRequired ? "Setup Admin Account" : "Complete Registration"}
+                      </h2>
                     </div>
                   </div>
-                  <p className="text-muted-foreground text-sm mb-8">Register to get started with FoxFlow.</p>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    {setupRequired 
+                      ? "Set up the primary administrator account for FoxFlow." 
+                      : "Enter your name and password to complete setup."}
+                  </p>
 
-                  <form onSubmit={handleRegister} className="space-y-5">
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Full Name</label>
+                  <form onSubmit={handleRegister} className="space-y-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Full Name</label>
                       <input
                         type="text"
                         value={regName}
                         onChange={(e) => setRegName(e.target.value)}
                         placeholder="John Doe"
-                        className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
                         autoFocus
+                        required
                         suppressHydrationWarning
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Email Address</label>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Email Address</label>
                       <input
                         type="email"
                         value={regEmail}
                         onChange={(e) => setRegEmail(e.target.value)}
                         placeholder="you@company.com"
-                        className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                        disabled={step === "accept-invite"}
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth disabled:opacity-60 disabled:cursor-not-allowed"
+                        required
                         suppressHydrationWarning
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Role</label>
-                      <select
-                        value={regRole}
-                        onChange={(e) => setRegRole(e.target.value)}
-                        className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth appearance-none"
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Password</label>
+                      <input
+                        type="password"
+                        value={regPassword}
+                        onChange={(e) => setRegPassword(e.target.value)}
+                        placeholder="Min. 6 characters"
+                        className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                        required
                         suppressHydrationWarning
-                      >
-                        <option value="admin">Admin</option>
-                        <option value="operator">Operator</option>
-                        <option value="supervisor">Supervisor</option>
-                        <option value="oem">OEM / Client</option>
-                        <option value="viewer">Viewer</option>
-                      </select>
+                      />
                     </div>
 
-                    <AnimatePresence>
-                      {regRole === "oem" && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          className="space-y-2 overflow-hidden"
+                    {/* Hide role select dropdown during setup (locked to admin) or invite (pre-determined role) */}
+                    {setupRequired && (
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Role</label>
+                        <select
+                          value={regRole}
+                          disabled={setupRequired}
+                          className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth appearance-none disabled:opacity-80"
+                          suppressHydrationWarning
                         >
-                          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Dealer / Company Name</label>
-                          <input
-                            type="text"
-                            value={regDealerName}
-                            onChange={(e) => setRegDealerName(e.target.value)}
-                            placeholder="e.g. Tata Motors"
-                            required={regRole === "oem"}
-                            className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
-                            suppressHydrationWarning
-                          />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
+                          <option value="admin">Admin</option>
+                        </select>
+                      </div>
+                    )}
 
                     <div className="pt-2">
                       <Button
@@ -497,11 +428,11 @@ export default function LoginPage() {
                         {loading ? (
                           <>
                             <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                            Creating Account
+                            Completing Setup
                           </>
                         ) : (
                           <>
-                            Create Account
+                            {setupRequired ? "Create Admin" : "Complete Setup"}
                             <UserPlus className="ml-2 h-4 w-4" />
                           </>
                         )}

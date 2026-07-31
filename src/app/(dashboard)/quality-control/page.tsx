@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { useQCRecords, useVehicles, useCreateQCRecord, useUpdateQCRecord, useUploadQCPhoto, useCreateDefect } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
 import type { QCRecord, Vehicle, DefectRecord } from "@/types";
 import { AlertCircle, CheckCircle2, Plus, XCircle, Camera, CheckSquare, Edit, History, ChevronDown } from "lucide-react";
 import {
@@ -337,7 +338,14 @@ function AddQCModal({ vehicles }: { vehicles: Vehicle[] }) {
 }
 
 export default function QualityControlPage() {
-  const { data: qcRecords = [], isLoading: isLoadingQC } = useQCRecords();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  const { data: qcData, isLoading: isLoadingQC } = useQCRecords({ page, pageSize });
+  const qcRecords = qcData?.items ?? [];
+  const totalQC = qcData?.total ?? 0;
+  const totalPages = qcData?.total_pages ?? 1;
+
   const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
   const [selectedRecord, setSelectedRecord] = useState<QCRecord | null>(null);
   
@@ -467,6 +475,16 @@ export default function QualityControlPage() {
       </div>
 
       <DataTable columns={columns} data={qcRecords} rowId={(q) => String(q.id)} searchKey={(q) => `${q.stage} ${q.status}`} />
+
+      <Pagination
+        page={page}
+        pageSize={pageSize}
+        total={totalQC}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+        isLoading={isLoadingQC}
+      />
 
       <QCDetailsDrawer record={selectedRecord} open={!!selectedRecord} onClose={() => setSelectedRecord(null)} vehicles={vehicles} />
       

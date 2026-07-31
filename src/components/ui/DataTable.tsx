@@ -33,6 +33,7 @@ interface DataTableProps<T> {
   bulkAction?: (selectedRows: T[]) => React.ReactNode;
   rowId: (row: T) => string;
   extraFilters?: React.ReactNode;
+  hidePagination?: boolean;
 }
 
 const PAGE_SIZE = 20;
@@ -77,6 +78,7 @@ export function DataTable<T>({
   bulkAction,
   rowId,
   extraFilters,
+  hidePagination = false,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
   const [sortCol, setSortCol] = useState<string | null>(null);
@@ -506,62 +508,64 @@ export function DataTable<T>({
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/10">
-        <p className="text-xs text-muted-foreground">
-          {sorted.length === 0
-            ? "No results"
-            : `Showing ${startRow}–${endRow} of ${sorted.length}`}
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(1)}
-            disabled={safePage === 1}
-            data-ocid="datatable.pagination_first"
-          >
-            <ChevronFirst size={13} />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={safePage === 1}
-            data-ocid="datatable.pagination_prev"
-          >
-            <ChevronLeft size={13} />
-          </Button>
-          <span className="px-2 text-xs text-muted-foreground tabular-nums">
-            {safePage} / {totalPages}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={safePage === totalPages}
-            data-ocid="datatable.pagination_next"
-          >
-            <ChevronRight size={13} />
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-7 w-7"
-            onClick={() => setPage(totalPages)}
-            disabled={safePage === totalPages}
-            data-ocid="datatable.pagination_last"
-          >
-            <ChevronLast size={13} />
-          </Button>
+      {!hidePagination && (
+        <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/10">
+          <p className="text-xs text-muted-foreground">
+            {sorted.length === 0
+              ? "No results"
+              : `Showing ${startRow}–${endRow} of ${sorted.length}`}
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setPage(1)}
+              disabled={safePage === 1}
+              data-ocid="datatable.pagination_first"
+            >
+              <ChevronFirst size={13} />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={safePage === 1}
+              data-ocid="datatable.pagination_prev"
+            >
+              <ChevronLeft size={13} />
+            </Button>
+            <span className="px-2 text-xs text-muted-foreground tabular-nums">
+              {safePage} / {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={safePage === totalPages}
+              data-ocid="datatable.pagination_next"
+            >
+              <ChevronRight size={13} />
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              className="h-7 w-7"
+              onClick={() => setPage(totalPages)}
+              disabled={safePage === totalPages}
+              data-ocid="datatable.pagination_last"
+            >
+              <ChevronLast size={13} />
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

@@ -10,7 +10,8 @@ export default function VerificationPage() {
   const params = useParams();
   const router = useRouter();
   const id = String(params?.id);
-  const { data: vehicles, isLoading } = useVehicles();
+  const { data: vehiclesData, isLoading } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
   
   const verifyMutation = useVerifyVehicle();
   const rejectMutation = useRejectVehicle();
@@ -51,7 +52,7 @@ export default function VerificationPage() {
     verificationNotes: "",
   });
 
-  const vehicle = vehicles?.find((v) => String(v.id) === id);
+  const vehicle = vehicles?.find((v: any) => String(v.id) === id);
 
   useEffect(() => {
     if (vehicle) {

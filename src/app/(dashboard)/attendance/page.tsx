@@ -12,7 +12,8 @@ import LogsTab from "./components/LogsTab";
 import SettingsTab from "./components/SettingsTab";
 
 export default function AttendancePage() {
-  const { data: workers, isLoading } = useWorkers();
+  const { data: workersData, isLoading } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -53,10 +54,10 @@ export default function AttendancePage() {
           </div>
 
           <TabsContent value="dashboard" className="flex-1">
-            <DashboardTab workers={workers || []} isLoading={isLoading} />
+            <DashboardTab workers={workers} isLoading={isLoading} />
           </TabsContent>
           <TabsContent value="employees" className="flex-1">
-            <EmployeesTab workers={workers || []} isLoading={isLoading} />
+            <EmployeesTab />
           </TabsContent>
           <TabsContent value="logs" className="flex-1">
             <LogsTab />

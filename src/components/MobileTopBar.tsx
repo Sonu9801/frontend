@@ -2,6 +2,7 @@
 
 import { useAuthStore } from "@/store/authStore";
 import { useNotifications, useMarkNotificationClicked, useMarkAllNotificationsRead } from "@/hooks/useQueries";
+import { authApi } from "@/lib/api";
 import { useTheme } from "next-themes";
 import { 
   Bell, Menu, Search, X, Sun, Moon, 
@@ -99,7 +100,12 @@ export function MobileTopBar() {
     info: "bg-primary/20 text-primary",
   };
 
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      console.error("Backend logout failed:", e);
+    }
     logout();
     router.push("/login");
   };

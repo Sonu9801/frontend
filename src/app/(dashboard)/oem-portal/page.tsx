@@ -567,8 +567,10 @@ function DashboardStats({ vehicles, dispatchRecords }: { vehicles: Vehicle[], di
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function OEMPortalPage() {
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({ pageSize: 1000 });
+  const dispatchRecords = dispatchData?.items ?? [];
   const oemSubmitMutation = useOemSubmitVehicle();
   const search = useUIStore(state => state.searchQuery);
   const setSearch = useUIStore(state => state.setSearchQuery);

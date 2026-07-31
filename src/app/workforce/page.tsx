@@ -7,6 +7,7 @@ import { SupervisorDashboard } from "./SupervisorDashboard";
 import { ManagerDashboard } from "./ManagerDashboard";
 import { AdminDashboard } from "./AdminDashboard";
 import { Loader2 } from "lucide-react";
+import { authApi } from "@/lib/api";
 
 export default function WorkforceOrchestrator() {
   const router = useRouter();
@@ -29,7 +30,12 @@ export default function WorkforceOrchestrator() {
     }
   }, [router]);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch (e) {
+      console.error("Backend logout failed:", e);
+    }
     localStorage.clear();
     router.push("/workforce/login");
   };

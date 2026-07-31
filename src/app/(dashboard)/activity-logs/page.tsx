@@ -36,8 +36,10 @@ const getEventBgColor = (type: string) => {
 
 export default function ActivityLogsPage() {
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
-  const { data: vehicles = [] } = useVehicles();
-  const { data: workers = [] } = useWorkers();
+  const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
 
   const [filter, setFilter] = useState<string>("all");
 
@@ -109,8 +111,8 @@ export default function ActivityLogsPage() {
           ) : (
             <div className="relative space-y-4 before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
               {filteredActivities.map((activity, index) => {
-                const vehicle = vehicles.find(v => v.id === activity.vehicleId?.toString());
-                const worker = workers.find(w => w.id === activity.workerId?.toString());
+                const vehicle = vehicles.find((v: any) => v.id === activity.vehicleId?.toString());
+                const worker = workers.find((w: any) => w.id === activity.workerId?.toString());
                 
                 return (
                   <div key={activity.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">

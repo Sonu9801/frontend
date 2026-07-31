@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, Clock, PauseCircle, PlayCircle, Camera, 
-  Briefcase, RefreshCw, AlertTriangle 
+  Briefcase, RefreshCw, AlertTriangle, Trash2, Upload 
 } from "lucide-react";
 import Webcam from "react-webcam";
 import { toast } from "sonner";
@@ -42,6 +42,16 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
     refetchInterval: 10000,
   });
 
+  // Today's jobs (includes completed) - used for overview stats only
+  const { data: todayJobs } = useQuery({
+    queryKey: ["workerTodayJobs", workerId],
+    queryFn: async () => {
+      const data = await jobsApi.getWorkerTodayJobs(workerId);
+      return data as ProductionJob[];
+    },
+    refetchInterval: 30000,
+  });
+
   const { data: componentTasks } = useQuery({
     queryKey: ["workerComponents", workerId],
     queryFn: async () => {
@@ -69,19 +79,43 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
     updateStatusMutation.mutate({ jobId, status });
   };
 
-  const handleCompleteWithPhoto = async () => {
-    if (!webcamRef.current) return;
-    const imageSrc = webcamRef.current.getScreenshot();
-    if (!imageSrc) {
-      toast.error("Could not capture photo.");
-      return;
+  const jobFileInputRef = useRef<HTMLInputElement>(null);
+
+  const capturePhoto = (): string | null => {
+    if (!webcamRef.current) return null;
+    
+    // 1. Try react-webcam getScreenshot
+    let imageSrc = webcamRef.current.getScreenshot();
+    if (imageSrc && imageSrc.length > 100) return imageSrc;
+
+    // 2. Canvas fallback for iOS / Android WebViews
+    try {
+      const video = webcamRef.current.video;
+      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          if (dataUrl && dataUrl.length > 100) return dataUrl;
+        }
+      }
+    } catch (e) {
+      console.warn("Canvas capture fallback error:", e);
     }
+
+    return null;
+  };
+
+  const processAndSubmitJob = (photo: string) => {
     if (!completingJobId) return;
 
     updateStatusMutation.mutate({ 
       jobId: completingJobId, 
       status: "completed", 
-      photo_proof_url: imageSrc 
+      photo_proof_url: photo 
     }, {
       onSuccess: () => {
         setShowCamera(false);
@@ -90,6 +124,40 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
         toast.success("Job completed successfully!");
       }
     });
+  };
+
+  const handleCompleteWithPhoto = async () => {
+    const photo = capturePhoto();
+    if (!photo) {
+      toast.error("Could not capture photo. Use the upload option below.");
+      return;
+    }
+    processAndSubmitJob(photo);
+  };
+
+  const handleJobFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (result) {
+        processAndSubmitJob(result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleDeleteComponentTask = async (taskId: number) => {
+    if (!confirm("Are you sure you want to delete this self-assigned task?")) return;
+    try {
+      await componentsApi.deleteTask(taskId);
+      toast.success("Task deleted successfully!");
+      queryClient.invalidateQueries({ queryKey: ["workerComponents", workerId] });
+    } catch (err: any) {
+      toast.error("Failed to delete task.");
+    }
   };
 
   if (isError) {
@@ -107,12 +175,13 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
     );
   }
 
-  // Calculate stats
-  const pendingCount = jobs?.filter(j => j.status === 'assigned' || j.status === 'not_started').length || 0;
-  const runningCount = jobs?.filter(j => j.status === 'in_progress').length || 0;
-  const completedCount = jobs?.filter(j => j.status === 'completed').length || 0;
+  // Calculate today's stats from todayJobs (includes completed)
+  const statsSource = todayJobs ?? jobs;
+  const pendingCount = statsSource?.filter(j => j.status === 'assigned' || j.status === 'not_started').length || 0;
+  const runningCount = statsSource?.filter(j => j.status === 'in_progress' || j.status === 'paused').length || 0;
+  const completedCount = statsSource?.filter(j => j.status === 'completed').length || 0;
   
-  const highPriorityCount = jobs?.filter(j => (j as any).priority?.toLowerCase() === 'high' || (j as any).priority?.toLowerCase() === 'urgent').length || 0;
+  const highPriorityCount = statsSource?.filter(j => (j as any).priority?.toLowerCase() === 'high' || (j as any).priority?.toLowerCase() === 'urgent').length || 0;
 
   // Filter jobs by tab
   const filteredJobs = jobs?.filter(job => {
@@ -314,9 +383,18 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                     </Badge>
                     <h4 className="font-bold text-gray-900 dark:text-white text-lg mt-1">{task.component_number}</h4>
                   </div>
-                  <Badge variant={task.status === "completed" ? "secondary" : "default"} className={task.status === "completed" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"}>
-                    {task.status.replace("_", " ")}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={task.status === "completed" ? "secondary" : "default"} className={task.status === "completed" ? "bg-emerald-100 text-emerald-800" : "bg-orange-100 text-orange-800"}>
+                      {task.status.replace("_", " ")}
+                    </Badge>
+                    <button
+                      onClick={() => handleDeleteComponentTask(task.id)}
+                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors"
+                      title="Delete Task"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
                 
                 {task.status === "in_progress" && (
@@ -340,6 +418,16 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
           </div>
         </div>
       )}
+
+      {/* Hidden file input for iOS/Android fallback */}
+      <input 
+        type="file" 
+        ref={jobFileInputRef} 
+        accept="image/*" 
+        capture="environment" 
+        className="hidden" 
+        onChange={handleJobFileUpload} 
+      />
 
       {/* Modals */}
       <SelfAssignModal 
@@ -376,13 +464,15 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                 audio={false}
                 ref={webcamRef}
                 screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: "environment" }}
+                videoConstraints={{ facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } }}
+                playsInline
+                muted
                 className="min-h-full min-w-full object-cover"
               />
             </div>
 
-            <div className="p-6 bg-card border-t border-border space-y-3 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] relative z-10">
-              <p className="text-xs text-center text-muted-foreground mb-2 font-medium">Take a clear photo of the completed work</p>
+            <div className="p-6 bg-card border-t border-border space-y-3 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] relative z-10 flex flex-col items-center">
+              <p className="text-xs text-center text-muted-foreground mb-1 font-medium">Take a clear photo of the completed work</p>
               <Button 
                 onClick={handleCompleteWithPhoto}
                 disabled={updateStatusMutation.isPending}
@@ -391,6 +481,13 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
               >
                 {updateStatusMutation.isPending ? "Submitting..." : "Submit Completion"}
               </Button>
+              <button
+                type="button"
+                onClick={() => jobFileInputRef.current?.click()}
+                className="text-xs text-emerald-600 dark:text-emerald-400 underline flex items-center gap-1 font-semibold py-1 px-3"
+              >
+                <Upload size={14} /> Camera issue? Upload photo from device
+              </button>
             </div>
           </motion.div>
         )}

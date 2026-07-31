@@ -33,44 +33,7 @@ const PALETTE = [C_INDIGO, C_GREEN, C_ORANGE, C_RED, C_BLUE, C_PURPLE];
 
 type Range = "7D" | "30D" | "90D";
 
-function seed(n: number) {
-  return (((Math.sin(n * 9301 + 49297) * 233280 + 0.5) % 1) + 1) % 1;
-}
-
-function makeThroughput(days: number): { date: string; vehicles: number }[] {
-  const now = new Date();
-  return Array.from({ length: days }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() - (days - 1 - i));
-    const label =
-      days <= 7
-        ? d.toLocaleDateString("en-US", { weekday: "short" })
-        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    return { date: label, vehicles: Math.round(3 + seed(i + days * 7) * 5) };
-  });
-}
-
-function makeDispatchByOEM(range: Range): { oem: string; count: number }[] {
-  const multiplier = range === "7D" ? 1 : range === "30D" ? 4 : 12;
-  return [
-    { oem: "EULER MOTORS", count: Math.round(8 * multiplier * (0.8 + seed(1) * 0.4)) },
-    { oem: "MONTRA ELECTRIC", count: Math.round(7 * multiplier * (0.8 + seed(2) * 0.4)) },
-    { oem: "BAJAJ AUTO", count: Math.round(6 * multiplier * (0.8 + seed(3) * 0.4)) },
-    { oem: "PIAGGIO", count: Math.round(5 * multiplier * (0.8 + seed(4) * 0.4)) },
-    { oem: "TATA MOTORS", count: Math.round(5 * multiplier * (0.8 + seed(5) * 0.4)) },
-    { oem: "MAHINDRA", count: Math.round(4 * multiplier * (0.8 + seed(6) * 0.4)) },
-    { oem: "TVS MOTORS", count: Math.round(4 * multiplier * (0.8 + seed(7) * 0.4)) },
-    { oem: "E NEXT MOBILITY", count: Math.round(3 * multiplier * (0.8 + seed(8) * 0.4)) },
-  ];
-}
-
-const STAGE_DURATION = [
-  { stage: "Received", hours: 8 },
-  { stage: "Fabrication", hours: 48 },
-  { stage: "Paint", hours: 24 },
-  { stage: "QC", hours: 4 },
-  { stage: "RTD", hours: 12 },
-];
+// Real analytics data helpers
 
 interface CustomTooltipProps {
   active?: boolean;
@@ -195,19 +158,19 @@ function WorkerTable({ rows }: { rows: WorkerRow[] }) {
           <tr className="border-b border-border bg-muted/20">
             {(
               [
-                ["name", "Worker"],
-                ["jobs", "Jobs Completed"],
-                ["avgTime", "Avg Time"],
-                ["qcRate", "QC Pass Rate"],
-              ] as [SortKey, string][]
-            ).map(([k, label]) => (
+                ["name", "Worker", "text-left"],
+                ["jobs", "Jobs Completed", "text-right"],
+                ["avgTime", "Avg Time", "text-right"],
+                ["qcRate", "QC Pass Rate", "text-right"],
+              ] as [SortKey, string, string][]
+            ).map(([k, label, alignClass]) => (
               <th
                 key={k}
                 onClick={() => toggle(k)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") toggle(k);
                 }}
-                className="text-left py-2.5 px-3 text-muted-foreground font-medium text-xs cursor-pointer select-none hover:text-foreground transition-colors"
+                className={`${alignClass} py-2.5 px-3 text-muted-foreground font-medium text-xs cursor-pointer select-none hover:text-foreground transition-colors`}
               >
                 {label}
                 <SortIcon k={k} />
@@ -303,10 +266,14 @@ function WorkerTable({ rows }: { rows: WorkerRow[] }) {
 }
 
 export default function AnalyticsPage() {
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
-  const { data: workers = [], isLoading: isLoadingWorkers } = useWorkers();
-  const { data: qcRecords = [], isLoading: isLoadingQC } = useQCRecords();
-  const { data: dispatchRecords = [], isLoading: isLoadingDispatch } = useDispatchRecords();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles = vehiclesData?.items ?? [];
+  const { data: workersData, isLoading: isLoadingWorkers } = useWorkers({ pageSize: 1000 });
+  const workers = workersData?.items ?? [];
+  const { data: qcData, isLoading: isLoadingQC } = useQCRecords({ pageSize: 1000 });
+  const qcRecords = qcData?.items ?? [];
+  const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({ pageSize: 1000 });
+  const dispatchRecords = dispatchData?.items ?? [];
 
   const [range, setRange] = useState<Range>("30D");
 
@@ -314,23 +281,30 @@ export default function AnalyticsPage() {
 
   // KPIs
   const avgCycleTime = useMemo(() => {
-    const val = range === "7D" ? 4.2 : range === "30D" ? 5.1 : 4.8;
-    return val.toFixed(1);
-  }, [range]);
+    const completed = vehicles.filter((v: any) => ["rtd", "dispatch", "delivered"].includes(v.currentStage.toLowerCase()));
+    if (completed.length === 0) return "0.0";
+    const totalMs = completed.reduce((acc: number, v: any) => {
+      const start = new Date(v.createdAt || v.receivedAt).getTime();
+      const end = new Date(v.updatedAt || new Date()).getTime();
+      return acc + (end - start);
+    }, 0);
+    const avgDays = totalMs / completed.length / (1000 * 60 * 60 * 24);
+    return avgDays.toFixed(1);
+  }, [vehicles]);
 
   const onTimeDelivery = useMemo(() => {
-    const dispatched = dispatchRecords.length || 1;
-    const ratio = range === "7D" ? 0.91 : range === "30D" ? 0.87 : 0.84;
-    return Math.round((Math.round(dispatched * ratio) / dispatched) * 100);
-  }, [dispatchRecords, range]);
+    if (dispatchRecords.length === 0) return 100;
+    const delivered = dispatchRecords.filter((d: any) => d.status.toLowerCase() === "dispatched" || d.status.toLowerCase() === "delivered").length;
+    return Math.round((delivered / dispatchRecords.length) * 100);
+  }, [dispatchRecords]);
 
   const totalVehicles = useMemo(() => {
-    return range === "7D"
-      ? 38
-      : range === "30D"
-        ? vehicles.length + 12
-        : vehicles.length + 48;
-  }, [vehicles, range]);
+    const now = new Date();
+    return vehicles.filter((v: any) => {
+      const d = new Date(v.createdAt || v.receivedAt);
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).length;
+  }, [vehicles]);
 
   const activeWorkers = useMemo(
     () => workers.filter((w: Worker) => w.status.toLowerCase() === "active").length,
@@ -347,12 +321,61 @@ export default function AnalyticsPage() {
   }, [qcRecords]);
 
   // Chart data
-  const throughputData = useMemo(
-    () => makeThroughput(range === "7D" ? 7 : range === "30D" ? 30 : 90),
-    [range],
-  );
+  const throughputData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    const daysLimit = range === "7D" ? 7 : range === "30D" ? 30 : 90;
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
 
-  const dispatchByOEM = useMemo(() => makeDispatchByOEM(range), [range]);
+    // Populate standard timeline labels
+    for (let i = 0; i < daysLimit; i++) {
+      const d = new Date();
+      d.setDate(d.getDate() - (daysLimit - 1 - i));
+      const label = daysLimit <= 7 
+        ? d.toLocaleDateString("en-US", { weekday: "short" })
+        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      counts[label] = 0;
+    }
+
+    for (const v of vehicles) {
+      const vDate = new Date(v.createdAt || v.receivedAt);
+      if (vDate >= cutoffDate) {
+        const label = daysLimit <= 7 
+          ? vDate.toLocaleDateString("en-US", { weekday: "short" })
+          : vDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+        if (label in counts) {
+          counts[label]++;
+        }
+      }
+    }
+    return Object.entries(counts).map(([date, count]) => ({ date, vehicles: count }));
+  }, [vehicles, range]);
+
+  const priorityDistribution = useMemo(() => {
+    const counts: Record<string, number> = { Normal: 0, High: 0, Urgent: 0 };
+    for (const v of vehicles) {
+      const p = v.priority ? (v.priority.charAt(0).toUpperCase() + v.priority.slice(1).toLowerCase()) : "Normal";
+      if (p in counts) counts[p]++;
+    }
+    return Object.entries(counts).map(([priority, count]) => ({ priority, count }));
+  }, [vehicles]);
+
+  const dispatchByOEM = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const v of vehicles) {
+      if (v.oemName) {
+        const key = v.oemName.toUpperCase();
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    }
+    if (Object.keys(counts).length === 0) {
+      return [{ oem: "No OEM Data", count: 0 }];
+    }
+    return Object.entries(counts)
+      .map(([oem, count]) => ({ oem, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [vehicles]);
 
   const stageDistribution = useMemo(() => {
     const stages: Record<string, number> = {
@@ -383,13 +406,13 @@ export default function AnalyticsPage() {
   }, [vehicles]);
 
   const workerRows: WorkerRow[] = useMemo(() => {
-    return workers.map((w: Worker, i: number) => ({
+    return workers.map((w: Worker) => ({
       id: String(w.id),
       name: w.name,
       department: w.department,
-      jobs: Math.round(8 + seed(i + 10) * 20),
-      avgTime: `${(12 + seed(i + 20) * 24).toFixed(1)}h`,
-      qcRate: Math.round(w.performanceScore * (0.95 + seed(i + 30) * 0.05)),
+      jobs: (w as any).jobsCompleted ?? 0,
+      avgTime: `${((w as any).avgTime ?? 0.0).toFixed(1)}h`,
+      qcRate: (w as any).qcRate ?? w.performanceScore ?? 100,
       active: w.status.toLowerCase() === "active",
     }));
   }, [workers]);
@@ -601,19 +624,19 @@ export default function AnalyticsPage() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.4, delay: 0.2 }}
           className="bg-card border border-border rounded-xl p-5 shadow-subtle"
-          data-ocid="analytics.chart.stage_duration"
+          data-ocid="analytics.chart.priority_dist"
         >
           <div className="mb-4">
             <h2 className="text-sm font-semibold text-foreground">
-              Stage Duration Breakdown
+              Vehicles by Priority
             </h2>
             <p className="text-xs text-muted-foreground">
-              Average hours per stage
+              Distribution of active production priorities
             </p>
           </div>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart
-              data={STAGE_DURATION}
+              data={priorityDistribution}
               margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
             >
               <CartesianGrid
@@ -624,7 +647,7 @@ export default function AnalyticsPage() {
                 opacity={0.3}
               />
               <XAxis
-                dataKey="stage"
+                dataKey="priority"
                 tick={{
                   fontSize: 10,
                   fill: "oklch(var(--muted-foreground))",
@@ -642,14 +665,14 @@ export default function AnalyticsPage() {
               />
               <Tooltip content={<BrandedTooltip />} />
               <Bar
-                dataKey="hours"
-                name="Hours"
+                dataKey="count"
+                name="Vehicles"
                 radius={[4, 4, 0, 0]}
                 animationBegin={100}
                 animationDuration={1000}
               >
-                {STAGE_DURATION.map((entry, i) => (
-                  <Cell key={entry.stage} fill={PALETTE[i % PALETTE.length]} />
+                {priorityDistribution.map((entry, i) => (
+                  <Cell key={entry.priority} fill={PALETTE[i % PALETTE.length]} />
                 ))}
               </Bar>
             </BarChart>

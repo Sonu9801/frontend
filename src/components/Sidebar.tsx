@@ -62,6 +62,7 @@ const navGroups = [
     items: [
       { label: "Workers", href: "/workers", icon: Users },
       { label: "Attendance", href: "/attendance", icon: Clock },
+      { label: "Performance", href: "/performance", icon: FileBarChart },
       { label: "Payroll", href: "/payroll", icon: Banknote, roles: ["admin", "manager", "hr"] },
     ]
   },

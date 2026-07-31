@@ -12,8 +12,10 @@ export function PerformanceTab({ activeUser }: { activeUser: any }) {
   const router = useRouter();
   const [timeframe, setTimeframe] = useState<"today" | "monthly">("today");
 
-  const { data: workers = [] } = useQuery({ queryKey: ["workers"], queryFn: workersApi.getAll });
-  const { data: vehicles = [] } = useQuery({ queryKey: ["vehicles"], queryFn: vehiclesApi.getAll });
+  const { data: workersData } = useQuery({ queryKey: ["workers", 1, 1000], queryFn: () => workersApi.getAll({ page: 1, pageSize: 1000 }) });
+  const workers = workersData?.items ?? [];
+  const { data: vehiclesData } = useQuery({ queryKey: ["vehicles", 1, 1000], queryFn: () => vehiclesApi.getAll({ page: 1, pageSize: 1000 }) });
+  const vehicles = vehiclesData?.items ?? [];
   const { data: attendanceAnalytics = {} } = useQuery({ queryKey: ["attendanceAnalytics"], queryFn: attendanceApi.getAnalytics });
 
   const departmentWorkers = useMemo(() => {

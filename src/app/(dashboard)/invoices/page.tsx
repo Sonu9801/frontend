@@ -6,6 +6,7 @@ import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useInvoices, useInvoiceDashboardStats, useInvoiceAnalytics, useDeleteInvoice, useUpdateInvoice } from "@/hooks/useQueries";
+import { Pagination } from "@/components/ui/Pagination";
 import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "./components/InvoiceAnalyticsCharts";
@@ -22,7 +23,6 @@ import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
 
 export default function InvoicesDashboardPage() {
   const router = useRouter();
-  const { data: invoices = [], isLoading: isLoadingInvoices } = useInvoices();
   const { data: stats, isLoading: isLoadingStats } = useInvoiceDashboardStats();
   const { data: analyticsData } = useInvoiceAnalytics();
   const updateInvoice = useUpdateInvoice();
@@ -34,35 +34,22 @@ export default function InvoicesDashboardPage() {
   const canUpload = ["admin", "owner", "finance_manager"].includes(role);
   const deleteInvoice = useDeleteInvoice();
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
 
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter((inv: any) => {
-      const statusOk = statusFilter === "All" || inv.approval_status === statusFilter;
-      const paymentOk = paymentFilter === "All" || inv.payment_status === paymentFilter;
-      
-      let dateOk = true;
-      if (dateFilter !== "All") {
-        const invDate = new Date(inv.invoice_date || inv.created_at);
-        const today = new Date();
-        if (dateFilter === "Today") {
-          dateOk = invDate.toDateString() === today.toDateString();
-        } else if (dateFilter === "This Month") {
-          dateOk = invDate.getMonth() === today.getMonth() && invDate.getFullYear() === today.getFullYear();
-        } else if (dateFilter === "This Year") {
-          dateOk = invDate.getFullYear() === today.getFullYear();
-        } else if (dateFilter.includes("-")) {
-          // Custom Month logic (YYYY-MM)
-          const [yyyy, mm] = dateFilter.split("-");
-          dateOk = invDate.getFullYear() === parseInt(yyyy) && (invDate.getMonth() + 1) === parseInt(mm);
-        }
-      }
+  const { data: invoicesData, isLoading: isLoadingInvoices } = useInvoices({
+    page,
+    pageSize,
+    approval_status: statusFilter !== "All" ? statusFilter : undefined,
+    payment_status: paymentFilter !== "All" ? paymentFilter : undefined,
+  });
+  const invoices = invoicesData?.items ?? [];
+  const totalInvoices = invoicesData?.total ?? 0;
+  const totalPages = invoicesData?.total_pages ?? 1;
 
-      return statusOk && paymentOk && dateOk;
-    });
-  }, [invoices, statusFilter, paymentFilter, dateFilter]);
 
   const columns: ColumnDef<any>[] = useMemo(() => [
     {
@@ -369,7 +356,7 @@ export default function InvoicesDashboardPage() {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
               className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Approvals</option>
@@ -380,7 +367,7 @@ export default function InvoicesDashboardPage() {
 
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
+              onChange={(e) => { setPaymentFilter(e.target.value); setPage(1); }}
               className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Payments</option>
@@ -394,9 +381,19 @@ export default function InvoicesDashboardPage() {
         <div className="p-0">
           <DataTable
             columns={columns}
-            data={filteredInvoices}
+            data={invoices}
             rowId={(d) => String(d.id)}
             searchKey={(d) => `${d.invoice_number} ${d.vendor_name} ${d.vendor_gstin} ${d.department}`}
+            hidePagination={true}
+          />
+          <Pagination
+            page={page}
+            pageSize={pageSize}
+            total={totalInvoices}
+            totalPages={totalPages}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+            isLoading={isLoadingInvoices}
           />
         </div>
       </div>
