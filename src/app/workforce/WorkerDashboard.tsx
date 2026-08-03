@@ -247,12 +247,21 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
     setPreviewImage(await compressImage(imageSrc));
   };
 
+  const getPunchEndpoint = () => {
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      const base = process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
+      return base.endsWith("/api") ? `${base}/attendance/punch` : `${base}/api/attendance/punch`;
+    }
+    return "/api/attendance/punch";
+  };
+
   const submitPunch = async () => {
     if (!previewImage) return;
     setUploading(true);
-    const token = localStorage.getItem("worker_token");
+    const token = localStorage.getItem("worker_token") || localStorage.getItem("token");
+    const workerId = worker.worker_id || worker.id;
     const payload = {
-      worker_id: worker.worker_id, action: punchAction, latitude: location?.lat || 0,
+      worker_id: workerId, action: punchAction, latitude: location?.lat || 0,
       longitude: location?.lng || 0, accuracy: location?.accuracy || 0,
       photo_base64: previewImage, timestamp: new Date().toISOString()
     };
@@ -269,15 +278,24 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
 
     try {
       const formData = new FormData();
-      formData.append("worker_id", String(worker.worker_id));
+      formData.append("worker_id", String(workerId));
       formData.append("action", punchAction);
       formData.append("latitude", String(location?.lat || 0));
       formData.append("longitude", String(location?.lng || 0));
       formData.append("accuracy", String(location?.accuracy || 0));
       formData.append("photo", dataURLtoBlob(previewImage), `punch_${Date.now()}.jpg`);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-      const res = await fetch(`${apiUrl}/attendance/punch`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
-      if (!res.ok) throw new Error("Failed to record attendance");
+      
+      const res = await fetch(getPunchEndpoint(), { 
+        method: "POST", 
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}, 
+        body: formData 
+      });
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.detail || "Failed to record attendance");
+      }
+      
       toast.success(`${punchAction} successful!`);
       setShowCameraModal(false);
       queryClient.invalidateQueries({ queryKey: ["workerSummary"] });
@@ -293,7 +311,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
     const queue = JSON.parse(localStorage.getItem("attendance_queue") || "[]");
     if (queue.length === 0) return;
     setSyncing(true);
-    const token = localStorage.getItem("worker_token");
+    const token = localStorage.getItem("worker_token") || localStorage.getItem("token");
     const newQueue = [];
     let synced = 0;
     for (const item of queue) {
@@ -303,8 +321,12 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
         formData.append("latitude", String(item.latitude || 0)); formData.append("longitude", String(item.longitude || 0));
         formData.append("accuracy", String(item.accuracy || 0));
         if (item.photo_base64) formData.append("photo", dataURLtoBlob(item.photo_base64), `offline_${Date.now()}.jpg`);
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
-        const res = await fetch(`${apiUrl}/attendance/punch`, { method: "POST", headers: { "Authorization": `Bearer ${token}` }, body: formData });
+        
+        const res = await fetch(getPunchEndpoint(), { 
+          method: "POST", 
+          headers: token ? { "Authorization": `Bearer ${token}` } : {}, 
+          body: formData 
+        });
         if (!res.ok) throw new Error("Failed to sync");
         synced++;
       } catch (err) { newQueue.push(item); }

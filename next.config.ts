@@ -28,6 +28,10 @@ const nextConfig = {
       {
         source: '/ws/:path*',
         destination: `${apiBase}/ws/:path*`
+      },
+      {
+        source: '/uploads/:path*',
+        destination: `${apiBase}/uploads/:path*`
       }
     ];
   },
