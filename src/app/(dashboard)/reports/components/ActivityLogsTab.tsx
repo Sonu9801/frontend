@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function ActivityLogsTab({ 
   activities,
   dateRange,
@@ -15,22 +17,30 @@ export function ActivityLogsTab({
   dateRange: string;
   filters: any;
 }) {
+  const filteredActivities = useMemo(() => {
+    if (!Array.isArray(activities)) return [];
+    return activities.filter(a => {
+      const aDateRaw = a.timestamp || (a as any).created_at || (a as any).createdAt;
+      return isDateInFilterRange(aDateRaw, dateRange);
+    });
+  }, [activities, dateRange]);
+
   const tableData = useMemo(() => {
-    return activities.map(a => ({
+    return filteredActivities.map(a => ({
       Timestamp: new Date(a.timestamp).toLocaleString(),
       Category: a.eventType,
       Description: a.description,
       User: a.workerId || "System"
     }));
-  }, [activities]);
+  }, [filteredActivities]);
 
   const headers = ["Timestamp", "Category", "Description", "User"];
 
   const activityCounts = useMemo(() => {
     const counts: Record<string, number> = {};
-    activities.forEach(a => counts[a.eventType] = (counts[a.eventType] || 0) + 1);
+    filteredActivities.forEach(a => counts[a.eventType] = (counts[a.eventType] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [activities]);
+  }, [filteredActivities]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8884d8', '#ec4899', '#14b8a6'];
 

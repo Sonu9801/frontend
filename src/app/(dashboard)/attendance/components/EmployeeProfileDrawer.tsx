@@ -79,7 +79,11 @@ export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEd
   const formatTime = (timeStr?: string | null) => {
     if (!timeStr) return "N/A";
     try {
-      return format(new Date(timeStr), "dd MMM yy, hh:mm a");
+      let str = String(timeStr).trim();
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(str)) {
+        str += "Z";
+      }
+      return format(new Date(str), "dd MMM yy, hh:mm a");
     } catch (e) {
       return timeStr;
     }

@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function DispatchReportsTab({ 
   dispatchRecords,
   dateRange,
@@ -15,8 +17,21 @@ export function DispatchReportsTab({
   dateRange: string;
   filters: any;
 }) {
+  const filteredDispatch = useMemo(() => {
+    if (!Array.isArray(dispatchRecords)) return [];
+    return dispatchRecords.filter(d => {
+      const dDateRaw = d.scheduledDate || (d as any).deliveredTime || (d as any).createdAt;
+      if (!isDateInFilterRange(dDateRaw, dateRange)) return false;
+
+      if (filters?.status && filters.status !== "All") {
+        if (d.status?.toLowerCase() !== filters.status.toLowerCase()) return false;
+      }
+      return true;
+    });
+  }, [dispatchRecords, dateRange, filters]);
+
   const tableData = useMemo(() => {
-    return dispatchRecords.map(d => ({
+    return filteredDispatch.map(d => ({
       Tracking: d.trackingNumber,
       Carrier: d.carrier,
       Destination: d.destination,
@@ -24,28 +39,28 @@ export function DispatchReportsTab({
       ScheduledDate: new Date(d.scheduledDate).toLocaleDateString(),
       DeliveredTime: d.deliveredTime ? new Date(d.deliveredTime).toLocaleDateString() : "Pending",
     }));
-  }, [dispatchRecords]);
+  }, [filteredDispatch]);
 
   const headers = ["Tracking", "Carrier", "Destination", "Status", "ScheduledDate", "DeliveredTime"];
 
   const todayStr = new Date().toISOString().split("T")[0];
   
-  const dispatchedToday = dispatchRecords.filter(d => new Date(d.scheduledDate).toISOString().split("T")[0] === todayStr && d.status.toLowerCase() !== "pending").length;
-  const deliveredCount = dispatchRecords.filter(d => d.status.toLowerCase() === "delivered").length;
-  const pendingCount = dispatchRecords.filter(d => d.status.toLowerCase() !== "delivered" && d.status.toLowerCase() !== "cancelled").length;
-  const delayedCount = dispatchRecords.filter(d => new Date(d.scheduledDate) < new Date() && d.status.toLowerCase() !== "delivered").length;
+  const dispatchedToday = filteredDispatch.filter(d => new Date(d.scheduledDate).toISOString().split("T")[0] === todayStr && d.status.toLowerCase() !== "pending").length;
+  const deliveredCount = filteredDispatch.filter(d => d.status.toLowerCase() === "delivered").length;
+  const pendingCount = filteredDispatch.filter(d => d.status.toLowerCase() !== "delivered" && d.status.toLowerCase() !== "cancelled").length;
+  const delayedCount = filteredDispatch.filter(d => new Date(d.scheduledDate) < new Date() && d.status.toLowerCase() !== "delivered").length;
 
   const statusData = useMemo(() => {
     const counts: Record<string, number> = {};
-    dispatchRecords.forEach(d => counts[d.status] = (counts[d.status] || 0) + 1);
+    filteredDispatch.forEach(d => counts[d.status] = (counts[d.status] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, value: count }));
-  }, [dispatchRecords]);
+  }, [filteredDispatch]);
 
   const carrierData = useMemo(() => {
     const counts: Record<string, number> = {};
-    dispatchRecords.forEach(d => counts[d.carrier] = (counts[d.carrier] || 0) + 1);
+    filteredDispatch.forEach(d => counts[d.carrier] = (counts[d.carrier] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, count }));
-  }, [dispatchRecords]);
+  }, [filteredDispatch]);
 
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8884d8'];
 

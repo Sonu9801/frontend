@@ -15,6 +15,21 @@ interface ComponentReportsTabProps {
   filters?: any;
 }
 
+const parseDate = (dateRaw?: string | null) => {
+  if (!dateRaw) return null;
+  let str = String(dateRaw).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(str)) {
+    str += "Z";
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const formatDate = (dateRaw?: string | null) => {
+  const d = parseDate(dateRaw);
+  return d ? d.toLocaleString() : "-";
+};
+
 export function ComponentReportsTab({ dateRange = "All Time", filters }: ComponentReportsTabProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string } | null>(null);
 
@@ -37,8 +52,8 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
       if (dateRange && dateRange !== "All Time") {
         const compDateRaw = comp.start_time || comp.created_at;
         if (compDateRaw) {
-          const compDate = new Date(compDateRaw);
-          if (!isNaN(compDate.getTime())) {
+          const compDate = parseDate(compDateRaw);
+          if (compDate) {
             if (dateRange === "Today") {
               if (compDate < todayStart) return false;
             } else if (dateRange === "Yesterday") {
@@ -87,8 +102,8 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
       "Number/ID": c.component_number,
       Status: c.status?.replace("_", " "),
       Workers: c.workers?.map((w: any) => w.name).join(", ") || "-",
-      "Start Time": c.start_time ? new Date(c.start_time).toLocaleString() : "-",
-      "End Time": c.end_time ? new Date(c.end_time).toLocaleString() : "-"
+      "Start Time": formatDate(c.start_time),
+      "End Time": formatDate(c.end_time)
     }));
   }, [filteredComponents]);
 
@@ -200,10 +215,10 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
                         </div>
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {comp.start_time ? new Date(comp.start_time).toLocaleString() : "-"}
+                        {formatDate(comp.start_time)}
                       </td>
                       <td className="px-4 py-3 text-muted-foreground">
-                        {comp.end_time ? new Date(comp.end_time).toLocaleString() : "-"}
+                        {formatDate(comp.end_time)}
                       </td>
                       <td className="px-4 py-3">
                         {comp.photo_proof_url ? (

@@ -300,7 +300,7 @@ export default function DashboardPage() {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       transition={{ duration: 0.4 }}
-      className="flex h-full flex-col md:flex-row"
+      className="flex md:h-[calc(100vh-3.5rem)] flex-col md:flex-row min-h-0 md:overflow-hidden"
     >
       {/* Main content */}
       <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6">

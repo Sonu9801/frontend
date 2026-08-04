@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function AttendanceReportsTab({ 
   workers,
   dateRange,
@@ -15,14 +17,17 @@ export function AttendanceReportsTab({
   dateRange: string;
   filters: any;
 }) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const isMatchAttendanceDate = (a: any) => {
+    const aDate = a.date || a.checkIn || a.createdAt;
+    return isDateInFilterRange(aDate, dateRange);
+  };
 
-  const presentCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && a.status === "Present")).length;
-  const lateCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && (a.status === "Late" || (a.checkIn && new Date(a.checkIn).getHours() >= 9)))).length;
-  const halfDayCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && a.status === "Half Day")).length;
-  const absentCount = workers.length - presentCount - lateCount - halfDayCount;
+  const presentCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => isMatchAttendanceDate(a) && a.status === "Present")).length;
+  const lateCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => isMatchAttendanceDate(a) && (a.status === "Late" || (a.checkIn && new Date(a.checkIn).getHours() >= 9)))).length;
+  const halfDayCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => isMatchAttendanceDate(a) && a.status === "Half Day")).length;
+  const absentCount = Math.max(0, workers.length - presentCount - lateCount - halfDayCount);
 
-  const otCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && a.overtimeHours && a.overtimeHours > 0)).length;
+  const otCount = workers.filter(w => w.attendance && w.attendance.some((a: any) => isMatchAttendanceDate(a) && a.overtimeHours && a.overtimeHours > 0)).length;
 
   const attendanceStatusData = [
     { name: "Present", value: presentCount },
@@ -37,14 +42,14 @@ export function AttendanceReportsTab({
       const dept = w.department || "Unassigned";
       if (!depts[dept]) depts[dept] = { total: 0, present: 0 };
       depts[dept].total += 1;
-      const isPresent = w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && ["Present", "Late", "Half Day"].includes(a.status));
+      const isPresent = w.attendance && w.attendance.some((a: any) => isMatchAttendanceDate(a) && ["Present", "Late", "Half Day"].includes(a.status));
       if (isPresent) depts[dept].present += 1;
     });
     return Object.entries(depts).map(([name, data]) => ({
       name,
       AttendanceRate: Math.round((data.present / data.total) * 100) || 0
     }));
-  }, [workers, todayStr]);
+  }, [workers, dateRange]);
 
   const tableData = useMemo(() => {
     return workers.map(w => {

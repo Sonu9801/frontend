@@ -3,6 +3,7 @@ import { DataTable, type ColumnDef } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { Download, FileText, Printer, FileSpreadsheet } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isDateInFilterRange } from "./dateFilterUtils";
 
 interface InvoiceReportsTabProps {
   invoices: any[];
@@ -13,9 +14,23 @@ interface InvoiceReportsTabProps {
 export function InvoiceReportsTab({ invoices, dateRange, filters }: InvoiceReportsTabProps) {
   
   const filteredInvoices = useMemo(() => {
+    if (!Array.isArray(invoices)) return [];
     return invoices.filter((inv) => {
-      // Date filtering logic could go here based on dateRange
-      // Simple filtering for now
+      // 1. Date Range Filtering
+      const invDateRaw = inv.invoice_date || inv.created_at;
+      if (!isDateInFilterRange(invDateRaw, dateRange)) return false;
+
+      // 2. Secondary Filters (Department / Status)
+      if (filters?.department && filters.department !== "All") {
+        if (inv.department?.toLowerCase() !== filters.department.toLowerCase()) return false;
+      }
+      if (filters?.status && filters.status !== "All") {
+        const appStatus = inv.approval_status?.toLowerCase() || "";
+        const payStatus = inv.payment_status?.toLowerCase() || "";
+        const targetStatus = filters.status.toLowerCase();
+        if (appStatus !== targetStatus && payStatus !== targetStatus) return false;
+      }
+
       return true;
     });
   }, [invoices, dateRange, filters]);

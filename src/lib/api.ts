@@ -405,7 +405,7 @@ export const dispatchApi = {
 };
 
 export const invoicesApi = {
-  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string }) => {
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string }) => {
     const response = await api.get("/invoices", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
     return response.data;
   },

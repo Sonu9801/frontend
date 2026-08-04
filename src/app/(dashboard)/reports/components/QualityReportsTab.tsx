@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function QualityReportsTab({ 
   qcRecords,
   dateRange,
@@ -15,8 +17,24 @@ export function QualityReportsTab({
   dateRange: string;
   filters: any;
 }) {
+  const filteredQC = useMemo(() => {
+    if (!Array.isArray(qcRecords)) return [];
+    return qcRecords.filter(qc => {
+      const qcDateRaw = (qc as any).createdAt || (qc as any).timestamp || (qc as any).inspectedAt;
+      if (!isDateInFilterRange(qcDateRaw, dateRange)) return false;
+
+      if (filters?.department && filters.department !== "All") {
+        if (qc.stage?.toLowerCase() !== filters.department.toLowerCase()) return false;
+      }
+      if (filters?.status && filters.status !== "All") {
+        if (qc.status?.toLowerCase() !== filters.status.toLowerCase()) return false;
+      }
+      return true;
+    });
+  }, [qcRecords, dateRange, filters]);
+
   const tableData = useMemo(() => {
-    return qcRecords.map(qc => ({
+    return filteredQC.map(qc => ({
       ID: qc.id,
       VehicleID: qc.vehicleId,
       Stage: qc.stage,
@@ -24,15 +42,15 @@ export function QualityReportsTab({
       Inspector: qc.inspectorId,
       Defects: qc.defects?.length || 0,
     }));
-  }, [qcRecords]);
+  }, [filteredQC]);
 
   const headers = ["ID", "VehicleID", "Stage", "Status", "Inspector", "Defects"];
 
-  const passCount = qcRecords.filter(q => q.status === "Pass").length;
-  const failCount = qcRecords.filter(q => q.status === "Fail").length;
-  const pendingCount = qcRecords.filter(q => q.status === "Pending").length;
-  const reworkCount = qcRecords.filter(q => q.status === "Rework").length;
-  const totalDefects = qcRecords.reduce((acc, q) => acc + (q.defects?.length || 0), 0);
+  const passCount = filteredQC.filter(q => q.status === "Pass").length;
+  const failCount = filteredQC.filter(q => q.status === "Fail").length;
+  const pendingCount = filteredQC.filter(q => q.status === "Pending").length;
+  const reworkCount = filteredQC.filter(q => q.status === "Rework").length;
+  const totalDefects = filteredQC.reduce((acc, q) => acc + (q.defects?.length || 0), 0);
 
   const statusData = [
     { name: "Pass", value: passCount },

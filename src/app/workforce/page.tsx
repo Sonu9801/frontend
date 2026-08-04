@@ -8,6 +8,7 @@ import { ManagerDashboard } from "./ManagerDashboard";
 import { AdminDashboard } from "./AdminDashboard";
 import { Loader2 } from "lucide-react";
 import { authApi } from "@/lib/api";
+import axios from "axios";
 
 export default function WorkforceOrchestrator() {
   const router = useRouter();
@@ -15,19 +16,85 @@ export default function WorkforceOrchestrator() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const workerInfoStr = localStorage.getItem("worker_info");
-    if (!workerInfoStr) {
+    async function initSession() {
+      const workerInfoStr = localStorage.getItem("worker_info");
+      const refreshToken = localStorage.getItem("worker_refreshToken");
+
+      // No stored session at all → go to login
+      if (!workerInfoStr && !refreshToken) {
+        router.push("/workforce/login");
+        return;
+      }
+
+      // We have worker_info — try to use it
+      if (workerInfoStr) {
+        try {
+          const info = JSON.parse(workerInfoStr);
+
+          // Attempt a silent token refresh to ensure the session is still valid
+          if (refreshToken) {
+            try {
+              const res = await axios.post(
+                "/api/auth/refresh",
+                { refresh_token: refreshToken },
+                { withCredentials: true, timeout: 10000 }
+              );
+              const newToken = res.data.access_token;
+              if (newToken) {
+                info.access_token = newToken;
+                localStorage.setItem("worker_token", newToken);
+                localStorage.setItem("worker_info", JSON.stringify(info));
+              }
+            } catch (refreshErr: any) {
+              // If refresh fails with auth error, session is truly expired
+              if (refreshErr.response?.status === 401 || refreshErr.response?.status === 403) {
+                console.warn("[WorkforceAuth] Session expired. Redirecting to login.");
+                localStorage.clear();
+                router.push("/workforce/login");
+                return;
+              }
+              // Network errors are transient — proceed with existing token
+              console.warn("[WorkforceAuth] Refresh failed (network), proceeding with cached token.");
+            }
+          }
+
+          setWorker(info);
+          setLoading(false);
+          return;
+        } catch (e) {
+          // Corrupted worker_info
+          console.error("[WorkforceAuth] Corrupted worker_info:", e);
+        }
+      }
+
+      // Have refreshToken but no worker_info — try to refresh and rebuild
+      if (refreshToken) {
+        try {
+          const res = await axios.post(
+            "/api/auth/refresh",
+            { refresh_token: refreshToken },
+            { withCredentials: true, timeout: 10000 }
+          );
+          const newToken = res.data.access_token;
+          if (newToken) {
+            localStorage.setItem("worker_token", newToken);
+            // We don't have full worker_info, redirect to login to get it
+            // (This is a rare edge case)
+          }
+        } catch {
+          // Refresh truly failed
+        }
+        // Can't reconstruct worker_info → login
+        localStorage.clear();
+        router.push("/workforce/login");
+        return;
+      }
+
+      // Fallback
       router.push("/workforce/login");
-      return;
     }
-    try {
-      const info = JSON.parse(workerInfoStr);
-      setWorker(info);
-    } catch (e) {
-      router.push("/workforce/login");
-    } finally {
-      setLoading(false);
-    }
+
+    initSession();
   }, [router]);
 
   const handleLogout = async () => {

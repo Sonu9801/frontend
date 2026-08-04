@@ -49,20 +49,20 @@ export default function EmployeesTab() {
     {
       id: "employeeId",
       header: "Employee ID",
-      accessor: (row) => <span className="font-medium">{row.employeeId}</span>,
+      accessor: (row: any) => <span className="font-medium">{row.employeeId || row.employee_id || "-"}</span>,
       sortable: true,
     },
     {
       id: "name",
       header: "Full Name",
-      accessor: (row) => (
+      accessor: (row: any) => (
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-medium">
-            {row.name.charAt(0)}
+            {row.name?.charAt(0)}
           </div>
           <div>
             <p className="font-medium text-foreground">{row.name}</p>
-            <p className="text-xs text-muted-foreground">{row.mobileNumber || "No number"}</p>
+            <p className="text-xs text-muted-foreground">{row.mobileNumber || row.mobile_number || row.phone || "No number"}</p>
           </div>
         </div>
       ),
@@ -71,34 +71,40 @@ export default function EmployeesTab() {
     {
       id: "department",
       header: "Department",
-      accessor: (row) => row.department,
+      accessor: (row: any) => row.department || "-",
       sortable: true,
     },
     {
       id: "role",
       header: "Role",
-      accessor: (row) => row.role,
+      accessor: (row: any) => row.role || "Worker",
       sortable: true,
     },
     {
       id: "shift",
       header: "Shift",
-      accessor: (row) => (
-        <div>
-          <p className="font-medium text-xs">{row.shiftType || "General"}</p>
-          <p className="text-xs text-muted-foreground">{row.shiftStart} - {row.shiftEnd}</p>
-        </div>
-      ),
+      accessor: (row: any) => {
+        const type = row.shiftType || row.shift_type || "General";
+        const start = row.shiftStart || row.shift_start;
+        const end = row.shiftEnd || row.shift_end;
+        return (
+          <div>
+            <p className="font-medium text-xs">{type}</p>
+            {start && end && <p className="text-xs text-muted-foreground">{start} - {end}</p>}
+          </div>
+        );
+      },
       sortable: true,
     },
     {
       id: "status",
       header: "Status",
-      accessor: (row) => {
-        const isActive = row.employmentStatus === "Active";
+      accessor: (row: any) => {
+        const status = row.employmentStatus || row.employment_status || "Active";
+        const isActive = status === "Active";
         return (
           <Badge variant="outline" className={isActive ? "border-emerald-500 text-emerald-500 bg-emerald-500/10" : "border-red-500 text-red-500 bg-red-500/10"}>
-            {row.employmentStatus || "Active"}
+            {status}
           </Badge>
         );
       },

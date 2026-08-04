@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function ProductionReportsTab({ 
   vehicles,
   dateRange,
@@ -15,8 +17,21 @@ export function ProductionReportsTab({
   dateRange: string;
   filters: any;
 }) {
+  const filteredVehicles = useMemo(() => {
+    if (!Array.isArray(vehicles)) return [];
+    return vehicles.filter(v => {
+      const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+      if (!isDateInFilterRange(vDateRaw, dateRange)) return false;
+
+      if (filters?.department && filters.department !== "All") {
+        if (v.currentStage?.toLowerCase() !== filters.department.toLowerCase()) return false;
+      }
+      return true;
+    });
+  }, [vehicles, dateRange, filters]);
+
   const tableData = useMemo(() => {
-    return vehicles.map(v => ({
+    return filteredVehicles.map(v => ({
       TrackingID: v.trackingId,
       VehicleNumber: v.vehicleNumber,
       OEM: v.oemName,
@@ -24,18 +39,18 @@ export function ProductionReportsTab({
       Progress: `${v.progressPercent}%`,
       ExpectedDelivery: new Date(v.estimatedDelivery).toLocaleDateString(),
     }));
-  }, [vehicles]);
+  }, [filteredVehicles]);
 
   const headers = ["TrackingID", "VehicleNumber", "OEM", "Stage", "Progress", "ExpectedDelivery"];
 
-  const delayedVehicles = vehicles.filter(v => new Date(v.estimatedDelivery) < new Date() && v.currentStage !== "dispatch").length;
-  const completedVehicles = vehicles.filter(v => v.currentStage === "dispatch" || v.currentStage === "rtd").length;
+  const delayedVehicles = filteredVehicles.filter(v => new Date(v.estimatedDelivery) < new Date() && v.currentStage !== "dispatch").length;
+  const completedVehicles = filteredVehicles.filter(v => v.currentStage === "dispatch" || v.currentStage === "rtd").length;
 
   const stageData = useMemo(() => {
     const counts: Record<string, number> = {};
-    vehicles.forEach(v => counts[v.currentStage] = (counts[v.currentStage] || 0) + 1);
+    filteredVehicles.forEach(v => counts[v.currentStage] = (counts[v.currentStage] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name: name.toUpperCase(), count }));
-  }, [vehicles]);
+  }, [filteredVehicles]);
 
   const handleExport = (type: "csv" | "excel" | "pdf") => {
     const filename = "Production_Report";

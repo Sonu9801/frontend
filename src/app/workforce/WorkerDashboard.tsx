@@ -8,6 +8,7 @@ import { getTranslation } from "./i18n";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWorkerSummary, useWorkerHistory, useWorkerMonthlySummary, useWorkerJobs, useNotifications, useLeaveHistory, useAttendanceSettings } from "@/hooks/useQueries";
 import { useWebSocket } from "@/hooks/useWebSocket";
+import { useSessionKeepAlive } from "@/hooks/useSessionKeepAlive";
 import Webcam from "react-webcam";
 import { 
   MapPin, Clock, Fingerprint, Calendar as CalendarIcon, 
@@ -45,6 +46,16 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
   const router = useRouter();
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Enterprise session keep-alive: proactively refreshes token on app resume
+  useSessionKeepAlive({
+    refreshTokenKey: "worker_refreshToken",
+    accessTokenKey: "worker_token",
+    onSessionExpired: () => {
+      console.warn("[SessionKeepAlive] Session expired. Logging out.");
+      onLogout();
+    },
+  });
   
   // Navigation
   const [activeTab, setActiveTab] = useState<"home" | "attendance" | "jobs" | "profile" | "ot" | "sunday" | "leave" | "notice" | "notifications" | "settings" | "support">("home");

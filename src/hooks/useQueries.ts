@@ -79,9 +79,9 @@ export function useDispatchRecords(params?: { page?: number; pageSize?: number; 
   });
 }
 
-export function useInvoices(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string }) {
+export function useInvoices(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string }) {
   return useQuery<any>({
-    queryKey: ["invoices", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.vendor, params?.department, params?.category],
+    queryKey: ["invoices", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.vendor, params?.department, params?.category, params?.start_date, params?.end_date, params?.date_from, params?.date_to],
     queryFn: () => invoicesApi.getAll(params),
   });
 }

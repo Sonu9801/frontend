@@ -543,6 +543,8 @@ function TeamSection() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const currentUserRole = useAuthStore((state: any) => state.role);
+  const isAdmin = currentUserRole === "admin";
 
   const { data: teamData, isLoading } = useQuery({
     queryKey: ["teamMembers", page, pageSize],
@@ -605,16 +607,18 @@ function TeamSection() {
       description="Manage who has access to FOXFLOW ERP and their roles."
     >
       <div className="flex items-center justify-between mb-4">
-        <p className="text-xs text-muted-foreground">{team.length} members</p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setShowInvite(true)}
-          className="h-8 text-xs"
-          data-ocid="settings.team.invite_button"
-        >
-          <UserPlus size={13} className="mr-1.5" /> Invite Member
-        </Button>
+        <p className="text-xs text-muted-foreground">{totalTeam} members</p>
+        {isAdmin && (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowInvite(true)}
+            className="h-8 text-xs"
+            data-ocid="settings.team.invite_button"
+          >
+            <UserPlus size={13} className="mr-1.5" /> Invite Member
+          </Button>
+        )}
       </div>
       <AnimatePresence>
         {showInvite && (
@@ -739,14 +743,16 @@ function TeamSection() {
                   <RoleBadge userRole={m.role} />
                 </td>
                 <td className="px-4 py-3">
-                  <button
-                     type="button"
-                    onClick={() => remove(m.id)}
-                    className="text-muted-foreground hover:text-destructive transition-colors"
-                    data-ocid={`settings.team.delete_button.${i + 1}`}
-                  >
-                    <Trash2 size={13} />
-                  </button>
+                  {isAdmin && (
+                    <button
+                       type="button"
+                      onClick={() => remove(m.id)}
+                      className="text-muted-foreground hover:text-destructive transition-colors"
+                      data-ocid={`settings.team.delete_button.${i + 1}`}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -912,6 +918,14 @@ function SecuritySection() {
   const [apiRevealed, setApiRevealed] = useState(false);
   const apiKey = "sk-foxflow-fxw8n2kp4qr1m7jt9lz3vdy6whe0ucs";
   const maskedKey = `${apiKey.slice(0, 12)}••••••••••••••••••••${apiKey.slice(-4)}`;
+
+  const { data: loginHistory = [], isLoading: isLoadingHistory } = useQuery({
+    queryKey: ["loginHistory"],
+    queryFn: async () => {
+      const res = await api.get("/auth/login-history");
+      return res.data;
+    }
+  });
 
   const copyKey = useCallback(() => {
     navigator.clipboard.writeText(apiKey);
@@ -1108,22 +1122,50 @@ function SecuritySection() {
                   </th>
                 </tr>
               </thead>
-              <tbody>
-                {LOGIN_HISTORY.map((l, i) => (
-                  <tr
-                    key={l.device + l.time}
-                    className="border-b border-border last:border-0 hover:bg-muted/10 transition-colors"
-                    data-ocid={`settings.security.login_history.item.${i + 1}`}
-                  >
-                    <td className="px-4 py-2.5 text-foreground font-semibold">{l.device}</td>
-                    <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">
-                      {l.location}
-                    </td>
-                    <td className="px-4 py-2.5 text-muted-foreground font-mono">
-                      {l.time}
+               <tbody>
+                {isLoadingHistory ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-4 text-center text-muted-foreground animate-pulse">
+                      Loading login activity...
                     </td>
                   </tr>
-                ))}
+                ) : loginHistory.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-4 text-center text-muted-foreground">
+                      No recent login activity recorded.
+                    </td>
+                  </tr>
+                ) : (
+                  loginHistory.map((l: any, i: number) => {
+                    const formatLoginTime = (isoString: string) => {
+                      try {
+                        const d = new Date(isoString);
+                        if (isNaN(d.getTime())) return isoString;
+                        return d.toLocaleString("en-IN", {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        });
+                      } catch {
+                        return isoString;
+                      }
+                    };
+                    return (
+                      <tr
+                        key={l.device + l.time + i}
+                        className="border-b border-border last:border-0 hover:bg-muted/10 transition-colors"
+                        data-ocid={`settings.security.login_history.item.${i + 1}`}
+                      >
+                        <td className="px-4 py-2.5 text-foreground font-semibold">{l.device}</td>
+                        <td className="px-4 py-2.5 text-muted-foreground hidden sm:table-cell">
+                          {l.location}
+                        </td>
+                        <td className="px-4 py-2.5 text-muted-foreground font-mono">
+                          {formatLoginTime(l.time)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>

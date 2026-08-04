@@ -40,11 +40,53 @@ export default function InvoicesDashboardPage() {
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
 
+  const dateRangeParams = useMemo(() => {
+    if (!dateFilter || dateFilter === "All") return {};
+
+    const now = new Date();
+    if (dateFilter === "Today") {
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const dd = String(now.getDate()).padStart(2, "0");
+      const todayStr = `${yyyy}-${mm}-${dd}`;
+      return { start_date: todayStr, end_date: todayStr };
+    }
+
+    if (dateFilter === "This Month") {
+      const yyyy = now.getFullYear();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const lastDay = new Date(yyyy, now.getMonth() + 1, 0).getDate();
+      return { 
+        start_date: `${yyyy}-${mm}-01`, 
+        end_date: `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}` 
+      };
+    }
+
+    if (dateFilter === "This Year") {
+      const yyyy = now.getFullYear();
+      return { start_date: `${yyyy}-01-01`, end_date: `${yyyy}-12-31` };
+    }
+
+    if (/^\d{4}-\d{2}$/.test(dateFilter)) {
+      const [yyyyStr, mmStr] = dateFilter.split("-");
+      const yyyy = parseInt(yyyyStr, 10);
+      const mm = parseInt(mmStr, 10);
+      const lastDay = new Date(yyyy, mm, 0).getDate();
+      return {
+        start_date: `${dateFilter}-01`,
+        end_date: `${dateFilter}-${String(lastDay).padStart(2, "0")}`
+      };
+    }
+
+    return {};
+  }, [dateFilter]);
+
   const { data: invoicesData, isLoading: isLoadingInvoices } = useInvoices({
     page,
     pageSize,
     approval_status: statusFilter !== "All" ? statusFilter : undefined,
     payment_status: paymentFilter !== "All" ? paymentFilter : undefined,
+    ...dateRangeParams,
   });
   const invoices = invoicesData?.items ?? [];
   const totalInvoices = invoicesData?.total ?? 0;
@@ -321,13 +363,13 @@ export default function InvoicesDashboardPage() {
                 <input
                   type="month"
                   value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
+                  onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
                   className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
                 <Button 
                   variant="ghost" 
                   size="sm" 
-                  onClick={() => setDateFilter("All")}
+                  onClick={() => { setDateFilter("All"); setPage(1); }}
                   className="h-9 px-2 text-xs text-muted-foreground"
                 >
                   Clear
@@ -337,6 +379,7 @@ export default function InvoicesDashboardPage() {
               <select
                 value={dateFilter}
                 onChange={(e) => {
+                  setPage(1);
                   if (e.target.value === "Custom") {
                     const now = new Date();
                     setDateFilter(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);

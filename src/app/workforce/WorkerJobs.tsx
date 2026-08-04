@@ -294,7 +294,7 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                         {isRunning && job.start_time && (
                           <div className="flex items-center gap-2 text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50/50 dark:bg-blue-900/20 p-2.5 rounded-xl border border-blue-100 dark:border-blue-800/30">
                             <Clock size={16} className="animate-pulse" />
-                            <span>Started today at {new Date(job.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                            <span>Started today at {new Date(job.start_time.endsWith("Z") || job.start_time.includes("+") ? job.start_time : job.start_time + "Z").toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
                           </div>
                         )}
 
