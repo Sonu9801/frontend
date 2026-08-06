@@ -496,9 +496,9 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
           { name: "ot_hours", label: "OT Hours", type: "number", defaultValue: editRecord.ot_hours || 0 },
           { name: "late_minutes", label: "Late Minutes", type: "number", defaultValue: editRecord.late_minutes || 0 },
         ] : []}
-        onSubmit={(data: any) => {
+        onSubmit={(data: any, reason: string) => {
           if (!editRecord) return;
-          updateAttendance.mutate({ id: editRecord.id, data }, {
+          updateAttendance.mutate({ id: editRecord.id, data: { ...data, reason } }, {
             onSuccess: () => {
               toast.success("Attendance updated successfully");
               setEditRecord(null);

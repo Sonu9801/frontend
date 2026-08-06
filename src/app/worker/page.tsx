@@ -11,8 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 
+import { useAuthStore } from '@/store/authStore';
+
 export default function WorkerHome() {
   const { data: stats, isLoading } = useWorkerDashboard();
+  const name = useAuthStore((state: any) => state.name) || "Worker";
+  const email = useAuthStore((state: any) => state.email) || "worker@foxstring.com";
 
   const QUICK_ACTIONS = [
     { icon: Calendar, label: 'Attendance', color: 'text-blue-500', bg: 'bg-blue-50 dark:bg-blue-900/20' },
@@ -34,8 +38,8 @@ export default function WorkerHome() {
         <div className="flex gap-4 items-center">
           <UserCircle className="w-14 h-14 opacity-80" />
           <div>
-            <h1 className="text-xl font-semibold tracking-tight">John Doe</h1>
-            <p className="text-primary-foreground/70 text-sm">EMP-20394 | General Shift</p>
+            <h1 className="text-xl font-semibold tracking-tight">{name}</h1>
+            <p className="text-primary-foreground/70 text-xs truncate max-w-[200px]">{email}</p>
             <p className="text-primary-foreground/90 text-xs mt-1">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
             </p>
@@ -78,19 +82,19 @@ export default function WorkerHome() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <p className="text-xs text-muted-foreground">Punch In</p>
-                <p className="text-lg font-semibold">09:02 AM</p>
+                <p className="text-lg font-semibold">{stats?.today_punch_in || '--'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Working Hours</p>
-                <p className="text-lg font-semibold">03:45 <span className="text-sm font-normal text-muted-foreground">hrs</span></p>
+                <p className="text-lg font-semibold">{stats?.today_working_hours || '--'}</p>
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Today's OT</p>
-                <p className="text-lg font-semibold text-orange-600">00:00 <span className="text-sm font-normal text-muted-foreground">hrs</span></p>
+                <p className="text-lg font-semibold text-orange-600">{stats?.today_ot_hours || '--'}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Break Time</p>
-                <p className="text-lg font-semibold text-blue-600">00:45 <span className="text-sm font-normal text-muted-foreground">hrs</span></p>
+                <p className="text-xs text-muted-foreground">Punch Out</p>
+                <p className="text-lg font-semibold text-blue-600">{stats?.today_punch_out || '--'}</p>
               </div>
             </div>
           </CardContent>

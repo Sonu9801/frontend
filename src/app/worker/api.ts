@@ -47,6 +47,10 @@ export interface WorkerDashboardStats {
   pending_jobs: number;
   in_progress_jobs: number;
   completed_today: number;
+  today_punch_in?: string;
+  today_punch_out?: string;
+  today_working_hours?: string;
+  today_ot_hours?: string;
 }
 
 export interface PerformanceStats {
