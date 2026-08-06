@@ -36,7 +36,13 @@ export function ExecutiveDashboardTab({
   const delayedVehicles = vehicles.filter(v => v.estimatedDelivery && new Date(v.estimatedDelivery) < new Date() && (v.currentStage as string) !== "dispatch").length;
   
   const todayStr = new Date().toISOString().split("T")[0];
-  const presentWorkers = workers.filter(w => w.attendance && w.attendance.some((a: any) => a.date.startsWith(todayStr) && a.status === "Present")).length;
+  const presentWorkers = workers.filter(w => w.attendance && w.attendance.some((a: any) => {
+    const aDate = a.date || a.checkIn || a.createdAt;
+    if (typeof aDate === "string") {
+      return aDate.startsWith(todayStr) && a.status === "Present";
+    }
+    return false;
+  })).length;
   const totalPayrollCost = workers.reduce((sum, w) => sum + (w.salary || 0), 0);
   const qcPassRate = qcRecords.length ? Math.round((qcRecords.filter(q => q.status === "Pass").length / qcRecords.length) * 100) : 0;
 

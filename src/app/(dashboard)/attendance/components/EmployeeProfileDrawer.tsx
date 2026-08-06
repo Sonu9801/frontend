@@ -110,10 +110,10 @@ export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEd
             <div className="px-6 pt-12 pb-4 border-b border-border flex-shrink-0 flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-bold text-foreground">{worker.name}</h2>
-                <p className="text-sm text-muted-foreground">{worker.employeeId} • {worker.designation || worker.role}</p>
+                <p className="text-sm text-muted-foreground">{worker.employeeId || worker.employee_id} • {worker.designation || worker.role}</p>
                 <div className="flex gap-2 mt-3">
                   <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                    {worker.employmentStatus}
+                    {worker.employmentStatus || worker.employment_status}
                   </Badge>
                   <Badge variant="outline" className="bg-muted">
                     {worker.department}

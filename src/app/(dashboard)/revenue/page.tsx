@@ -58,6 +58,10 @@ export default function RevenueDashboardPage() {
       return { start_date: `${yyyy}-01-01`, end_date: `${yyyy}-12-31` };
     }
 
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateFilter)) {
+      return { start_date: dateFilter, end_date: dateFilter };
+    }
+
     if (/^\d{4}-\d{2}$/.test(dateFilter)) {
       const [yyyyStr, mmStr] = dateFilter.split("-");
       const yyyy = parseInt(yyyyStr, 10);
@@ -386,10 +390,10 @@ export default function RevenueDashboardPage() {
             {dateFilter !== "All" && dateFilter !== "Today" && dateFilter !== "This Month" && dateFilter !== "This Year" ? (
               <div className="flex items-center gap-2">
                 <input
-                  type="month"
+                  type="date"
                   value={dateFilter}
                   onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
-                  className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
                 />
                 <Button 
                   variant="ghost" 
@@ -407,7 +411,10 @@ export default function RevenueDashboardPage() {
                   setPage(1);
                   if (e.target.value === "Custom") {
                     const now = new Date();
-                    setDateFilter(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`);
+                    const yyyy = now.getFullYear();
+                    const mm = String(now.getMonth() + 1).padStart(2, '0');
+                    const dd = String(now.getDate()).padStart(2, '0');
+                    setDateFilter(`${yyyy}-${mm}-${dd}`);
                   } else {
                     setDateFilter(e.target.value);
                   }
@@ -418,7 +425,7 @@ export default function RevenueDashboardPage() {
                 <option value="Today">Today</option>
                 <option value="This Month">This Month</option>
                 <option value="This Year">This Year</option>
-                <option value="Custom">Custom Month...</option>
+                <option value="Custom">Custom Date...</option>
               </select>
             )}
 

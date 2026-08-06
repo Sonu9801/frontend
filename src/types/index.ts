@@ -74,6 +74,7 @@ export interface Worker {
   id: string;
   name: string;
   employeeId: string;
+  employee_id?: string;
   status: WorkerStatus;
   currentTaskId: string | null;
   hoursToday: number;
@@ -97,6 +98,7 @@ export interface Worker {
   aadhaarNumber?: string;
   panNumber?: string;
   employmentStatus: string;
+  employment_status?: string;
   faceRegistrationStatus: string;
   salaryProfile?: SalaryProfile;
   attendance?: any;

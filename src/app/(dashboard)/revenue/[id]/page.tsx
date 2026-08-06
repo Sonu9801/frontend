@@ -9,32 +9,35 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
+import { useQuery } from "@tanstack/react-query";
+import { revenueApi } from "@/lib/api";
+
 export default function SalesInvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
-  const { data: invoices = [], isLoading } = useRevenue();
+  
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ["salesInvoice", id],
+    queryFn: () => revenueApi.getOne(id),
+    enabled: !!id,
+  });
   const updateMutation = useUpdateSalesInvoice();
   
   const role = useAuthStore((state: any) => state.role);
   const canEdit = ["admin", "owner", "finance_manager"].includes(role);
 
-  const [invoice, setInvoice] = useState<any>(null);
   const [editData, setEditData] = useState<any>({});
   
   useEffect(() => {
-    if (invoices.length > 0) {
-      const found = invoices.find((inv: any) => String(inv.id) === id);
-      if (found) {
-        setInvoice(found);
-        setEditData({
-          payment_status: found.payment_status || "Pending",
-          approval_status: found.approval_status || "Pending Review",
-          finance_remarks: found.finance_remarks || "",
-          received_amount: found.received_amount || 0,
-        });
-      }
+    if (invoice) {
+      setEditData({
+        payment_status: invoice.payment_status || "Pending",
+        approval_status: invoice.approval_status || "Pending Review",
+        finance_remarks: invoice.finance_remarks || "",
+        received_amount: invoice.received_amount || 0,
+      });
     }
-  }, [invoices, id]);
+  }, [invoice]);
 
   const handleSave = async () => {
     if (!invoice) return;

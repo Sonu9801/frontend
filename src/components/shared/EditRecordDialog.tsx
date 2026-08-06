@@ -66,10 +66,6 @@ export function EditRecordDialog({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (requireReason && !reason.trim()) {
-      alert("A reason for this edit is required.");
-      return;
-    }
     onSubmit(values, reason);
   };
 
@@ -119,13 +115,12 @@ export function EditRecordDialog({
 
           {requireReason && (
             <div className="pt-4 mt-2 border-t border-border px-6">
-              <Label className="text-destructive font-semibold">Reason for Edit *</Label>
+              <Label className="text-muted-foreground font-semibold">Reason for Edit (Optional)</Label>
               <textarea
-                className="w-full mt-2 h-20 bg-destructive/5 border border-destructive/20 text-foreground rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-destructive/30 resize-none placeholder:text-muted-foreground/60"
+                className="w-full mt-2 h-20 bg-gray-50/50 dark:bg-zinc-900 border border-input text-foreground rounded-lg p-3 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30 resize-none placeholder:text-muted-foreground/60"
                 placeholder="Briefly explain why you are making this administrative change..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
-                required
               />
             </div>
           )}
@@ -135,7 +130,7 @@ export function EditRecordDialog({
               <Button type="button" variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button type="submit" className="flex-1 md:flex-none shadow-lg shadow-primary/20" disabled={isSubmitting || (requireReason && !reason.trim())}>
+              <Button type="submit" className="flex-1 md:flex-none shadow-lg shadow-primary/20" disabled={isSubmitting}>
                 {isSubmitting ? "Saving..." : "Save Changes"}
               </Button>
             </DialogFooter>

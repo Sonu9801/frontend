@@ -39,7 +39,7 @@ export default function EmployeesTab() {
   const totalWorkers = workersData?.total ?? 0;
   const totalPages = workersData?.total_pages ?? 1;
 
-  const activeEmployees = workers.filter((w: any) => w.employmentStatus === "Active").length;
+  const activeEmployees = workers.filter((w: any) => (w.employmentStatus || w.employment_status) === "Active").length;
   const supervisors = workers.filter((w: any) => w.role === "Supervisor").length;
 
   const uniqueDepartments = KNOWN_DEPARTMENTS;

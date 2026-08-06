@@ -37,9 +37,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { ProductionJob } from "@/types";
 
 // Geofence constants
-const COMPANY_LAT = 28.477930;  // Fox Enterprises - Faridabad
-const COMPANY_LNG = 77.298560;  // Fox Enterprises - Faridabad
-const RADIUS_METERS = 1000;     // 1 km geofence radius
+const COMPANY_LAT = 28.475117;  // Fox Enterprises - Faridabad
+const COMPANY_LNG = 77.297224;  // Fox Enterprises - Faridabad
+const RADIUS_METERS = 10000;    // 10 km geofence radius
 const COMPANY_ADDRESS = "Fox Enterprises, Faridabad, Haryana";
 
 export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, onLogout: () => void, setWorker: (w:any)=>void }) {

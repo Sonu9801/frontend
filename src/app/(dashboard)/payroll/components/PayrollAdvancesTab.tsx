@@ -39,8 +39,11 @@ export default function PayrollAdvancesTab() {
 
   useEffect(() => {
     fetchAdvances();
-    api.get("/workers").then(res => {
-      if (Array.isArray(res.data)) setWorkers(res.data.filter((w: any) => w.employmentStatus === "Active"));
+    api.get("/workers", { params: { page_size: 1000 } }).then(res => {
+      const data = res.data?.items || res.data;
+      if (Array.isArray(data)) {
+        setWorkers(data.filter((w: any) => (w.employment_status || w.employmentStatus) === "Active"));
+      }
     }).catch(console.error);
   }, []);
 
@@ -175,7 +178,7 @@ export default function PayrollAdvancesTab() {
               >
                 <option value="">Select an employee</option>
                 {workers.map(w => (
-                  <option key={w.id} value={w.id}>{w.name} ({w.employeeId})</option>
+                  <option key={w.id} value={w.id}>{w.name} ({w.employee_id || w.employeeId})</option>
                 ))}
               </select>
             </div>

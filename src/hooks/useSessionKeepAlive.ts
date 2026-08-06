@@ -45,7 +45,11 @@ export function useSessionKeepAlive(opts?: {
       const response = await axios.post(
         "/api/auth/refresh",
         { refresh_token: refreshToken },
-        { withCredentials: true, timeout: 10000 }
+        { 
+          withCredentials: true, 
+          timeout: 10000,
+          headers: { "ngrok-skip-browser-warning": "true" }
+        }
       );
 
       const newToken = response.data.access_token;

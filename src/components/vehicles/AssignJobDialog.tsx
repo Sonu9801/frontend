@@ -27,7 +27,7 @@ export function AssignJobDialog({ vehicle, stage, workers, open, onClose, onAssi
   const [customStage, setCustomStage] = useState<string>("");
 
   // Only show active workforce
-  const availableWorkers = workers.filter(w => w.employmentStatus === "Active");
+  const availableWorkers = workers.filter(w => (w.employmentStatus || w.employment_status) === "Active");
 
   const toggleWorker = (id: number) => {
     const next = new Set(selectedWorkerIds);

@@ -8,33 +8,36 @@ import { ChevronLeft, FileText, Download, CheckCircle, XCircle, Clock, Loader2, 
 import { toast } from "sonner";
 import { useAuthStore } from "@/store/authStore";
 
+import { useQuery } from "@tanstack/react-query";
+import { invoicesApi } from "@/lib/api";
+
 export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = React.use(params);
   const router = useRouter();
-  const { data: invoices = [], isLoading } = useInvoices();
+  
+  const { data: invoice, isLoading } = useQuery({
+    queryKey: ["purchaseInvoice", id],
+    queryFn: () => invoicesApi.getOne(id),
+    enabled: !!id,
+  });
   const updateMutation = useUpdateInvoice();
   
   const role = useAuthStore((state: any) => state.role);
   const canEdit = ["admin", "owner", "finance_manager"].includes(role);
 
-  const [invoice, setInvoice] = useState<any>(null);
   const [editData, setEditData] = useState<any>({});
   
   useEffect(() => {
-    if (invoices.length > 0) {
-      const found = invoices.find((inv: any) => String(inv.id) === id);
-      if (found) {
-        setInvoice(found);
-        setEditData({
-          expense_category: found.expense_category || "",
-          department: found.department || "",
-          payment_status: found.payment_status || "Unpaid",
-          approval_status: found.approval_status || "Pending Review",
-          finance_remarks: found.finance_remarks || "",
-        });
-      }
+    if (invoice) {
+      setEditData({
+        expense_category: invoice.expense_category || "",
+        department: invoice.department || "",
+        payment_status: invoice.payment_status || "Unpaid",
+        approval_status: invoice.approval_status || "Pending Review",
+        finance_remarks: invoice.finance_remarks || "",
+      });
     }
-  }, [invoices, id]);
+  }, [invoice]);
 
   const handleSave = async () => {
     if (!invoice) return;

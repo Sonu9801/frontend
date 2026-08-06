@@ -286,9 +286,8 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
                 />
               </div>
               <div>
-                <label className={labelCls}>Platform Number *</label>
+                <label className={labelCls}>Platform Number</label>
                 <input
-                  required
                   placeholder="Platform 123"
                   value={form.platformNumber}
                   onChange={(e) => setForm((f) => ({ ...f, platformNumber: e.target.value }))}

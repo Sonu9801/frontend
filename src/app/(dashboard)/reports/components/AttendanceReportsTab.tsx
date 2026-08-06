@@ -17,6 +17,8 @@ export function AttendanceReportsTab({
   dateRange: string;
   filters: any;
 }) {
+  const todayStr = new Date().toISOString().split("T")[0];
+
   const isMatchAttendanceDate = (a: any) => {
     const aDate = a.date || a.checkIn || a.createdAt;
     return isDateInFilterRange(aDate, dateRange);
@@ -53,9 +55,15 @@ export function AttendanceReportsTab({
 
   const tableData = useMemo(() => {
     return workers.map(w => {
-      const todaysRecord = w.attendance?.find((a: any) => a.date.startsWith(todayStr));
+      const todaysRecord = w.attendance?.find((a: any) => {
+        const aDate = a.date || a.checkIn || a.createdAt;
+        if (typeof aDate === "string") {
+          return aDate.startsWith(todayStr);
+        }
+        return false;
+      });
       return {
-        ID: w.employeeId,
+        ID: w.employeeId || w.employee_id || "-",
         Name: w.name,
         Department: w.department,
         Status: todaysRecord?.status || "Absent",

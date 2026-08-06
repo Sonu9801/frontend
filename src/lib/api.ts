@@ -139,8 +139,13 @@ api.interceptors.response.use(
 
     const originalRequest = error.config;
     
-    // Ignore if the request was to /auth/login, /auth/refresh, or /auth/register to prevent infinite loops
-    if (originalRequest.url.includes('/auth/login') || originalRequest.url.includes('/auth/refresh') || originalRequest.url.includes('/auth/register')) {
+    // Ignore login, refresh, or registration requests to prevent infinite refresh loops
+    if (
+      originalRequest.url.includes('/auth/login') || 
+      originalRequest.url.includes('/auth/worker-login') || 
+      originalRequest.url.includes('/auth/refresh') || 
+      originalRequest.url.includes('/auth/register')
+    ) {
       return Promise.reject(error);
     }
 
@@ -165,7 +170,10 @@ api.interceptors.response.use(
         const response = await axios.post(
           `${API_URL}/auth/refresh`,
           refreshToken ? { refresh_token: refreshToken } : {},
-          { withCredentials: true }
+          { 
+            withCredentials: true,
+            headers: { "ngrok-skip-browser-warning": "true" }
+          }
         );
         const newToken = response.data.access_token;
         
