@@ -259,10 +259,6 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
   };
 
   const getPunchEndpoint = () => {
-    if (process.env.NEXT_PUBLIC_API_URL) {
-      const base = process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
-      return base.endsWith("/api") ? `${base}/attendance/punch` : `${base}/api/attendance/punch`;
-    }
     return "/api/attendance/punch";
   };
 
