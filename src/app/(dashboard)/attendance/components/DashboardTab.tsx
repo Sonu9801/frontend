@@ -1,11 +1,14 @@
 import React, { useState } from "react";
-import { useAttendanceAnalytics, useAttendanceLogs, usePayrollSummary } from "@/hooks/useQueries";
+import { useAttendanceAnalytics, useAttendanceLogs, usePayrollSummary, useUpdateAttendance } from "@/hooks/useQueries";
 import AttendanceDetailsDrawer from "./AttendanceDetailsDrawer";
 import { Worker } from "@/types";
 import { 
   Users, UserCheck, UserX, Clock, Calendar, Briefcase, 
   IndianRupee, TrendingUp, TrendingDown, MapPin, Camera, AlertCircle, Filter, Download, List
 } from "lucide-react";
+import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
+import { toast } from "sonner";
+import { useAuthStore } from "@/store/authStore";
 import { 
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, 
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area
@@ -37,28 +40,122 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
   const [filterDept, setFilterDept] = useState("All");
   const [filterType, setFilterType] = useState("All");
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [editRecord, setEditRecord] = useState<any>(null);
+  const updateAttendance = useUpdateAttendance();
+  const userRole = useAuthStore((state: any) => state.role) || "operator";
+  const canEdit = ["admin", "owner"].includes(userRole);
 
   const { data: analytics } = useAttendanceAnalytics();
   const { data: logsData } = useAttendanceLogs({ pageSize: 1000 });
   const logs = logsData?.items ?? [];
   const { data: payrollSummary } = usePayrollSummary();
 
-  const totalEmployees = analytics?.total || 0;
-  const presentToday = analytics?.present || 0;
-  const absentToday = analytics?.absent || 0;
-  const lateEmployees = analytics?.late || 0;
-  const halfDayEmployees = analytics?.half_day || 0;
-  
-  const otRunning = analytics?.ot_running || 0;
-  const sundayWorkers = 0; // TODO: Implement if needed
+  const { kpis, presentPercent, absentPercent, latePercent } = React.useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
 
-  const presentPercent = totalEmployees > 0 ? Math.round((presentToday / totalEmployees) * 100) : 0;
-  const absentPercent = totalEmployees > 0 ? Math.round((absentToday / totalEmployees) * 100) : 0;
-  const latePercent = presentToday > 0 ? Math.round((lateEmployees / presentToday) * 100) : 0;
+    // Filter logs for this specific date range for KPIs calculation
+    const rangeLogs = (logs || []).filter((l: any) => {
+      if (dateRange === "Today") {
+        return l.date === todayStr;
+      }
+      if (dateRange === "Yesterday") {
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = yest.toISOString().split('T')[0];
+        return l.date === yestStr;
+      }
+      if (dateRange === "This Week") {
+        const startOfWeek = new Date();
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        const startStr = startOfWeek.toISOString().split('T')[0];
+        return l.date >= startStr && l.date <= todayStr;
+      }
+      if (dateRange === "This Month") {
+        const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        return l.date >= startStr && l.date <= todayStr;
+      }
+      return true;
+    });
+
+    const activeCount = workers.filter((w: any) => (w.employmentStatus || w.employment_status) === "Active").length;
+    const total = activeCount || workers.length || analytics?.total || 0;
+
+    let present = 0;
+    let absent = 0;
+    let late = 0;
+    let halfDay = 0;
+    let ot = 0;
+
+    if (dateRange === "Today") {
+      present = analytics?.present ?? rangeLogs.filter((l: any) => ["Present", "Half Day", "Late", "Sunday Work"].includes(l.status)).length;
+      absent = analytics?.absent ?? Math.max(0, total - present);
+      late = analytics?.late ?? rangeLogs.filter((l: any) => l.status === "Late").length;
+      halfDay = analytics?.half_day ?? rangeLogs.filter((l: any) => l.status === "Half Day").length;
+      ot = analytics?.ot_running ?? rangeLogs.filter((l: any) => !l.punch_out && l.ot_hours > 0).length;
+    } else {
+      const uniqueWorkers = new Set(rangeLogs.map((l: any) => l.worker_id));
+      present = rangeLogs.filter((l: any) => ["Present", "Half Day", "Late", "Sunday Work"].includes(l.status)).length;
+      absent = Math.max(0, total - uniqueWorkers.size);
+      late = rangeLogs.filter((l: any) => l.status === "Late").length;
+      halfDay = rangeLogs.filter((l: any) => l.status === "Half Day").length;
+      ot = rangeLogs.filter((l: any) => l.ot_hours > 0).length;
+    }
+
+    const pPct = total > 0 ? Math.round((present / total) * 100) : 0;
+    const aPct = total > 0 ? Math.round((absent / total) * 100) : 0;
+    const lPct = present > 0 ? Math.round((late / present) * 100) : 0;
+
+    return {
+      kpis: { total, present, absent, late, halfDay, ot },
+      presentPercent: pPct,
+      absentPercent: aPct,
+      latePercent: lPct
+    };
+  }, [logs, dateRange, workers, analytics]);
+
   const monthlyAvg = 92;
 
   const todayStr = new Date().toISOString().split('T')[0];
-  const todaysLogs = (logs || []).filter((l: any) => l.date === todayStr);
+  
+  const tableLogs = React.useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+
+    return (logs || []).filter((l: any) => {
+      // 1. Apply date range
+      let matchDate = false;
+      if (dateRange === "Today") {
+        matchDate = l.date === todayStr;
+      } else if (dateRange === "Yesterday") {
+        const yest = new Date();
+        yest.setDate(yest.getDate() - 1);
+        const yestStr = yest.toISOString().split('T')[0];
+        matchDate = l.date === yestStr;
+      } else if (dateRange === "This Week") {
+        const startOfWeek = new Date();
+        startOfWeek.setDate(now.getDate() - now.getDay());
+        const startStr = startOfWeek.toISOString().split('T')[0];
+        matchDate = l.date >= startStr && l.date <= todayStr;
+      } else if (dateRange === "This Month") {
+        const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+        matchDate = l.date >= startStr && l.date <= todayStr;
+      } else {
+        matchDate = true;
+      }
+
+      // 2. Apply filters
+      const matchDept = filterDept === "All" || l.department === filterDept;
+      let matchType = true;
+      if (filterType !== "All") {
+        if (filterType === "Present") matchType = l.status === "Present";
+        else if (filterType === "Late") matchType = l.status === "Late";
+        else if (filterType === "Out") matchType = !!l.punch_out;
+      }
+
+      return matchDate && matchDept && matchType;
+    });
+  }, [logs, dateRange, filterDept, filterType]);
   
   const liveFeed = (logs || []).slice(0, 10).map((log: any) => {
      let text = `${log.employee_name} Punched In`;
@@ -175,12 +272,12 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KPICard title="Present Today" value={presentToday} icon={UserCheck} colorClass="bg-emerald-500/10 text-emerald-500" subtext={`${presentPercent}% of workforce`} />
-        <KPICard title="Absent Today" value={absentToday} icon={UserX} colorClass="bg-red-500/10 text-red-500" subtext={`${absentPercent}% of workforce`} />
-        <KPICard title="Late Employees" value={lateEmployees} icon={Clock} colorClass="bg-orange-500/10 text-orange-500" subtext="After shift start" />
-        <KPICard title="Half Day" value={halfDayEmployees} icon={Calendar} colorClass="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" subtext="Left early" />
-        <KPICard title="OT Running" value={otRunning} icon={TrendingUp} colorClass="bg-purple-500/10 text-purple-500" subtext="Currently working OT" />
-        <KPICard title="Total Employees" value={totalEmployees} icon={Users} colorClass="bg-blue-500/10 text-blue-500" subtext="Registered workforce" />
+        <KPICard title={dateRange === "Today" ? "Present Today" : "Present"} value={kpis.present} icon={UserCheck} colorClass="bg-emerald-500/10 text-emerald-500" subtext={`${presentPercent}% of workforce`} />
+        <KPICard title={dateRange === "Today" ? "Absent Today" : "Absent"} value={kpis.absent} icon={UserX} colorClass="bg-red-500/10 text-red-500" subtext={`${absentPercent}% of workforce`} />
+        <KPICard title="Late Employees" value={kpis.late} icon={Clock} colorClass="bg-orange-500/10 text-orange-500" subtext="After shift start" />
+        <KPICard title="Half Day" value={kpis.halfDay} icon={Calendar} colorClass="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" subtext="Left early" />
+        <KPICard title={dateRange === "Today" ? "OT Running" : "OT Completed"} value={kpis.ot} icon={TrendingUp} colorClass="bg-purple-500/10 text-purple-500" subtext={dateRange === "Today" ? "Currently working OT" : "Records with OT"} />
+        <KPICard title="Total Employees" value={kpis.total} icon={Users} colorClass="bg-blue-500/10 text-blue-500" subtext="Registered workforce" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -192,15 +289,15 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-xl">
               <div className="text-3xl font-bold text-emerald-500">{presentPercent}%</div>
-              <div className="text-sm font-medium text-muted-foreground mt-1">Present Today</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">Present Rate</div>
             </div>
             <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-xl">
               <div className="text-3xl font-bold text-red-500">{absentPercent}%</div>
-              <div className="text-sm font-medium text-muted-foreground mt-1">Absent Today</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">Absent Rate</div>
             </div>
             <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-xl">
               <div className="text-3xl font-bold text-orange-500">{latePercent}%</div>
-              <div className="text-sm font-medium text-muted-foreground mt-1">Late Today</div>
+              <div className="text-sm font-medium text-muted-foreground mt-1">Late Rate</div>
             </div>
             <div className="flex flex-col items-center justify-center p-4 bg-muted/30 rounded-xl">
               <div className="text-3xl font-bold text-primary">{monthlyAvg}%</div>
@@ -326,7 +423,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
         <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-muted/10">
           <h3 className="text-base font-semibold flex items-center gap-2">
             <List size={18} className="text-muted-foreground" />
-            Today's Attendance
+            {dateRange === "Today" ? "Today's Attendance" : dateRange === "Yesterday" ? "Yesterday's Attendance" : dateRange + " Attendance"}
           </h3>
         </div>
         <div className="overflow-x-auto">
@@ -344,9 +441,9 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {todaysLogs.length === 0 ? (
-                <tr><td colSpan={8} className="px-5 py-8 text-center text-muted-foreground">No attendance records for today.</td></tr>
-              ) : todaysLogs.map((row: any) => (
+              {tableLogs.length === 0 ? (
+                <tr><td colSpan={8} className="px-5 py-8 text-center text-muted-foreground">No attendance records found for this period.</td></tr>
+              ) : tableLogs.map((row: any) => (
                 <tr key={row.id} className="hover:bg-muted/20 transition-colors">
                   <td className="px-5 py-3 font-medium text-foreground">{row.employee_name}</td>
                   <td className="px-5 py-3 text-muted-foreground">{row.department}</td>
@@ -367,7 +464,12 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
                     <Camera size={16} className={row.photo_status === 'Verified' ? "text-emerald-500" : "text-muted-foreground"} />
                   </td>
                   <td className="px-5 py-3">
-                    <button onClick={() => setSelectedRecord(row)} className="text-primary hover:underline text-xs font-medium">View</button>
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => setSelectedRecord(row)} className="text-primary hover:underline text-xs font-medium">View</button>
+                      {canEdit && (
+                        <button onClick={() => setEditRecord(row)} className="text-primary hover:underline text-xs font-medium">Edit</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -380,6 +482,33 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
         open={!!selectedRecord} 
         onOpenChange={(open: boolean) => !open && setSelectedRecord(null)} 
         record={selectedRecord} 
+      />
+
+      <EditRecordDialog
+        open={!!editRecord}
+        onOpenChange={(open) => !open && setEditRecord(null)}
+        title={`Edit Attendance: ${editRecord?.employee_name}`}
+        fields={editRecord ? [
+          { name: "status", label: "Status", type: "select", defaultValue: editRecord.status, options: ["Present", "Absent", "Half Day", "Late", "Sunday Work"] },
+          { name: "punch_in", label: "Punch In (ISO)", type: "text", defaultValue: editRecord.punch_in || "" },
+          { name: "punch_out", label: "Punch Out (ISO)", type: "text", defaultValue: editRecord.punch_out || "" },
+          { name: "net_working_hours", label: "Net Working Hours", type: "number", defaultValue: editRecord.net_working_hours || 0 },
+          { name: "ot_hours", label: "OT Hours", type: "number", defaultValue: editRecord.ot_hours || 0 },
+          { name: "late_minutes", label: "Late Minutes", type: "number", defaultValue: editRecord.late_minutes || 0 },
+        ] : []}
+        onSubmit={(data: any) => {
+          if (!editRecord) return;
+          updateAttendance.mutate({ id: editRecord.id, data }, {
+            onSuccess: () => {
+              toast.success("Attendance updated successfully");
+              setEditRecord(null);
+            },
+            onError: (err: any) => {
+              toast.error(err.response?.data?.detail || "Failed to update attendance");
+            }
+          });
+        }}
+        isSubmitting={updateAttendance.isPending}
       />
     </div>
   );
