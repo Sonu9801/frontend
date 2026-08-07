@@ -299,8 +299,21 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
       });
       
       if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.detail || "Failed to record attendance");
+        let errorMsg = "Failed to record attendance";
+        try {
+          const errData = await res.json();
+          if (typeof errData.detail === "string") {
+            errorMsg = errData.detail;
+          } else if (Array.isArray(errData.detail) && errData.detail.length > 0) {
+            errorMsg = errData.detail.map((e: any) => e.msg || e.detail || JSON.stringify(e)).join(", ");
+          } else if (errData.message) {
+            errorMsg = errData.message;
+          }
+        } catch {
+          if (res.status === 401) errorMsg = "Session expired. Please log in again.";
+          else if (res.status === 500) errorMsg = "Server error while recording attendance.";
+        }
+        throw new Error(errorMsg);
       }
       
       toast.success(`${punchAction} successful!`);
