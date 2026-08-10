@@ -421,12 +421,12 @@ export const invoicesApi = {
     const response = await api.get(`/invoices/${id}`);
     return response.data;
   },
-  getDashboardStats: async () => {
-    const response = await api.get("/invoices/dashboard-stats");
+  getDashboardStats: async (params?: { start_date?: string; end_date?: string }) => {
+    const response = await api.get("/invoices/dashboard-stats", { params });
     return response.data;
   },
-  getAnalytics: async () => {
-    const response = await api.get("/invoices/analytics");
+  getAnalytics: async (params?: { start_date?: string; end_date?: string }) => {
+    const response = await api.get("/invoices/analytics", { params });
     return response.data;
   },
   upload: async (file: File) => {
@@ -460,12 +460,12 @@ export const revenueApi = {
     const response = await api.get(`/revenue/${id}`);
     return response.data;
   },
-  getDashboardStats: async () => {
-    const response = await api.get("/revenue/dashboard-stats");
+  getDashboardStats: async (params?: { start_date?: string; end_date?: string }) => {
+    const response = await api.get("/revenue/dashboard-stats", { params });
     return response.data;
   },
-  getAnalytics: async () => {
-    const response = await api.get("/revenue/analytics");
+  getAnalytics: async (params?: { start_date?: string; end_date?: string }) => {
+    const response = await api.get("/revenue/analytics", { params });
     return response.data;
   },
   upload: async (file: File) => {

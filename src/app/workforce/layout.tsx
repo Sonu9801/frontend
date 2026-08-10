@@ -7,6 +7,15 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata = {
   title: "FoxFlow Workforce",
   description: "Worker Mobile App for Factory Floor",
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" }
+    ],
+    shortcut: "/logo.svg",
+    apple: "/icon-192x192.png",
+  },
 };
 
 export const viewport = {

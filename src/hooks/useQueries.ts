@@ -86,17 +86,17 @@ export function useInvoices(params?: { page?: number; pageSize?: number; search?
   });
 }
 
-export function useInvoiceDashboardStats() {
+export function useInvoiceDashboardStats(params?: { start_date?: string; end_date?: string }) {
   return useQuery<any>({
-    queryKey: ["invoiceStats"],
-    queryFn: invoicesApi.getDashboardStats,
+    queryKey: ["invoiceStats", params],
+    queryFn: () => invoicesApi.getDashboardStats(params),
   });
 }
 
-export function useInvoiceAnalytics() {
+export function useInvoiceAnalytics(params?: { start_date?: string; end_date?: string }) {
   return useQuery<any>({
-    queryKey: ["invoiceAnalytics"],
-    queryFn: invoicesApi.getAnalytics,
+    queryKey: ["invoiceAnalytics", params],
+    queryFn: () => invoicesApi.getAnalytics(params),
   });
 }
 
@@ -111,6 +111,9 @@ export function useNotifications() {
   return useQuery({
     queryKey: ["notifications"],
     queryFn: () => notificationsApi.getAll(),
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
+    refetchOnMount: true,
   });
 }
 
@@ -361,17 +364,17 @@ export function useRevenue(params?: { page?: number; pageSize?: number; search?:
   });
 }
 
-export function useRevenueDashboardStats() {
+export function useRevenueDashboardStats(params?: { start_date?: string; end_date?: string }) {
   return useQuery<any>({
-    queryKey: ["revenueStats"],
-    queryFn: revenueApi.getDashboardStats,
+    queryKey: ["revenueStats", params],
+    queryFn: () => revenueApi.getDashboardStats(params),
   });
 }
 
-export function useRevenueAnalytics() {
+export function useRevenueAnalytics(params?: { start_date?: string; end_date?: string }) {
   return useQuery<any>({
-    queryKey: ["revenueAnalytics"],
-    queryFn: revenueApi.getAnalytics,
+    queryKey: ["revenueAnalytics", params],
+    queryFn: () => revenueApi.getAnalytics(params),
   });
 }
 

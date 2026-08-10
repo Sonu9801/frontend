@@ -20,6 +20,15 @@ export const metadata: Metadata = {
   title: "FOXFLOW ERP - MES",
   description: "Manufacturing Execution System (MES) for fabrication industries",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: "/logo.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico" },
+      { url: "/icon-192x192.png", sizes: "192x192", type: "image/png" }
+    ],
+    shortcut: "/logo.svg",
+    apple: "/icon-192x192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

@@ -20,25 +20,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
+import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 
 export default function InvoicesDashboardPage() {
   const router = useRouter();
-  const { data: stats, isLoading: isLoadingStats } = useInvoiceDashboardStats();
-  const { data: analyticsData } = useInvoiceAnalytics();
-  const updateInvoice = useUpdateInvoice();
-  
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editRecord, setEditRecord] = useState<any>(null);
-  
-  const role = useAuthStore((state: any) => state.role);
-  const canUpload = ["admin", "owner", "finance_manager"].includes(role);
-  const deleteInvoice = useDeleteInvoice();
-
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
+  const [customMonth, setCustomMonth] = useState("");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
 
   const dateRangeParams = useMemo(() => {
     if (!dateFilter || dateFilter === "All") return {};
@@ -62,28 +55,68 @@ export default function InvoicesDashboardPage() {
       };
     }
 
+    if (dateFilter === "Last Month") {
+      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const yyyy = lm.getFullYear();
+      const mm = String(lm.getMonth() + 1).padStart(2, "0");
+      const lastDay = new Date(yyyy, lm.getMonth() + 1, 0).getDate();
+      return {
+        start_date: `${yyyy}-${mm}-01`,
+        end_date: `${yyyy}-${mm}-${String(lastDay).padStart(2, "0")}`
+      };
+    }
+
+    if (dateFilter === "This Quarter") {
+      const yyyy = now.getFullYear();
+      const q = Math.floor(now.getMonth() / 3);
+      const startMonth = String(q * 3 + 1).padStart(2, "0");
+      const endMonthNum = q * 3 + 3;
+      const lastDay = new Date(yyyy, endMonthNum, 0).getDate();
+      const endMonth = String(endMonthNum).padStart(2, "0");
+      return {
+        start_date: `${yyyy}-${startMonth}-01`,
+        end_date: `${yyyy}-${endMonth}-${String(lastDay).padStart(2, "0")}`
+      };
+    }
+
     if (dateFilter === "This Year") {
       const yyyy = now.getFullYear();
       return { start_date: `${yyyy}-01-01`, end_date: `${yyyy}-12-31` };
     }
 
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dateFilter)) {
-      return { start_date: dateFilter, end_date: dateFilter };
-    }
-
-    if (/^\d{4}-\d{2}$/.test(dateFilter)) {
-      const [yyyyStr, mmStr] = dateFilter.split("-");
+    if (dateFilter === "Month" && customMonth) {
+      const [yyyyStr, mmStr] = customMonth.split("-");
       const yyyy = parseInt(yyyyStr, 10);
       const mm = parseInt(mmStr, 10);
-      const lastDay = new Date(yyyy, mm, 0).getDate();
-      return {
-        start_date: `${dateFilter}-01`,
-        end_date: `${dateFilter}-${String(lastDay).padStart(2, "0")}`
-      };
+      if (!isNaN(yyyy) && !isNaN(mm)) {
+        const lastDay = new Date(yyyy, mm, 0).getDate();
+        return {
+          start_date: `${customMonth}-01`,
+          end_date: `${customMonth}-${String(lastDay).padStart(2, "0")}`
+        };
+      }
+    }
+
+    if (dateFilter === "Custom") {
+      const res: any = {};
+      if (customStartDate) res.start_date = customStartDate;
+      if (customEndDate) res.end_date = customEndDate;
+      return res;
     }
 
     return {};
-  }, [dateFilter]);
+  }, [dateFilter, customMonth, customStartDate, customEndDate]);
+
+  const { data: stats, isLoading: isLoadingStats } = useInvoiceDashboardStats(dateRangeParams);
+  const { data: analyticsData } = useInvoiceAnalytics(dateRangeParams);
+  const updateInvoice = useUpdateInvoice();
+  
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
+  
+  const role = useAuthStore((state: any) => state.role);
+  const canUpload = ["admin", "owner", "finance_manager"].includes(role);
+  const deleteInvoice = useDeleteInvoice();
 
   const { data: invoicesData, isLoading: isLoadingInvoices } = useInvoices({
     page,
@@ -314,6 +347,18 @@ export default function InvoicesDashboardPage() {
         )}
       </div>
 
+      {/* Global Date & Month Calendar Filter Bar */}
+      <GlobalDateFilterBar
+        dateFilter={dateFilter}
+        setDateFilter={(v) => { setDateFilter(v); setPage(1); }}
+        customMonth={customMonth}
+        setCustomMonth={(v) => { setCustomMonth(v); setPage(1); }}
+        customStartDate={customStartDate}
+        setCustomStartDate={(v) => { setCustomStartDate(v); setPage(1); }}
+        customEndDate={customEndDate}
+        setCustomEndDate={(v) => { setCustomEndDate(v); setPage(1); }}
+      />
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
         <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
@@ -362,48 +407,6 @@ export default function InvoicesDashboardPage() {
           <h2 className="font-semibold mr-auto">Recent Purchase Invoices</h2>
           
           <div className="flex items-center gap-3 w-full md:w-auto">
-            {dateFilter !== "All" && dateFilter !== "Today" && dateFilter !== "This Month" && dateFilter !== "This Year" ? (
-              <div className="flex items-center gap-2">
-                <input
-                  type="date"
-                  value={dateFilter}
-                  onChange={(e) => { setDateFilter(e.target.value); setPage(1); }}
-                  className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30 text-foreground"
-                />
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={() => { setDateFilter("All"); setPage(1); }}
-                  className="h-9 px-2 text-xs text-muted-foreground"
-                >
-                  Clear
-                </Button>
-              </div>
-            ) : (
-              <select
-                value={dateFilter}
-                onChange={(e) => {
-                  setPage(1);
-                  if (e.target.value === "Custom") {
-                    const now = new Date();
-                    const yyyy = now.getFullYear();
-                    const mm = String(now.getMonth() + 1).padStart(2, '0');
-                    const dd = String(now.getDate()).padStart(2, '0');
-                    setDateFilter(`${yyyy}-${mm}-${dd}`);
-                  } else {
-                    setDateFilter(e.target.value);
-                  }
-                }}
-                className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                <option value="All">All Time</option>
-                <option value="Today">Today</option>
-                <option value="This Month">This Month</option>
-                <option value="This Year">This Year</option>
-                <option value="Custom">Custom Date...</option>
-              </select>
-            )}
-
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
