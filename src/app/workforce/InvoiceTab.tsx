@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoicesApi } from "@/lib/api";
+import { useInvoiceDashboardStats } from "@/hooks/useQueries";
 import { Receipt, IndianRupee, Clock, CheckCircle2, FileText, Download, Plus } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
@@ -14,10 +15,7 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
   });
   const invoices = invoicesData?.items ?? [];
 
-  const { data: stats } = useQuery({
-    queryKey: ["invoiceStats"],
-    queryFn: invoicesApi.getDashboardStats,
-  });
+  const { data: stats } = useInvoiceDashboardStats();
 
   const router = useRouter();
   const [showAddModal, setShowAddModal] = useState(false);

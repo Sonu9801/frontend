@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export type FieldDefinition = {
   name: string;
@@ -27,6 +28,7 @@ export interface EditRecordDialogProps {
   onSubmit: (data: Record<string, any>, reason: string) => void;
   isSubmitting?: boolean;
   requireReason?: boolean;
+  className?: string;
 }
 
 export function EditRecordDialog({
@@ -38,6 +40,7 @@ export function EditRecordDialog({
   onSubmit,
   isSubmitting = false,
   requireReason = true,
+  className,
 }: EditRecordDialogProps) {
   const derivedInitialValues = useMemo(() => {
     if (initialValues) return initialValues;
@@ -69,14 +72,16 @@ export function EditRecordDialog({
     onSubmit(values, reason);
   };
 
+  const isMultiColumn = fields.length > 4;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden">
+      <DialogContent className={cn("sm:max-w-md max-h-[85vh] flex flex-col p-0 overflow-hidden", isMultiColumn && "sm:max-w-xl md:max-w-2xl", className)}>
         <DialogHeader className="px-6 pt-6 pb-2 border-b border-border/50 shrink-0">
           <DialogTitle>{title}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col overflow-y-auto h-full">
-          <div className="grid gap-4 px-6 py-4">
+          <div className={cn("grid gap-4 px-6 py-4", isMultiColumn ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
             {fields.map((field) => (
               <div key={field.name} className="flex flex-col gap-2">
                 <Label htmlFor={field.name}>{field.label}</Label>
@@ -84,7 +89,7 @@ export function EditRecordDialog({
                   <select
                     id={field.name}
                     disabled={field.disabled}
-                    value={values[field.name] || ""}
+                    value={values[field.name] ?? ""}
                     onChange={(e) => handleChange(field.name, e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -104,8 +109,8 @@ export function EditRecordDialog({
                     id={field.name}
                     type={field.type}
                     disabled={field.disabled}
-                    value={values[field.name] || ""}
-                    onChange={(e) => handleChange(field.name, field.type === 'number' ? Number(e.target.value) : e.target.value)}
+                    value={values[field.name] ?? ""}
+                    onChange={(e) => handleChange(field.name, field.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                   />
                 )}
@@ -126,7 +131,7 @@ export function EditRecordDialog({
           )}
 
           <div className="sticky bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border p-4 md:static md:bg-transparent md:border-0 md:p-0 md:mt-6 z-10">
-            <DialogFooter className="flex-row justify-end gap-2 sm:gap-2">
+            <DialogFooter className="flex-row justify-end gap-2 sm:gap-2 px-6 pb-4">
               <Button type="button" variant="outline" className="flex-1 md:flex-none" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
@@ -140,3 +145,4 @@ export function EditRecordDialog({
     </Dialog>
   );
 }
+

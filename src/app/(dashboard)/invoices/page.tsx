@@ -463,16 +463,35 @@ export default function InvoicesDashboardPage() {
         onOpenChange={(open) => !open && setEditRecord(null)}
         title={`Edit Purchase Invoice: ${editRecord?.invoice_number || 'Pending OCR'}`}
         fields={editRecord ? [
+          { name: "invoice_number", label: "Invoice #", type: "text", defaultValue: editRecord.invoice_number || "" },
           { name: "vendor_name", label: "Vendor Name", type: "text", defaultValue: editRecord.vendor_name || "" },
-          { name: "invoice_number", label: "Invoice Number", type: "text", defaultValue: editRecord.invoice_number || "" },
-          { name: "subtotal", label: "Subtotal", type: "number", defaultValue: editRecord.subtotal || 0 },
-          { name: "grand_total", label: "Grand Total", type: "number", defaultValue: editRecord.grand_total || 0 },
-          { name: "approval_status", label: "Approval Status", type: "select", defaultValue: editRecord.approval_status || "Pending Review", options: ["Pending Review", "Approved", "Rejected"] },
-          { name: "payment_status", label: "Payment Status", type: "select", defaultValue: editRecord.payment_status || "Unpaid", options: ["Unpaid", "Partial", "Paid"] }
+          { name: "vendor_gstin", label: "GSTIN", type: "text", defaultValue: editRecord.vendor_gstin || "" },
+          { name: "invoice_date", label: "Date", type: "date", defaultValue: editRecord.invoice_date ? String(editRecord.invoice_date).split('T')[0] : "" },
+          { name: "hsn_sac", label: "HSN/SAC", type: "text", defaultValue: editRecord.hsn_sac || "" },
+          { name: "subtotal", label: "Before Tax (Subtotal)", type: "number", defaultValue: editRecord.subtotal ?? 0 },
+          { name: "cgst", label: "CGST Amount", type: "number", defaultValue: editRecord.cgst ?? 0 },
+          { name: "sgst", label: "SGST Amount", type: "number", defaultValue: editRecord.sgst ?? 0 },
+          { name: "igst", label: "IGST Amount", type: "number", defaultValue: editRecord.igst ?? 0 },
+          { name: "gst_amount", label: "Total GST Amount", type: "number", defaultValue: editRecord.gst_amount ?? 0 },
+          { name: "grand_total", label: "Grand Total", type: "number", defaultValue: editRecord.grand_total ?? 0 },
+          { name: "approval_status", label: "Status", type: "select", defaultValue: editRecord.approval_status || "Pending Review", options: ["Pending Review", "Approved", "Rejected"] },
+          { name: "payment_status", label: "Payment Status", type: "select", defaultValue: editRecord.payment_status || "Unpaid", options: ["Unpaid", "Partial", "Paid"] },
+          { name: "expense_category", label: "Expense Category", type: "text", defaultValue: editRecord.expense_category || "" },
+          { name: "department", label: "Department", type: "text", defaultValue: editRecord.department || "" }
         ] : []}
         onSubmit={(data) => {
           if (!editRecord) return;
-          updateInvoice.mutate({ id: editRecord.id, data }, {
+          const formattedData = {
+            ...data,
+            invoice_date: data.invoice_date ? data.invoice_date : null,
+            subtotal: Number(data.subtotal) || 0,
+            cgst: Number(data.cgst) || 0,
+            sgst: Number(data.sgst) || 0,
+            igst: Number(data.igst) || 0,
+            gst_amount: Number(data.gst_amount) || 0,
+            grand_total: Number(data.grand_total) || 0,
+          };
+          updateInvoice.mutate({ id: editRecord.id, data: formattedData }, {
             onSuccess: () => {
               toast.success("Purchase Invoice updated successfully");
               setEditRecord(null);

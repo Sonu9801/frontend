@@ -25,7 +25,13 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
   const role = useAuthStore((state: any) => state.role);
   const canEdit = ["admin", "owner", "finance_manager"].includes(role);
 
-  const [editData, setEditData] = useState<any>({});
+  const [editData, setEditData] = useState<any>({
+    expense_category: "",
+    department: "",
+    payment_status: "Unpaid",
+    approval_status: "Pending Review",
+    finance_remarks: "",
+  });
   
   useEffect(() => {
     if (invoice) {
@@ -154,7 +160,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   <input 
                     type="text" 
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
-                    value={editData.expense_category}
+                    value={editData.expense_category ?? ""}
                     onChange={(e) => setEditData({...editData, expense_category: e.target.value})}
                     disabled={!canEdit}
                     placeholder="e.g. Raw Materials"
@@ -165,7 +171,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   <input 
                     type="text" 
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
-                    value={editData.department}
+                    value={editData.department ?? ""}
                     onChange={(e) => setEditData({...editData, department: e.target.value})}
                     disabled={!canEdit}
                     placeholder="e.g. Production"
@@ -178,7 +184,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">Approval Status</label>
                   <select 
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
-                    value={editData.approval_status}
+                    value={editData.approval_status ?? "Pending Review"}
                     onChange={(e) => setEditData({...editData, approval_status: e.target.value})}
                     disabled={!canEdit}
                   >
@@ -191,7 +197,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">Payment Status</label>
                   <select 
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
-                    value={editData.payment_status}
+                    value={editData.payment_status ?? "Unpaid"}
                     onChange={(e) => setEditData({...editData, payment_status: e.target.value})}
                     disabled={!canEdit}
                   >
@@ -206,7 +212,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                 <label className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider block mb-1">Finance Remarks</label>
                 <textarea 
                   className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20 min-h-[100px]"
-                  value={editData.finance_remarks}
+                  value={editData.finance_remarks ?? ""}
                   onChange={(e) => setEditData({...editData, finance_remarks: e.target.value})}
                   disabled={!canEdit}
                   placeholder="Add any internal notes..."
