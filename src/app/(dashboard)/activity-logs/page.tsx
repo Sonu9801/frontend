@@ -5,6 +5,7 @@ import { Activity, Clock, CheckCircle2, XCircle, Truck, AlertTriangle, UserCog, 
 import { useActivities, useVehicles, useWorkers } from "@/hooks/useQueries";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { parseUTCDate } from "@/lib/utils";
 
 const getEventIcon = (type: string) => {
   switch (type) {
@@ -129,7 +130,7 @@ export default function ActivityLogsPage() {
                         </span>
                         <div className="flex items-center text-xs text-muted-foreground mt-1 sm:mt-0">
                           <Clock className="w-3 h-3 mr-1" />
-                          {format(new Date(activity.timestamp), "MMM d, h:mm a")}
+                          {format(parseUTCDate(activity.timestamp), "MMM d, h:mm a")}
                         </div>
                       </div>
                       <p className="text-sm text-foreground">{activity.description}</p>

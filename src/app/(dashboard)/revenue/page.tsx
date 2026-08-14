@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRevenue, useRevenueDashboardStats, useRevenueAnalytics, useDeleteSalesInvoice, useUpdateSalesInvoice } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
-import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit } from "lucide-react";
+import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "../invoices/components/InvoiceAnalyticsCharts";
 import { AddSalesInvoiceDialog } from "@/components/revenue/AddSalesInvoiceDialog";
@@ -241,14 +241,80 @@ export default function RevenueDashboardPage() {
       id: "payment_status",
       header: "Payment",
       accessor: (d: any) => {
-        let color = "bg-muted text-muted-foreground";
-        if (d.payment_status === "Paid") color = "bg-success/15 text-success";
-        if (d.payment_status === "Partially Paid") color = "bg-warning/15 text-warning";
-        if (d.payment_status === "Overdue") color = "bg-destructive/15 text-destructive";
+        let color = "bg-muted text-muted-foreground hover:bg-muted/80 border-transparent";
+        if (d.payment_status === "Paid") color = "bg-success/15 text-success hover:bg-success/25 border-success/30";
+        if (d.payment_status === "Partially Paid") color = "bg-warning/15 text-warning hover:bg-warning/25 border-warning/30";
+        if (d.payment_status === "Overdue") color = "bg-destructive/15 text-destructive hover:bg-destructive/25 border-destructive/30";
+
+        const handleStatusChange = (newStatus: string) => {
+          if (newStatus === d.payment_status) return;
+          updateInvoice.mutate(
+            { id: d.id, data: { payment_status: newStatus } },
+            {
+              onSuccess: () => toast.success(`Payment status updated to ${newStatus}`),
+              onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update payment status"),
+            }
+          );
+        };
+
         return (
-          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap", color)}>
-            {d.payment_status}
-          </span>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+              <button
+                type="button"
+                className={cn(
+                  "inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider transition-colors cursor-pointer border focus:outline-none focus:ring-1 focus:ring-primary/30",
+                  color
+                )}
+                title="Click to change payment status"
+              >
+                <span>{d.payment_status || "Pending"}</span>
+                <ChevronDown className="h-3 w-3 opacity-70" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-36">
+              <DropdownMenuItem
+                className="text-xs flex items-center justify-between cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange("Pending");
+                }}
+              >
+                <span className="font-medium text-muted-foreground">Pending</span>
+                {d.payment_status === "Pending" && <Check className="h-3.5 w-3.5 text-foreground" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-xs flex items-center justify-between cursor-pointer text-emerald-600 focus:text-emerald-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange("Paid");
+                }}
+              >
+                <span className="font-medium">Paid</span>
+                {d.payment_status === "Paid" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-xs flex items-center justify-between cursor-pointer text-amber-600 focus:text-amber-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange("Partially Paid");
+                }}
+              >
+                <span className="font-medium">Partially Paid</span>
+                {d.payment_status === "Partially Paid" && <Check className="h-3.5 w-3.5 text-amber-600" />}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-xs flex items-center justify-between cursor-pointer text-rose-600 focus:text-rose-700"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleStatusChange("Overdue");
+                }}
+              >
+                <span className="font-medium">Overdue</span>
+                {d.payment_status === "Overdue" && <Check className="h-3.5 w-3.5 text-rose-600" />}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         );
       },
     },
@@ -273,6 +339,38 @@ export default function RevenueDashboardPage() {
               >
                 <Eye className="mr-2 h-4 w-4" /> View Details
               </DropdownMenuItem>
+              {d.payment_status !== "Paid" ? (
+                <DropdownMenuItem
+                  className="text-emerald-600 focus:text-emerald-700 font-medium"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateInvoice.mutate(
+                      { id: d.id, data: { payment_status: "Paid" } },
+                      {
+                        onSuccess: () => toast.success("Invoice marked as Paid"),
+                        onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update status"),
+                      }
+                    );
+                  }}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" /> Mark as Paid
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    updateInvoice.mutate(
+                      { id: d.id, data: { payment_status: "Pending" } },
+                      {
+                        onSuccess: () => toast.success("Invoice marked as Pending"),
+                        onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update status"),
+                      }
+                    );
+                  }}
+                >
+                  <Clock className="mr-2 h-4 w-4" /> Mark as Pending
+                </DropdownMenuItem>
+              )}
               {canDelete && (
                 <>
                   <DropdownMenuSeparator />
@@ -305,7 +403,7 @@ export default function RevenueDashboardPage() {
         );
       }
     }
-  ], [router, role, deleteInvoice]);
+  ], [router, role, deleteInvoice, updateInvoice]);
 
   if (isLoadingInvoices || isLoadingStats) {
     return (

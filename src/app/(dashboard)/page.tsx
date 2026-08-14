@@ -3,7 +3,7 @@
 import { KPICard } from "@/components/ui/KPICard";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { cn, parseUTCDate } from "@/lib/utils";
 import { useVehicles, useActivities } from "@/hooks/useQueries";
 import { useUIStore } from "@/store/uiStore";
 import Link from "next/link";
@@ -87,12 +87,13 @@ const EVENT_CONFIG: Record<
   },
 };
 
+
 function ActivityItem({
   event,
   isNew,
 }: { event: ActivityEvent; isNew?: boolean }) {
   const config = EVENT_CONFIG[event.eventType] ?? EVENT_CONFIG.stage_changed;
-  const relTime = new Date(event.timestamp);
+  const relTime = parseUTCDate(event.timestamp);
   const mins = Math.floor((Date.now() - relTime.getTime()) / 60000);
   const timeLabel =
     mins < 1
