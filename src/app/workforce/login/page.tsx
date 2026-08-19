@@ -10,6 +10,8 @@ import { Factory, Lock, Phone, UserCircle2, HardHat } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 
+import { useAuthStore } from "@/store/authStore";
+
 export default function WorkerKioskLogin() {
   const router = useRouter();
   
@@ -17,6 +19,15 @@ export default function WorkerKioskLogin() {
   const [mobileNumber, setMobileNumber] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // If already logged in, redirect straight to dashboard (prevents back button showing login screen)
+  React.useEffect(() => {
+    const workerToken = localStorage.getItem("worker_token") || localStorage.getItem("token");
+    const workerInfo = localStorage.getItem("worker_info");
+    if (workerToken && workerInfo) {
+      router.replace("/workforce");
+    }
+  }, [router]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,8 +60,18 @@ export default function WorkerKioskLogin() {
       localStorage.setItem("worker_token", data.access_token);
       localStorage.setItem("worker_refreshToken", data.refresh_token);
       localStorage.setItem("worker_info", JSON.stringify(data));
+
+      // Sync authStore state
+      useAuthStore.getState().login(
+        data.access_token,
+        data.refresh_token || "",
+        data.email || `${data.employee_id || 'worker'}@foxflow.internal`,
+        data.name || "Worker",
+        data.role || "worker"
+      );
+
       toast.success(`Welcome back to the floor, ${data.name || 'Worker'}!`);
-      router.push("/workforce");
+      router.replace("/workforce");
     } catch (err) {
       toast.error(`Invalid worker credentials. Please try again.`);
     } finally {

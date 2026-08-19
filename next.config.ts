@@ -2,7 +2,7 @@ import withPWAInit from "@ducanh2912/next-pwa";
 
 const withPWA = withPWAInit({
   dest: "public",
-  disable: false, // TEMPORARILY ENABLED for mobile PWA install testing
+  disable: process.env.NODE_ENV === "development",
   cacheOnFrontEndNav: false,
   aggressiveFrontEndNavCaching: false,
   reloadOnOnline: true,

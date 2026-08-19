@@ -48,20 +48,35 @@ export const useAuthStore = create<AuthState>((set) => ({
     localStorage.removeItem("email");
     localStorage.removeItem("name");
     localStorage.removeItem("role");
-    // Also remove legacy keys
+    localStorage.removeItem("worker_token");
+    localStorage.removeItem("worker_refreshToken");
+    localStorage.removeItem("worker_info");
     localStorage.removeItem("username");
     set({ token: null, refreshToken: null, email: null, name: null, role: null, isAuthenticated: false });
   },
 
   initialize: () => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token");
-      const refreshToken = localStorage.getItem("refreshToken");
-      const email = localStorage.getItem("email");
-      const name = localStorage.getItem("name");
-      const role = localStorage.getItem("role");
-      if (token && email && role) {
-        set({ token, refreshToken, email, name, role, isAuthenticated: true });
+      const token = localStorage.getItem("token") || localStorage.getItem("worker_token");
+      const refreshToken = localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken");
+      let email = localStorage.getItem("email");
+      let name = localStorage.getItem("name");
+      let role = localStorage.getItem("role");
+
+      if (!email || !role) {
+        const workerInfoStr = localStorage.getItem("worker_info");
+        if (workerInfoStr) {
+          try {
+            const info = JSON.parse(workerInfoStr);
+            email = email || info.email || `${info.employee_id || 'worker'}@foxflow.internal`;
+            name = name || info.name || "Worker";
+            role = role || info.role || "worker";
+          } catch {}
+        }
+      }
+
+      if (token) {
+        set({ token, refreshToken, email: email || "worker@foxflow.internal", name: name || "Worker", role: role || "worker", isAuthenticated: true });
       }
     }
   },

@@ -37,7 +37,9 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
     queryKey: ["allComponents"],
     queryFn: async () => {
       return await componentsApi.getAllTasks();
-    }
+    },
+    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    gcTime: 10 * 60 * 1000,
   });
 
   // Filter components by dateRange and global filters

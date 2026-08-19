@@ -22,7 +22,7 @@ export default function WorkforceOrchestrator() {
 
       // No stored session at all → go to login
       if (!workerInfoStr && !refreshToken) {
-        router.push("/workforce/login");
+        router.replace("/workforce/login");
         return;
       }
 
@@ -54,7 +54,7 @@ export default function WorkforceOrchestrator() {
               if (refreshErr.response?.status === 401 || refreshErr.response?.status === 403) {
                 console.warn("[WorkforceAuth] Session expired. Redirecting to login.");
                 localStorage.clear();
-                router.push("/workforce/login");
+                router.replace("/workforce/login");
                 return;
               }
               // Network errors are transient — proceed with existing token
@@ -94,12 +94,12 @@ export default function WorkforceOrchestrator() {
         }
         // Can't reconstruct worker_info → login
         localStorage.clear();
-        router.push("/workforce/login");
+        router.replace("/workforce/login");
         return;
       }
 
       // Fallback
-      router.push("/workforce/login");
+      router.replace("/workforce/login");
     }
 
     initSession();
@@ -112,7 +112,7 @@ export default function WorkforceOrchestrator() {
       console.error("Backend logout failed:", e);
     }
     localStorage.clear();
-    router.push("/workforce/login");
+    router.replace("/workforce/login");
   };
 
   const handleSetWorker = (newWorker: any) => {
