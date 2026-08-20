@@ -6,14 +6,17 @@ export function useWebSocket() {
 
   useEffect(() => {
     const getWsUrl = () => {
-      if (typeof window === "undefined") return "ws://localhost:8000/ws";
+      if (typeof window === "undefined") return "ws://127.0.0.1:8000/ws";
       const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+      const hostname = window.location.hostname;
+      // When running locally on localhost or 127.0.0.1, connect to backend port 8000
+      if (hostname === "localhost" || hostname === "127.0.0.1") {
+        return `${protocol}://${hostname}:8000/ws`;
+      }
       return `${protocol}://${window.location.host}/ws`;
     };
     
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL && !process.env.NEXT_PUBLIC_WS_URL.includes("127.0.0.1") && !process.env.NEXT_PUBLIC_WS_URL.includes("localhost") 
-      ? process.env.NEXT_PUBLIC_WS_URL 
-      : getWsUrl();
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL ? process.env.NEXT_PUBLIC_WS_URL : getWsUrl();
     
     let ws: WebSocket;
     let timeoutId: NodeJS.Timeout;

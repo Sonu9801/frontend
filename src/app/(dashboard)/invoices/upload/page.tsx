@@ -4,7 +4,7 @@ import React, { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { useUploadInvoice, useCreateInvoice } from "@/hooks/useQueries";
-import { UploadCloud, Camera, Image as ImageIcon, FileText, ChevronLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { UploadCloud, Camera, Image as ImageIcon, FileText, ChevronLeft, Loader2, CheckCircle2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
 
 export default function InvoiceUploadPage() {
@@ -18,6 +18,7 @@ export default function InvoiceUploadPage() {
   const [ocrData, setOcrData] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [ocrConfidence, setOcrConfidence] = useState<number>(0);
+  const [rotation, setRotation] = useState<number>(0);
   
   const uploadMutation = useUploadInvoice();
   const createMutation = useCreateInvoice();
@@ -26,6 +27,7 @@ export default function InvoiceUploadPage() {
     if (e.target.files && e.target.files.length > 0) {
       const file = e.target.files[0];
       setSelectedFile(file);
+      setRotation(0);
       
       // Create preview for images
       if (file.type.startsWith("image/")) {
@@ -38,17 +40,71 @@ export default function InvoiceUploadPage() {
     }
   };
 
+  const handleRotateAndRescan = async () => {
+    const newAngle = (rotation + 90) % 360;
+    setRotation(newAngle);
+
+    if (!selectedFile || !selectedFile.type.startsWith("image/")) return;
+
+    try {
+      const img = new Image();
+      img.src = previewUrl || URL.createObjectURL(selectedFile);
+      await new Promise((resolve) => { img.onload = resolve; });
+
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (newAngle === 90 || newAngle === 270) {
+        canvas.width = img.height;
+        canvas.height = img.width;
+      } else {
+        canvas.width = img.width;
+        canvas.height = img.height;
+      }
+
+      if (ctx) {
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((newAngle * Math.PI) / 180);
+        ctx.drawImage(img, -img.width / 2, -img.height / 2);
+      }
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const rotatedFile = new File([blob], selectedFile.name, { type: selectedFile.type });
+          processOCR(rotatedFile);
+        }
+      }, selectedFile.type);
+    } catch (err) {
+      console.error("Rotation error:", err);
+    }
+  };
+
   const processOCR = async (file: File) => {
     setIsProcessing(true);
     setOcrData(null);
     try {
       const result = await uploadMutation.mutateAsync(file);
       setOcrData(result);
-      setOcrConfidence(result.ocr_confidence_score || 0);
-      toast.success("OCR completed!");
+      const conf = result.ocr_confidence_score || 0;
+      setOcrConfidence(conf);
+
+      const hasExtractedData = Boolean(
+        result.invoice_number ||
+        result.vendor_name ||
+        result.vendor_gstin ||
+        (result.grand_total && result.grand_total > 0)
+      );
+
+      if (hasExtractedData && conf > 0) {
+        toast.success("Invoice data extracted successfully!");
+      } else {
+        toast.warning(
+          "Image uploaded! Could not auto-extract text clearly. Please verify or fill fields manually below."
+        );
+      }
     } catch (error: any) {
       const detail = error.response?.data?.detail;
-      toast.error(detail || "Failed to process purchase invoice");
+      toast.error(typeof detail === 'string' ? detail : "Failed to process purchase invoice");
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -122,20 +178,39 @@ export default function InvoiceUploadPage() {
         <div className="flex flex-col gap-4">
           <div className="bg-card border border-border rounded-xl p-6 shadow-subtle flex flex-col items-center justify-center text-center min-h-[300px]">
             {previewUrl ? (
-              <div className="relative w-full">
-                <img src={previewUrl} alt="Purchase Invoice preview" className="w-full max-h-[500px] object-contain rounded-lg border border-border" />
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  className="absolute top-2 right-2 bg-background/80 backdrop-blur-md"
-                  onClick={() => {
-                    setSelectedFile(null);
-                    setPreviewUrl(null);
-                    setOcrData(null);
-                  }}
-                >
-                  Change File
-                </Button>
+              <div className="relative w-full flex flex-col items-center">
+                <div className="overflow-hidden w-full max-h-[500px] flex items-center justify-center p-2">
+                  <img 
+                    src={previewUrl} 
+                    alt="Purchase Invoice preview" 
+                    className="max-h-[480px] object-contain rounded-lg border border-border transition-transform duration-300 ease-in-out" 
+                    style={{ transform: `rotate(${rotation}deg)` }}
+                  />
+                </div>
+                <div className="absolute top-2 right-2 flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-background/90 backdrop-blur-md shadow-sm"
+                    onClick={handleRotateAndRescan}
+                    title="Rotate 90° and Re-scan Invoice"
+                  >
+                    <RotateCw size={14} className="mr-1 text-primary" /> Rotate 90°
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="bg-background/90 backdrop-blur-md shadow-sm"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setPreviewUrl(null);
+                      setOcrData(null);
+                      setRotation(0);
+                    }}
+                  >
+                    Change File
+                  </Button>
+                </div>
               </div>
             ) : selectedFile ? (
                <div className="flex flex-col items-center gap-3">
