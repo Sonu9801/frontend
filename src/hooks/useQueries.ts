@@ -166,7 +166,32 @@ export function useUpdateVehicleStage() {
   return useMutation({
     mutationFn: ({ id, stage, progress, priority, reason }: { id: number | string; stage: string; progress?: number; priority?: string; reason?: string }) =>
       vehiclesApi.updateStage(id, stage, progress, priority, reason),
-    onSuccess: () => {
+    onMutate: async ({ id, stage, progress }) => {
+      await queryClient.cancelQueries({ queryKey: ["vehicles"] });
+      const previousVehicles = queryClient.getQueryData(["vehicles"]);
+
+      queryClient.setQueriesData({ queryKey: ["vehicles"] }, (old: any) => {
+        if (!old) return old;
+        if (Array.isArray(old)) {
+          return old.map((v: any) => String(v.id) === String(id) ? { ...v, currentStage: stage, progressPercent: progress ?? v.progressPercent } : v);
+        }
+        if (old.items && Array.isArray(old.items)) {
+          return {
+            ...old,
+            items: old.items.map((v: any) => String(v.id) === String(id) ? { ...v, currentStage: stage, progressPercent: progress ?? v.progressPercent } : v)
+          };
+        }
+        return old;
+      });
+
+      return { previousVehicles };
+    },
+    onError: (_err, _newVal, context) => {
+      if (context?.previousVehicles) {
+        queryClient.setQueryData(["vehicles"], context.previousVehicles);
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });
       queryClient.invalidateQueries({ queryKey: ["activities"] });
       queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });

@@ -52,8 +52,8 @@ const STAGE_ORDER: Record<string, number> = {
   dispatch: 5,
 };
 
-function getStageIndex(stage: string): number {
-  const s = stage.toLowerCase();
+function getStageIndex(stage?: string): number {
+  const s = (stage || "received").toLowerCase();
   if (s === "rtd" || s === "readytodispatch") return 4;
   if (s === "dispatch" || s === "dispatched") return 5;
   if (s === "quality_check" || s === "qc") return 3;
@@ -339,10 +339,10 @@ export default function VehicleDetailPage() {
 
   const stats = useMemo(() => {
     if (!vehicle) return null;
-    const receivedDate = new Date(vehicle.receivedAt);
-    const etaDate = new Date(vehicle.estimatedDelivery);
+    const receivedDate = new Date(vehicle.receivedAt || Date.now());
+    const etaDate = new Date(vehicle.estimatedDelivery || Date.now());
     const now = new Date();
-    const norm = vehicle.currentStage.toLowerCase();
+    const norm = (vehicle.currentStage || "received").toLowerCase();
     const isDelayed = etaDate < now && norm !== "dispatch" && norm !== "dispatched";
     const daysRemaining = Math.ceil(
       (etaDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
@@ -903,20 +903,25 @@ export default function VehicleDetailPage() {
                       })}
                     />
                     <div className="mt-2.5">
-                      <span
-                        className={cn(
-                          "text-[10px] font-semibold px-2 py-0.5 rounded-full",
-                          vehicleDispatch.status.toLowerCase() === "dispatched"
-                            ? "bg-success/15 text-success"
-                            : vehicleDispatch.status.toLowerCase() === "in_transit"
-                              ? "bg-primary/15 text-primary"
-                              : vehicleDispatch.status.toLowerCase() === "scheduled"
-                                ? "bg-warning/15 text-warning"
-                                : "bg-muted text-muted-foreground",
-                        )}
-                      >
-                        {vehicleDispatch.status.replace("_", " ").toUpperCase()}
-                      </span>
+                      {(() => {
+                        const dStatus = (vehicleDispatch.status || "").toLowerCase();
+                        return (
+                          <span
+                            className={cn(
+                              "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                              dStatus === "dispatched"
+                                ? "bg-success/15 text-success"
+                                : dStatus === "in_transit"
+                                  ? "bg-primary/15 text-primary"
+                                  : dStatus === "scheduled"
+                                    ? "bg-warning/15 text-warning"
+                                    : "bg-muted text-muted-foreground",
+                            )}
+                          >
+                            {(vehicleDispatch.status || "").replace("_", " ").toUpperCase()}
+                          </span>
+                        );
+                      })()}
                     </div>
                   </div>
                 )}

@@ -4,17 +4,8 @@ import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-const spaceGrotesk = Space_Grotesk({
-  variable: "--font-display",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const inter = Inter({
-  variable: "--font-body",
-  subsets: ["latin"],
-  display: "swap",
-});
+const spaceGrotesk = { variable: "--font-display" };
+const inter = { variable: "--font-body" };
 
 export const metadata: Metadata = {
   title: "FOXFLOW ERP - MES",

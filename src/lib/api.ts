@@ -302,7 +302,10 @@ export const vehiclesApi = {
   },
   updateStage: async (id: number | string, stage: string, progress?: number, priority?: string, reason?: string) => {
     const data: any = { stage };
-    if (progress !== undefined) data.progress_percent = progress;
+    if (progress !== undefined) {
+      data.progress = progress;
+      data.progress_percent = progress;
+    }
     if (priority !== undefined) data.priority = priority;
     if (reason !== undefined) data.reason = reason;
     const response = await api.patch(`/vehicles/${id}/stage`, data);

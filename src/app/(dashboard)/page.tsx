@@ -145,11 +145,14 @@ export default function DashboardPage() {
   // Filter vehicles by search query
   const filteredVehicles = vehicles.filter((v: Vehicle) => {
     if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+    const query = (searchQuery || "").toLowerCase();
+    const vehicleNumber = (v.vehicleNumber || "").toLowerCase();
+    const trackingId = (v.trackingId || "").toLowerCase();
+    const oemName = (v.oemName || "").toLowerCase();
     return (
-      v.vehicleNumber.toLowerCase().includes(query) ||
-      v.trackingId.toLowerCase().includes(query) ||
-      v.oemName.toLowerCase().includes(query)
+      vehicleNumber.includes(query) ||
+      trackingId.includes(query) ||
+      oemName.includes(query)
     );
   });
 
@@ -158,7 +161,7 @@ export default function DashboardPage() {
     (acc, stage) => {
       // Stage strings on backend can be lowercase or title case
       acc[stage] = filteredVehicles.filter(
-        (v: Vehicle) => v.currentStage.toLowerCase() === stage.toLowerCase()
+        (v: Vehicle) => (v.currentStage || "").toLowerCase() === (stage || "").toLowerCase()
       );
       return acc;
     },
@@ -168,26 +171,41 @@ export default function DashboardPage() {
   // Compute live KPI Stats
   const stats = {
     vehiclesReceived: vehicles.length,
-    inFabrication: vehicles.filter((v: Vehicle) => v.currentStage.toLowerCase() === "fabrication").length,
-    inPaint: vehicles.filter((v: Vehicle) => v.currentStage.toLowerCase() === "paint").length,
+    inFabrication: vehicles.filter((v: Vehicle) => (v.currentStage || "").toLowerCase() === "fabrication").length,
+    inPaint: vehicles.filter((v: Vehicle) => (v.currentStage || "").toLowerCase() === "paint").length,
     readyToDispatch: vehicles.filter(
-      (v: Vehicle) => v.currentStage.toLowerCase() === "rtd" || v.currentStage.toLowerCase() === "readytodispatch"
+      (v: Vehicle) => {
+        const stage = (v.currentStage || "").toLowerCase();
+        return stage === "rtd" || stage === "readytodispatch";
+      }
     ).length,
     dispatchToday: vehicles.filter(
-      (v: Vehicle) => v.currentStage.toLowerCase() === "dispatch" || v.currentStage.toLowerCase() === "dispatched"
+      (v: Vehicle) => {
+        const stage = (v.currentStage || "").toLowerCase();
+        return stage === "dispatch" || stage === "dispatched";
+      }
     ).length,
     delayedOrders: vehicles.filter(
-      (v: Vehicle) =>
-        v.estimatedDelivery &&
-        new Date(v.estimatedDelivery) < new Date() &&
-        v.currentStage.toLowerCase() !== "dispatch" &&
-        v.currentStage.toLowerCase() !== "dispatched"
+      (v: Vehicle) => {
+        const stage = (v.currentStage || "").toLowerCase();
+        return (
+          v.estimatedDelivery &&
+          new Date(v.estimatedDelivery) < new Date() &&
+          stage !== "dispatch" &&
+          stage !== "dispatched"
+        );
+      }
     ).length,
     emergencyOrders: vehicles.filter(
-      (v: Vehicle) =>
-        v.priority.toLowerCase() === "urgent" &&
-        v.currentStage.toLowerCase() !== "dispatch" &&
-        v.currentStage.toLowerCase() !== "dispatched"
+      (v: Vehicle) => {
+        const priority = (v.priority || "").toLowerCase();
+        const stage = (v.currentStage || "").toLowerCase();
+        return (
+          priority === "urgent" &&
+          stage !== "dispatch" &&
+          stage !== "dispatched"
+        );
+      }
     ).length,
   };
 
@@ -381,7 +399,7 @@ export default function DashboardPage() {
                   card.highlight === "destructive" &&
                     "bg-destructive/5 border-destructive/30",
                 )}
-                data-ocid={`dashboard.kpi.${card.title.toLowerCase().replace(/\s+/g, "-")}.card`}
+                data-ocid={`dashboard.kpi.${(card.title || "").toLowerCase().replace(/\s+/g, "-")}.card`}
               />
               {card.highlight === "destructive" && (
                 <motion.div
@@ -505,9 +523,9 @@ export default function DashboardPage() {
                           whileHover={{ y: -1, scale: 1.005 }}
                           className={cn(
                             "p-2.5 rounded-lg border bg-background hover:border-primary/40 transition-smooth cursor-pointer",
-                            vehicle.priority.toLowerCase() === "urgent"
+                            (vehicle.priority || "").toLowerCase() === "urgent"
                               ? "border-destructive/40"
-                              : vehicle.priority.toLowerCase() === "high"
+                              : (vehicle.priority || "").toLowerCase() === "high"
                                 ? "border-warning/30"
                                 : "border-border/60",
                           )}

@@ -119,9 +119,12 @@ export interface AddVehicleDialogProps {
   onClose: () => void;
   onAdd: (vehicleData: any) => void;
   isOemSubmission?: boolean;
+  initialMode?: "received" | "dispatch";
 }
 
-export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: AddVehicleDialogProps) {
+export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, initialMode = "received" }: AddVehicleDialogProps) {
+  const [activeMode, setActiveMode] = useState<"received" | "dispatch">(initialMode);
+  
   const [form, setForm] = useState({
     vehicleNumber: "",
     platformNumber: "",
@@ -163,22 +166,24 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
     const finalVehicleType = form.vehicleType === "Other" ? form.vehicleTypeOther : form.vehicleType;
     const finalProductCategory = form.productCategory === "Other" ? form.productCategoryOther : form.productCategory;
 
-    // Manual validation for custom select and 'Other' fields
-    if (!finalModelName) {
-      alert("Please select or enter a Model Name.");
-      return;
-    }
-    if (form.dealerName === "Other" && !form.dealerNameOther) {
-      alert("Please enter Dealer Name.");
-      return;
-    }
-    if (form.vehicleType === "Other" && !form.vehicleTypeOther) {
-      alert("Please enter Vehicle Type.");
-      return;
-    }
-    if (form.productCategory === "Other" && !form.productCategoryOther) {
-      alert("Please enter Product Category.");
-      return;
+    // Manual validation for custom select and 'Other' fields (only if Received mode or OEM)
+    if (activeMode === "received" || isOemSubmission) {
+      if (!finalModelName) {
+        alert("Please select or enter a Model Name.");
+        return;
+      }
+      if (form.dealerName === "Other" && !form.dealerNameOther) {
+        alert("Please enter Dealer Name.");
+        return;
+      }
+      if (form.vehicleType === "Other" && !form.vehicleTypeOther) {
+        alert("Please enter Vehicle Type.");
+        return;
+      }
+      if (form.productCategory === "Other" && !form.productCategoryOther) {
+        alert("Please enter Product Category.");
+        return;
+      }
     }
 
     const now = new Date().toISOString();
@@ -193,19 +198,21 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
       form.notes
     ].filter(Boolean).join("\n");
 
+    const targetStage = activeMode === "dispatch" ? "dispatch" : (isOemSubmission ? "oem" : "received");
+
     onAdd({
       trackingId,
-      vehicleNumber: form.vehicleNumber || "",
-      oemName: finalOemName,
-      productCategory: finalProductCategory,
+      vehicleNumber: form.chassisNumber || trackingId,
+      oemName: finalOemName || "Default OEM",
+      productCategory: finalProductCategory || "Cargo Box",
       priority: form.priority,
-      currentStage: isOemSubmission ? "oem" : "received",
+      currentStage: targetStage,
       assignedWorkerIds: [],
       receivedAt: now,
       estimatedDelivery: form.estimatedDelivery
         ? new Date(form.estimatedDelivery).toISOString()
         : new Date(Date.now() + 7 * 86400000).toISOString(),
-      progressPercent: 0,
+      progressPercent: activeMode === "dispatch" ? 100 : 0,
       notes: combinedNotes,
       
       // Logistics Fields
@@ -254,364 +261,366 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false }: Ad
         <div className="flex-none flex items-center justify-between px-5 py-4 border-b border-border bg-card rounded-t-2xl">
           <div>
             <h2 className="text-base font-semibold text-foreground">
-              {isOemSubmission ? "Add Vehicle Dispatch" : "Add Manual Vehicle"}
+              {activeMode === "dispatch" ? "Add Dispatch Vehicle" : "Add Received Vehicle"}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {isOemSubmission ? "Submit a new vehicle for production verification" : "New vehicle to Received queue"}
+              {activeMode === "dispatch" ? "Enter dispatch & logistics details for vehicle dispatch" : "New vehicle to Received queue"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground transition-colors"
-            aria-label="Close"
-          >
-            <X size={14} />
-          </button>
+
+          <div className="flex items-center gap-3">
+            {/* Mode Switch Tabs */}
+            <div className="bg-muted p-1 rounded-lg flex items-center gap-1 border border-border">
+              <button
+                type="button"
+                onClick={() => setActiveMode("received")}
+                className={cn(
+                  "px-3 py-1 text-xs font-semibold rounded-md transition-all",
+                  activeMode === "received" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Received
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode("dispatch")}
+                className={cn(
+                  "px-3 py-1 text-xs font-semibold rounded-md transition-all",
+                  activeMode === "dispatch" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Dispatch
+              </button>
+            </div>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-7 h-7 rounded-full bg-muted hover:bg-muted/80 flex items-center justify-center text-muted-foreground transition-colors"
+              aria-label="Close"
+            >
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="flex-1 overflow-y-auto p-5 space-y-6">
-            {/* Section: Basic Vehicle Details */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Vehicle Information</h3>
+            {/* Section: Basic Vehicle Details (Shown when Mode === 'received') */}
+            {activeMode === "received" && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Vehicle Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>VIN</label>
+                    <input
+                      placeholder="VIN-123456789"
+                      value={form.vin}
+                      onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Chassis Number *</label>
+                    <input
+                      required
+                      placeholder="CH-98765"
+                      value={form.chassisNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, chassisNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                
+                <div>
+                  <label className={labelCls}>OEM Name *</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={form.oemName}
+                      onChange={(e) => setForm((f) => ({ ...f, oemName: e.target.value }))}
+                      className={cn(inputCls, "appearance-none pr-7")}
+                    >
+                      <option value="">Select OEM</option>
+                      <option value="EULER MOTORS">EULER MOTORS</option>
+                      <option value="MONTRA ELECTRIC">MONTRA ELECTRIC</option>
+                      <option value="BAJAJ AUTO">BAJAJ AUTO</option>
+                      <option value="PIAGGIO">PIAGGIO</option>
+                      <option value="JUPITER ELECTRIC MOBILITY">JUPITER ELECTRIC MOBILITY</option>
+                      <option value="TVS MOTORS">TVS MOTORS</option>
+                      <option value="E NEXT MOBILITY">E NEXT MOBILITY</option>
+                      <option value="TATA MOTORS">TATA MOTORS</option>
+                      <option value="MAHINDRA">MAHINDRA</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                  {form.oemName === "Other" && (
+                    <input
+                      required
+                      placeholder="Enter OEM Name"
+                      value={form.oemNameOther}
+                      onChange={(e) => setForm((f) => ({ ...f, oemNameOther: e.target.value }))}
+                      className={cn(inputCls, "mt-2")}
+                    />
+                  )}
+                </div>
+                
+                <div>
+                  <label className={labelCls}>Dealer Name *</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={form.dealerName}
+                      onChange={(e) => setForm((f) => ({ ...f, dealerName: e.target.value }))}
+                      className={cn(inputCls, "appearance-none pr-7")}
+                    >
+                      <option value="">Select Dealer</option>
+                      <option value="Tech UP">Tech UP</option>
+                      <option value="Eco Edge">Eco Edge</option>
+                      <option value="Smart Solution">Smart Solution</option>
+                      <option value="Sincear Marketing">Sincear Marketing</option>
+                      <option value="Bhutani Auto Cap">Bhutani Auto Cap</option>
+                      <option value="KK Auto mobile">KK Auto mobile</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                  {form.dealerName === "Other" && (
+                    <input
+                      placeholder="Enter Dealer Name"
+                      value={form.dealerNameOther}
+                      onChange={(e) => setForm((f) => ({ ...f, dealerNameOther: e.target.value }))}
+                      className={cn(inputCls, "mt-2")}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelCls}>Model Name *</label>
+                  <CustomModelSelect 
+                    value={form.modelName} 
+                    onChange={(val) => setForm(f => ({ ...f, modelName: val }))} 
+                  />
+                  {form.modelName === "Other" && (
+                    <input
+                      required
+                      placeholder="Enter Model Name"
+                      value={form.modelNameOther}
+                      onChange={(e) => setForm((f) => ({ ...f, modelNameOther: e.target.value }))}
+                      className={cn(inputCls, "mt-2")}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelCls}>Vehicle Type *</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={form.vehicleType}
+                      onChange={(e) => setForm((f) => ({ ...f, vehicleType: e.target.value }))}
+                      className={cn(inputCls, "appearance-none pr-7")}
+                    >
+                      <option value="">Select type</option>
+                      <option value="3 wheeler">3 wheeler</option>
+                      <option value="4 wheeler">4 wheeler</option>
+                      <option value="Other">Other</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                  {form.vehicleType === "Other" && (
+                    <input
+                      placeholder="Enter Vehicle Type"
+                      value={form.vehicleTypeOther}
+                      onChange={(e) => setForm((f) => ({ ...f, vehicleTypeOther: e.target.value }))}
+                      className={cn(inputCls, "mt-2")}
+                    />
+                  )}
+                </div>
+                
+                <div>
+                  <label className={labelCls}>Product Category *</label>
+                  <div className="relative">
+                    <select
+                      required
+                      value={form.productCategory}
+                      onChange={(e) => setForm((f) => ({ ...f, productCategory: e.target.value }))}
+                      className={cn(inputCls, "appearance-none pr-7")}
+                    >
+                      {PRODUCT_CATEGORIES.slice(1).map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                      <option value="Other">Other</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                  {form.productCategory === "Other" && (
+                    <input
+                      placeholder="Enter Product Category"
+                      value={form.productCategoryOther}
+                      onChange={(e) => setForm((f) => ({ ...f, productCategoryOther: e.target.value }))}
+                      className={cn(inputCls, "mt-2")}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelCls}>Priority</label>
+                  <div className="relative">
+                    <select
+                      value={form.priority}
+                      onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Priority }))}
+                      className={cn(inputCls, "appearance-none pr-7")}
+                    >
+                      <option value="normal">Normal</option>
+                      <option value="high">High</option>
+                      <option value="urgent">Urgent</option>
+                    </select>
+                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                  </div>
+                </div>
+                
+                <div>
+                  <label className={labelCls}>Estimated Delivery</label>
+                  <input
+                    type="datetime-local"
+                    value={form.estimatedDelivery}
+                    onChange={(e) => setForm((f) => ({ ...f, estimatedDelivery: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
+              </div>
+            </div>
+            )}
+
+            {/* Section: Logistics Details (Shown when Mode === 'dispatch') */}
+            {activeMode === "dispatch" && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Logistics & Dispatch Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className={labelCls}>Chassis / VIN Number</label>
+                    <input
+                      placeholder="CH-98765 / VIN"
+                      value={form.chassisNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, chassisNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Truck Number</label>
+                    <input
+                      placeholder="e.g. MH-12-AB-3456"
+                      value={form.truckNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, truckNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Driver Name *</label>
+                    <input
+                      required
+                      placeholder="Driver's Full Name"
+                      value={form.driverName}
+                      onChange={(e) => setForm((f) => ({ ...f, driverName: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Driver Mobile Number *</label>
+                    <input
+                      required
+                      type="tel"
+                      maxLength={10}
+                      pattern="\d{10}"
+                      title="Mobile number must be exactly 10 digits"
+                      placeholder="10-digit mobile number"
+                      value={form.driverMobileNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, driverMobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>LR Number</label>
+                    <input
+                      placeholder="Enter LR Number"
+                      value={form.lrNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, lrNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Invoice Number</label>
+                    <input
+                      placeholder="Enter Invoice Number"
+                      value={form.invoiceNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Dispatch Challan Number</label>
+                    <input
+                      placeholder="Enter Challan Number"
+                      value={form.dispatchChallanNumber}
+                      onChange={(e) => setForm((f) => ({ ...f, dispatchChallanNumber: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Dispatch Date & Time</label>
+                    <input
+                      type="datetime-local"
+                      value={form.dispatchDateTime}
+                      onChange={(e) => setForm((f) => ({ ...f, dispatchDateTime: e.target.value }))}
+                      className={inputCls}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Documents Upload</label>
+                    <label className={cn(inputCls, "flex items-center justify-center gap-2 cursor-pointer bg-muted/30 hover:bg-muted/50 border-dashed border-2")}>
+                      <Upload size={14} className="text-muted-foreground" />
+                      <span className="text-muted-foreground">Upload Files</span>
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={(e) => {
+                          if (e.target.files && e.target.files.length > 0) {
+                            setForm((f) => ({ ...f, documentsUrl: e.target.files![0].name }))
+                          }
+                        }}
+                      />
+                    </label>
+                    {form.documentsUrl && (
+                      <p className="text-[10px] text-muted-foreground mt-1 truncate">Selected: {form.documentsUrl}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className={labelCls}>Tracking / Vehicle Number</label>
-                <input
-                  placeholder="e.g. FF-2026"
-                  value={form.vehicleNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, vehicleNumber: e.target.value }))}
-                  className={inputCls}
+                <label className={labelCls}>Notes</label>
+                <textarea
+                  rows={2}
+                  placeholder="Special instructions or notes..."
+                  value={form.notes}
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  className={cn(inputCls, "resize-none")}
                 />
               </div>
               <div>
-                <label className={labelCls}>Platform Number</label>
-                <input
-                  placeholder="Platform 123"
-                  value={form.platformNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, platformNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>VIN *</label>
-                <input
-                  required
-                  placeholder="VIN-123456789"
-                  value={form.vin}
-                  onChange={(e) => setForm((f) => ({ ...f, vin: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Chassis Number *</label>
-                <input
-                  required
-                  placeholder="CH-98765"
-                  value={form.chassisNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, chassisNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              
-              <div>
-                <label className={labelCls}>OEM Name *</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={form.oemName}
-                    onChange={(e) => setForm((f) => ({ ...f, oemName: e.target.value }))}
-                    className={cn(inputCls, "appearance-none pr-7")}
-                  >
-                    <option value="">Select OEM</option>
-                    <option value="EULER MOTORS">EULER MOTORS</option>
-                    <option value="MONTRA ELECTRIC">MONTRA ELECTRIC</option>
-                    <option value="BAJAJ AUTO">BAJAJ AUTO</option>
-                    <option value="PIAGGIO">PIAGGIO</option>
-                    <option value="JUPITER ELECTRIC MOBILITY">JUPITER ELECTRIC MOBILITY</option>
-                    <option value="TVS MOTORS">TVS MOTORS</option>
-                    <option value="E NEXT MOBILITY">E NEXT MOBILITY</option>
-                    <option value="TATA MOTORS">TATA MOTORS</option>
-                    <option value="MAHINDRA">MAHINDRA</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-                {form.oemName === "Other" && (
-                  <input
-                    required
-                    placeholder="Enter OEM Name"
-                    value={form.oemNameOther}
-                    onChange={(e) => setForm((f) => ({ ...f, oemNameOther: e.target.value }))}
-                    className={cn(inputCls, "mt-2")}
-                  />
-                )}
-              </div>
-              
-              <div>
-                <label className={labelCls}>Dealer Name *</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={form.dealerName}
-                    onChange={(e) => setForm((f) => ({ ...f, dealerName: e.target.value }))}
-                    className={cn(inputCls, "appearance-none pr-7")}
-                  >
-                    <option value="">Select Dealer</option>
-                    <option value="Tech UP">Tech UP</option>
-                    <option value="Eco Edge">Eco Edge</option>
-                    <option value="Smart Solution">Smart Solution</option>
-                    <option value="Sincear Marketing">Sincear Marketing</option>
-                    <option value="Bhutani Auto Cap">Bhutani Auto Cap</option>
-                    <option value="KK Auto mobile">KK Auto mobile</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-                {form.dealerName === "Other" && (
-                  <input
-                    placeholder="Enter Dealer Name"
-                    value={form.dealerNameOther}
-                    onChange={(e) => setForm((f) => ({ ...f, dealerNameOther: e.target.value }))}
-                    className={cn(inputCls, "mt-2")}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className={labelCls}>Model Name *</label>
-                <CustomModelSelect 
-                  value={form.modelName} 
-                  onChange={(val) => setForm(f => ({ ...f, modelName: val }))} 
-                />
-                {form.modelName === "Other" && (
-                  <input
-                    required
-                    placeholder="Enter Model Name"
-                    value={form.modelNameOther}
-                    onChange={(e) => setForm((f) => ({ ...f, modelNameOther: e.target.value }))}
-                    className={cn(inputCls, "mt-2")}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className={labelCls}>Vehicle Type *</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={form.vehicleType}
-                    onChange={(e) => setForm((f) => ({ ...f, vehicleType: e.target.value }))}
-                    className={cn(inputCls, "appearance-none pr-7")}
-                  >
-                    <option value="">Select type</option>
-                    <option value="3 wheeler">3 wheeler</option>
-                    <option value="4 wheeler">4 wheeler</option>
-                    <option value="Other">Other</option>
-                  </select>
-                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-                {form.vehicleType === "Other" && (
-                  <input
-                    placeholder="Enter Vehicle Type"
-                    value={form.vehicleTypeOther}
-                    onChange={(e) => setForm((f) => ({ ...f, vehicleTypeOther: e.target.value }))}
-                    className={cn(inputCls, "mt-2")}
-                  />
-                )}
-              </div>
-              
-              <div>
-                <label className={labelCls}>Product Category *</label>
-                <div className="relative">
-                  <select
-                    required
-                    value={form.productCategory}
-                    onChange={(e) => setForm((f) => ({ ...f, productCategory: e.target.value }))}
-                    className={cn(inputCls, "appearance-none pr-7")}
-                  >
-                    {PRODUCT_CATEGORIES.slice(1).map((c) => (
-                      <option key={c} value={c}>{c}</option>
-                    ))}
-                    <option value="Other">Other</option>
-                  </select>
-                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-                {form.productCategory === "Other" && (
-                  <input
-                    placeholder="Enter Product Category"
-                    value={form.productCategoryOther}
-                    onChange={(e) => setForm((f) => ({ ...f, productCategoryOther: e.target.value }))}
-                    className={cn(inputCls, "mt-2")}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className={labelCls}>Priority</label>
-                <div className="relative">
-                  <select
-                    value={form.priority}
-                    onChange={(e) => setForm((f) => ({ ...f, priority: e.target.value as Priority }))}
-                    className={cn(inputCls, "appearance-none pr-7")}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="high">High</option>
-                    <option value="urgent">Urgent</option>
-                  </select>
-                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                </div>
-              </div>
-              
-              <div>
-                <label className={labelCls}>Estimated Delivery</label>
-                <input
-                  type="datetime-local"
-                  value={form.estimatedDelivery}
-                  onChange={(e) => setForm((f) => ({ ...f, estimatedDelivery: e.target.value }))}
-                  className={inputCls}
+                <label className={labelCls}>Remarks</label>
+                <textarea
+                  rows={2}
+                  placeholder="Additional remarks..."
+                  value={form.remarks}
+                  onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
+                  className={cn(inputCls, "resize-none")}
                 />
               </div>
             </div>
-          </div>
-
-          {/* Section: Logistics Details (Always visible, but specifically for OEM/Transport) */}
-          <div>
-            <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Logistics & Dispatch Information</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelCls}>Transport Company</label>
-                <input
-                  placeholder="Enter Transport Co."
-                  value={form.transportCompany}
-                  onChange={(e) => setForm((f) => ({ ...f, transportCompany: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Truck Number</label>
-                <input
-                  placeholder="e.g. MH-12-AB-3456"
-                  value={form.truckNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, truckNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Driver Name *</label>
-                <input
-                  required
-                  placeholder="Driver's Full Name"
-                  value={form.driverName}
-                  onChange={(e) => setForm((f) => ({ ...f, driverName: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Driver Mobile Number *</label>
-                <input
-                  required
-                  type="tel"
-                  maxLength={10}
-                  pattern="\d{10}"
-                  title="Mobile number must be exactly 10 digits"
-                  placeholder="10-digit mobile number"
-                  value={form.driverMobileNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, driverMobileNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>LR Number</label>
-                <input
-                  placeholder="Enter LR Number"
-                  value={form.lrNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, lrNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Invoice Number</label>
-                <input
-                  placeholder="Enter Invoice Number"
-                  value={form.invoiceNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, invoiceNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Dispatch Challan Number</label>
-                <input
-                  placeholder="Enter Challan Number"
-                  value={form.dispatchChallanNumber}
-                  onChange={(e) => setForm((f) => ({ ...f, dispatchChallanNumber: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Dispatch Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={form.dispatchDateTime}
-                  onChange={(e) => setForm((f) => ({ ...f, dispatchDateTime: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Expected Arrival Date & Time</label>
-                <input
-                  type="datetime-local"
-                  value={form.expectedArrivalDateTime}
-                  onChange={(e) => setForm((f) => ({ ...f, expectedArrivalDateTime: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Documents Upload</label>
-                <label className={cn(inputCls, "flex items-center justify-center gap-2 cursor-pointer bg-muted/30 hover:bg-muted/50 border-dashed border-2")}>
-                  <Upload size={14} className="text-muted-foreground" />
-                  <span className="text-muted-foreground">Upload Files</span>
-                  <input
-                    type="file"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        setForm((f) => ({ ...f, documentsUrl: e.target.files![0].name }))
-                      }
-                    }}
-                  />
-                </label>
-                {form.documentsUrl && (
-                  <p className="text-[10px] text-muted-foreground mt-1 truncate">Selected: {form.documentsUrl}</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className={labelCls}>Notes</label>
-              <textarea
-                rows={2}
-                placeholder="Special instructions or notes..."
-                value={form.notes}
-                onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
-                className={cn(inputCls, "resize-none")}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Remarks</label>
-              <textarea
-                rows={2}
-                placeholder="Additional remarks..."
-                value={form.remarks}
-                onChange={(e) => setForm((f) => ({ ...f, remarks: e.target.value }))}
-                className={cn(inputCls, "resize-none")}
-              />
-            </div>
-          </div>
-
           </div>
 
           <div className="flex-none flex gap-2 border-t border-border/50 p-4 bg-card rounded-b-2xl">

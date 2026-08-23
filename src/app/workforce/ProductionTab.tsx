@@ -64,8 +64,7 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
     { id: "paint", title: "Paint", stages: ["paint"], color: "border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 dark:border-purple-900/30" },
     { id: "quality", title: "Quality", stages: ["quality"], color: "border-yellow-200 bg-yellow-50/50 dark:bg-yellow-950/20 dark:border-yellow-900/30" },
     { id: "rtd", title: "RTD", stages: ["rtd", "readytodispatch"], color: "border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-900/30" },
-    { id: "dispatch", title: "Dispatch", stages: ["dispatch"], color: "border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-900/30" },
-    { id: "delivered", title: "Delivered", stages: ["delivered"], color: "border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-900/30" },
+    { id: "dispatch", title: "Dispatch", stages: ["dispatch"], color: "border-green-200 bg-green-50/50 dark:bg-green-950/20 dark:border-green-900/30" }
   ];
 
   return (

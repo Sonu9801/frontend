@@ -8,7 +8,8 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Priority, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
-import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus } from "lucide-react";
+import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table } from "lucide-react";
+import { exportToCSV, exportToExcel } from "../reports/components/exportUtils";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
 import { AssignJobDialog } from "@/components/vehicles/AssignJobDialog";
@@ -25,16 +26,13 @@ import { ReasonPromptDialog } from "@/components/shared/ReasonPromptDialog";
 import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
 
 const STAGES: Stage[] = [
-  "oem", 
-  "incoming_verification", 
   "supervisor_verification", 
   "received", 
   "fabrication", 
   "paint", 
   "quality", 
   "rtd", 
-  "dispatch", 
-  "delivered"
+  "dispatch"
 ];
 
 const STAGE_CONFIG: Record<
@@ -194,11 +192,12 @@ function VehicleCard({
   onAction,
   onUpdateStage
 }: VehicleCardProps) {
-  const normStage = (vehicle.currentStage.toLowerCase() === "readytodispatch" ? "rtd" : vehicle.currentStage.toLowerCase()) as Stage;
+  const currentStageLower = (vehicle?.currentStage || "received").toLowerCase();
+  const normStage = (currentStageLower === "readytodispatch" ? "rtd" : currentStageLower) as Stage;
   const cfg = STAGE_CONFIG[normStage] || STAGE_CONFIG.received;
   
   // Find active job for current stage
-  const activeJob = vehicle.productionJobs?.find(j => j.stage === normStage && !["completed", "rejected"].includes(j.status));
+  const activeJob = vehicle?.productionJobs?.find(j => j.stage === normStage && !["completed", "rejected"].includes(j.status));
   const isAssigned = !!activeJob;
   
   // Compute active job timer if in progress
@@ -222,8 +221,8 @@ function VehicleCard({
     }
   }, [activeJob]);
 
-  const overdue = isDelayed || (isOverdue(vehicle.estimatedDelivery) && vehicle.currentStage.toLowerCase() !== "dispatch" && vehicle.currentStage.toLowerCase() !== "dispatched");
-  const isUrgent = vehicle.priority.toLowerCase() === "urgent";
+  const overdue = isDelayed || (isOverdue(vehicle?.estimatedDelivery) && currentStageLower !== "dispatch" && currentStageLower !== "dispatched");
+  const isUrgent = (vehicle?.priority || "").toLowerCase() === "urgent";
 
   return (
     <motion.div
@@ -239,7 +238,7 @@ function VehicleCard({
           if (e.key === "Enter" || e.key === " ") onClick?.();
         }}
         onClick={onClick}
-        data-ocid={`production.kanban.${vehicle.currentStage}.item.${index + 1}`}
+        data-ocid={`production.kanban.${currentStageLower}.item.${index + 1}`}
         className={cn(
           "relative p-3 bg-card rounded-xl border-l-4 cursor-grab active:cursor-grabbing",
           "border border-border transition-all duration-200",
@@ -337,21 +336,21 @@ function VehicleCard({
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent onClick={(e) => e.stopPropagation()}>
-                {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Delivered"].map(stageLabel => {
+                {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch"].map(stageLabel => {
                   const stageMap: Record<string, Stage> = {
                     "Received": "received",
                     "Fabrication": "fabrication",
                     "Paint": "paint",
                     "Ready-to-Dispatch": "rtd",
-                    "Delivered": "delivered"
+                    "Dispatch": "dispatch"
                   };
                   return (
                     <DropdownMenuItem 
                       key={stageLabel}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      onSelect={() => {
                         onUpdateStage?.(vehicle.id, stageMap[stageLabel]);
                       }}
+                      className="cursor-pointer font-medium"
                     >
                       {stageLabel}
                     </DropdownMenuItem>
@@ -451,7 +450,10 @@ function KanbanColumn({
   onUpdateStage
 }: KanbanColumnProps) {
   const cfg = STAGE_CONFIG[stage];
-  const hasOverdue = vehicles.some((v) => isOverdue(v.estimatedDelivery) && v.currentStage.toLowerCase() !== "dispatch" && v.currentStage.toLowerCase() !== "dispatched");
+  const hasOverdue = vehicles.some((v) => {
+    const s = (v.currentStage || "received").toLowerCase();
+    return isOverdue(v.estimatedDelivery) && s !== "dispatch" && s !== "dispatched";
+  });
 
   return (
     <div
@@ -614,18 +616,19 @@ export default function ProductionPage() {
     }
   }, [categoryParam]);
 
-  const [activeTab, setActiveTab] = useState<"incoming" | "board" | "history">(
-    (tabParam === "incoming" || tabParam === "history") ? tabParam : "board"
+  const [activeTab, setActiveTab] = useState<"incoming" | "board" | "table" | "history">(
+    (tabParam === "incoming" || tabParam === "history" || tabParam === "table") ? (tabParam as any) : "board"
   );
 
   useEffect(() => {
-    if (tabParam && ["incoming", "board", "history"].includes(tabParam)) {
-      setActiveTab(tabParam as "incoming" | "board" | "history");
+    if (tabParam && ["incoming", "board", "table", "history"].includes(tabParam)) {
+      setActiveTab(tabParam as any);
     }
   }, [tabParam]);
 
   const [dragOverStage, setDragOverStage] = useState<Stage | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [addModalMode, setAddModalMode] = useState<"received" | "dispatch">("received");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [drawerVehicle, setDrawerVehicle] = useState<Vehicle | null>(null);
 
@@ -641,47 +644,81 @@ export default function ProductionPage() {
   const filtered = useMemo(() => {
     return vehicles.filter((v: Vehicle) => {
       const q = search.toLowerCase();
+      const trackingIdStr = v.trackingId || "";
+      const vehicleNumStr = v.vehicleNumber || "";
+      const oemNameStr = v.oemName || "";
+      const priorityStr = v.priority || "";
+      const categoryStr = v.productCategory || "";
+
       const matchesSearch =
         !q ||
-        v.trackingId.toLowerCase().includes(q) ||
-        v.vehicleNumber.toLowerCase().includes(q) ||
-        v.oemName.toLowerCase().includes(q);
+        trackingIdStr.toLowerCase().includes(q) ||
+        vehicleNumStr.toLowerCase().includes(q) ||
+        oemNameStr.toLowerCase().includes(q);
       const matchesPriority =
-        priorityFilter === "all" || v.priority.toLowerCase() === priorityFilter.toLowerCase();
+        priorityFilter === "all" || priorityStr.toLowerCase() === priorityFilter.toLowerCase();
       const matchesCategory =
         categoryFilter === "All Categories" ||
-        v.productCategory.toLowerCase() === categoryFilter.toLowerCase();
+        categoryStr.toLowerCase() === categoryFilter.toLowerCase();
       return matchesSearch && matchesPriority && matchesCategory;
     });
   }, [vehicles, search, priorityFilter, categoryFilter]);
 
   const byStage = useMemo(() => {
-    // Generate initial grouped object from STAGES plus 'rejected'
-    const initialGrouped = STAGES.reduce((acc, stage) => {
-      acc[stage] = [];
-      return acc;
-    }, {} as any);
+    const initialGrouped: Record<string, Vehicle[]> = {
+      oem: [],
+      incoming_verification: [],
+      supervisor_verification: [],
+      received: [],
+      fabrication: [],
+      paint: [],
+      quality: [],
+      rtd: [],
+      dispatch: [],
+      delivered: [],
+      rejected: [],
+      hold: [],
+    };
+    STAGES.forEach((stage) => {
+      if (!initialGrouped[stage]) initialGrouped[stage] = [];
+    });
 
-    const grouped = STAGES.reduce<any>(
-      (acc, s) => {
-        acc[s] = filtered.filter((v: Vehicle) => {
-          const norm = v.currentStage.toLowerCase() === "readytodispatch" ? "rtd" : v.currentStage.toLowerCase();
-          return norm === s.toLowerCase();
-        });
-        return acc;
-      },
-      initialGrouped,
-    );
-    
-    // Handle rejected separately since it's not in STAGES
-    grouped.rejected = filtered.filter((v: Vehicle) => v.currentStage.toLowerCase() === "rejected");
-    
-    return grouped;
+    filtered.forEach((v: Vehicle) => {
+      let norm = (v.currentStage || (v as any).current_stage || "received").toLowerCase().trim();
+      if (norm === "readytodispatch" || norm === "ready_to_dispatch" || norm === "ready to dispatch") {
+        norm = "rtd";
+      }
+      if (norm === "dispatched" || norm === "delivered") {
+        norm = "dispatch";
+      }
+      if (norm === "quality_check" || norm === "qc") {
+        norm = "quality";
+      }
+
+      if (initialGrouped[norm]) {
+        initialGrouped[norm].push(v);
+      } else {
+        const foundStage = STAGES.find(s => s.toLowerCase() === norm);
+        if (foundStage && initialGrouped[foundStage]) {
+          initialGrouped[foundStage].push(v);
+        } else {
+          if (!initialGrouped["received"]) initialGrouped["received"] = [];
+          initialGrouped["received"].push(v);
+        }
+      }
+    });
+
+    initialGrouped.rejected = filtered.filter((v: Vehicle) => (v.currentStage || "").toLowerCase() === "rejected");
+    return initialGrouped;
   }, [filtered]);
 
   const handleDragStart = useCallback(
     (e: React.DragEvent<HTMLDivElement>, vehicleId: string) => {
-      draggingId.current = vehicleId;
+      const vIdStr = String(vehicleId);
+      draggingId.current = vIdStr;
+      try {
+        e.dataTransfer.setData("text/plain", vIdStr);
+      } catch (_err) {}
       e.dataTransfer.effectAllowed = "move";
     },
     [],
@@ -701,21 +738,27 @@ export default function ProductionPage() {
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent<HTMLDivElement>, stage: Stage) => {
+    (e: React.DragEvent<HTMLDivElement>, targetStage: Stage) => {
       e.preventDefault();
-      if (draggingId.current) {
+      setDragOverStage(null);
+      let vId = draggingId.current;
+      if (!vId) {
+        try {
+          vId = e.dataTransfer.getData("text/plain");
+        } catch (_err) {}
+      }
+      if (vId) {
         // Calculate dynamic progress percent based on the target stage
         let progress = 0;
-        if (stage === "received") progress = 0;
-        else if (stage === "fabrication") progress = 30;
-        else if (stage === "paint") progress = 60;
-        else if (stage === "rtd") progress = 90;
-        else if (stage === "dispatch") progress = 100;
+        if (targetStage === "received") progress = 0;
+        else if (targetStage === "fabrication") progress = 30;
+        else if (targetStage === "paint") progress = 60;
+        else if (targetStage === "rtd") progress = 90;
+        else if (targetStage === "dispatch") progress = 100;
 
-        updateStageMutation.mutate({ id: draggingId.current, stage, progress });
+        updateStageMutation.mutate({ id: vId, stage: targetStage, progress });
         draggingId.current = null;
       }
-      setDragOverStage(null);
     },
     [updateStageMutation],
   );
@@ -731,8 +774,8 @@ export default function ProductionPage() {
     createVehicleMutation.mutate(data);
   }, [createVehicleMutation]);
 
-  const urgentCount = useMemo(() => vehicles.filter((v: Vehicle) => v.priority.toLowerCase() === "urgent").length, [vehicles]);
-  const highCount = useMemo(() => vehicles.filter((v: Vehicle) => v.priority.toLowerCase() === "high").length, [vehicles]);
+  const urgentCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "urgent").length, [vehicles]);
+  const highCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "high").length, [vehicles]);
   const isFiltered = search || priorityFilter !== "all" || categoryFilter !== "All Categories";
 
   if (isLoadingVehicles) {
@@ -780,7 +823,18 @@ export default function ProductionPage() {
                     activeTab === "board" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Production Board
+                  Kanban Board
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("table")}
+                  className={cn(
+                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5",
+                    activeTab === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileSpreadsheet size={13} className="text-emerald-600" />
+                  Excel / Table View
                 </button>
                 <button
                   type="button"
@@ -803,7 +857,7 @@ export default function ProductionPage() {
               <span className="text-warning font-medium">{highCount} high</span>
             </p>
           </div>
-          <div className="hidden sm:flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {priorityFilter !== "all" && (
               <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
                 {priorityFilter}
@@ -830,6 +884,29 @@ export default function ProductionPage() {
                 </button>
               </span>
             )}
+
+            {/* Action Buttons: Received & Dispatch */}
+            <button
+              type="button"
+              onClick={() => {
+                setAddModalMode("received");
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-all cursor-pointer"
+            >
+              <Plus size={14} /> Received Vehicle
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setAddModalMode("dispatch");
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all cursor-pointer"
+            >
+              <Truck size={14} /> Dispatch Vehicle
+            </button>
           </div>
         </div>
 
@@ -981,7 +1058,7 @@ export default function ProductionPage() {
         <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
           <div className="max-w-4xl mx-auto space-y-4">
             <h2 className="text-lg font-bold">Incoming Vehicles for Verification</h2>
-            {byStage["oem"].length === 0 ? (
+            {(!byStage["oem"] || byStage["oem"].length === 0) ? (
               <div className="text-center py-10 bg-card rounded-xl border border-border">
                 <p className="text-muted-foreground">No vehicles pending verification.</p>
               </div>
@@ -1024,6 +1101,157 @@ export default function ProductionPage() {
         </div>
       )}
 
+      {/* Excel / Table List View Tab Content */}
+      {activeTab === "table" && (
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-muted/10 space-y-4">
+          {/* Table Action Header Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                <FileSpreadsheet size={20} />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">Vehicle Master List (Excel View)</h3>
+                <p className="text-xs text-muted-foreground">Real-time row and column table list ({filtered.length} vehicles matching filter)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ["Tracking ID", "Chassis / VIN", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %", "Received Date"];
+                  const tableRows = filtered.map((v: Vehicle) => ({
+                    "Tracking ID": v.trackingId,
+                    "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                    "OEM Name": v.oemName,
+                    "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
+                    "Dealer Name": v.dealerName || "-",
+                    "Category": v.productCategory,
+                    "Stage": v.currentStage,
+                    "Priority": v.priority,
+                    "Progress %": `${v.progressPercent}%`,
+                    "Received Date": new Date(v.receivedAt).toLocaleDateString("en-IN")
+                  }));
+                  exportToExcel("Vehicle_Master_List", headers, tableRows);
+                }}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
+              >
+                <Download size={13} /> Export Excel (.xlsx)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ["Tracking ID", "Chassis / VIN", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %", "Received Date"];
+                  const tableRows = filtered.map((v: Vehicle) => ({
+                    "Tracking ID": v.trackingId,
+                    "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                    "OEM Name": v.oemName,
+                    "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
+                    "Dealer Name": v.dealerName || "-",
+                    "Category": v.productCategory,
+                    "Stage": v.currentStage,
+                    "Priority": v.priority,
+                    "Progress %": `${v.progressPercent}%`,
+                    "Received Date": new Date(v.receivedAt).toLocaleDateString("en-IN")
+                  }));
+                  exportToCSV("Vehicle_Master_List", headers, tableRows);
+                }}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
+              >
+                <Download size={13} /> Export CSV
+              </button>
+            </div>
+          </div>
+
+          {/* Excel Style Data Table */}
+          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">
+                  <tr>
+                    <th className="px-4 py-3.5">#</th>
+                    <th className="px-4 py-3.5">Tracking ID</th>
+                    <th className="px-4 py-3.5">Chassis / VIN</th>
+                    <th className="px-4 py-3.5">OEM Name</th>
+                    <th className="px-4 py-3.5">Model Name</th>
+                    <th className="px-4 py-3.5">Dealer</th>
+                    <th className="px-4 py-3.5">Category</th>
+                    <th className="px-4 py-3.5">Stage</th>
+                    <th className="px-4 py-3.5">Priority</th>
+                    <th className="px-4 py-3.5">Progress</th>
+                    <th className="px-4 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/60">
+                  {filtered.length === 0 ? (
+                    <tr>
+                      <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                        No vehicles found matching your criteria.
+                      </td>
+                    </tr>
+                  ) : (
+                    filtered.map((v: Vehicle, idx: number) => {
+                      const vStage = (v.currentStage || (v as any).current_stage || "received").toLowerCase();
+                      const vModel = v.vehicleModel || (v as any).modelName || (v as any).model_name || "-";
+                      return (
+                        <tr key={v.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-mono text-muted-foreground">{idx + 1}</td>
+                          <td className="px-4 py-3 font-mono font-semibold text-primary">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/vehicle/${v.id}`)}
+                              className="hover:underline text-left text-primary font-bold"
+                            >
+                              {v.trackingId}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 font-mono text-muted-foreground">
+                            {v.chassisNumber || v.vin || "-"}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-foreground">{v.oemName}</td>
+                          <td className="px-4 py-3 font-semibold text-foreground">{vModel}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{v.dealerName || "-"}</td>
+                          <td className="px-4 py-3 text-muted-foreground">{v.productCategory}</td>
+                          <td className="px-4 py-3">
+                            <span className="capitalize font-semibold px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20">
+                              {vStage === "rtd" ? "Ready-to-Dispatch" : vStage}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <PriorityBadge priority={v.priority} showLabel={true} />
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-primary rounded-full"
+                                  style={{ width: `${v.progressPercent}%` }}
+                                />
+                              </div>
+                              <span className="font-mono text-[10px] text-muted-foreground">{v.progressPercent}%</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/vehicle/${v.id}`)}
+                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                              title="View Details"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Work History Tab Content */}
       {activeTab === "history" && (
         <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
@@ -1039,6 +1267,7 @@ export default function ProductionPage() {
             onClose={() => setShowAddModal(false)}
             onAdd={handleAddVehicle}
             isOemSubmission={false}
+            initialMode={addModalMode}
           />
         )}
       </AnimatePresence>
