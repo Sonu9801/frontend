@@ -3,16 +3,18 @@
 import React, { useState, useMemo, useRef, useCallback, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
-import { useVehicles, useWorkers, useUpdateVehicleStage, useCreateVehicle, useVerifyVehicle, useRejectVehicle } from "@/hooks/useQueries";
+import { useVehicles, useWorkers, useUpdateVehicleStage, useUpdateVehicle, useCreateVehicle, useVerifyVehicle, useRejectVehicle } from "@/hooks/useQueries";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Priority, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
 import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table } from "lucide-react";
 import { exportToCSV, exportToExcel } from "../reports/components/exportUtils";
+import { toast } from "sonner";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
 import { AssignJobDialog } from "@/components/vehicles/AssignJobDialog";
+import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
 import { 
   DropdownMenu,
   DropdownMenuContent,
@@ -596,6 +598,48 @@ export default function ProductionPage() {
   const [historyRecord, setHistoryRecord] = useState<Vehicle | null>(null);
   const [holdRecord, setHoldRecord] = useState<Vehicle | null>(null);
 
+  // Dispatch details modal state & submission
+  const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<Vehicle | null>(null);
+  const updateVehicleMutation = useUpdateVehicle();
+
+  const handleFinalDispatchSubmit = (values: DispatchFormValues) => {
+    if (!pendingDispatchVehicle) return;
+
+    updateVehicleMutation.mutate(
+      {
+        id: pendingDispatchVehicle.id,
+        data: {
+          current_stage: "dispatch",
+          progress_percent: 100,
+          transport_company: values.transportCompany,
+          truck_number: values.truckNumber,
+          driver_name: values.driverName,
+          driver_mobile_number: values.driverMobileNumber,
+          dispatch_challan_number: values.dispatchChallanNumber,
+          invoice_number: values.invoiceNumber,
+          lr_number: values.lrNumber,
+          dealer_name: values.destination,
+          dispatch_date_time: values.dispatchDateTime,
+          remarks: values.remarks,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(`Vehicle ${pendingDispatchVehicle.chassisNumber || pendingDispatchVehicle.trackingId} dispatched successfully!`, {
+            action: {
+              label: "Open Dispatch Module",
+              onClick: () => router.push("/dispatch"),
+            },
+          });
+          setPendingDispatchVehicle(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
+        },
+      }
+    );
+  };
+
   const handleAction = useCallback((action: string, vehicle: Vehicle) => {
     if (action === "edit" || action === "change_stage" || action === "change_priority") {
       setEditRecord(vehicle);
@@ -748,6 +792,15 @@ export default function ProductionPage() {
         } catch (_err) {}
       }
       if (vId) {
+        if (targetStage === "dispatch" || targetStage === "delivered") {
+          const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(vId));
+          if (vToDispatch) {
+            setPendingDispatchVehicle(vToDispatch);
+            draggingId.current = null;
+            return;
+          }
+        }
+
         // Calculate dynamic progress percent based on the target stage
         let progress = 0;
         if (targetStage === "received") progress = 0;
@@ -760,7 +813,7 @@ export default function ProductionPage() {
         draggingId.current = null;
       }
     },
-    [updateStageMutation],
+    [updateStageMutation, router],
   );
 
   const handleCardClick = useCallback(
@@ -1039,6 +1092,14 @@ export default function ProductionPage() {
                 canEdit={canEdit}
                 onAction={handleAction}
                 onUpdateStage={(id, targetStage) => {
+                  if (targetStage === "dispatch" || targetStage === "delivered") {
+                    const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(id));
+                    if (vToDispatch) {
+                      setPendingDispatchVehicle(vToDispatch);
+                      return;
+                    }
+                  }
+
                   let progress = 0;
                   if (targetStage === "received") progress = 0;
                   else if (targetStage === "fabrication") progress = 30;
@@ -1337,6 +1398,14 @@ export default function ProductionPage() {
         recordId={historyRecord?.id?.toString() || ""}
         module="vehicles"
         title={`Audit History: ${historyRecord?.vehicleNumber}`}
+      />
+
+      <DispatchVehicleDialog
+        open={!!pendingDispatchVehicle}
+        onOpenChange={(open) => !open && setPendingDispatchVehicle(null)}
+        vehicle={pendingDispatchVehicle}
+        onSubmit={handleFinalDispatchSubmit}
+        isSubmitting={updateVehicleMutation.isPending}
       />
     </div>
   );

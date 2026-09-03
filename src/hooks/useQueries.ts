@@ -72,9 +72,9 @@ export function useQCRecords(params?: { page?: number; pageSize?: number; search
   });
 }
 
-export function useDispatchRecords(params?: { page?: number; pageSize?: number; search?: string }) {
+export function useDispatchRecords(params?: { page?: number; pageSize?: number; search?: string; month?: string; start_date?: string; end_date?: string }) {
   return useQuery<any>({
-    queryKey: ["dispatchRecords", params?.page, params?.pageSize, params?.search],
+    queryKey: ["dispatchRecords", params?.page, params?.pageSize, params?.search, params?.month, params?.start_date, params?.end_date],
     queryFn: () => dispatchApi.getAll(params),
   });
 }
@@ -157,6 +157,17 @@ export function useUpdateAttendance() {
       queryClient.invalidateQueries({ queryKey: ["attendanceLogs"] });
       queryClient.invalidateQueries({ queryKey: ["attendanceAnalytics"] });
     }
+  });
+}
+
+export function useUpdateVehicle() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number | string; data: any }) => vehiclesApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });
+    },
   });
 }
 
@@ -344,6 +355,18 @@ export function useUpdateDispatchRecord() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, data }: { id: number | string; data: any }) => dispatchApi.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });
+      queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+      queryClient.invalidateQueries({ queryKey: ["activities"] });
+    },
+  });
+}
+
+export function useDeleteDispatchRecord() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number | string) => dispatchApi.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });
       queryClient.invalidateQueries({ queryKey: ["vehicles"] });

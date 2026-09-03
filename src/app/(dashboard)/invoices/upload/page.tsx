@@ -79,11 +79,76 @@ export default function InvoiceUploadPage() {
     }
   };
 
+  const compressImageIfNeeded = async (file: File): Promise<File> => {
+    if (!file.type.startsWith("image/")) return file;
+
+    return new Promise((resolve) => {
+      const img = new Image();
+      const objectUrl = URL.createObjectURL(file);
+      img.src = objectUrl;
+
+      img.onload = () => {
+        URL.revokeObjectURL(objectUrl);
+        const maxDim = 1800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width <= maxDim && height <= maxDim && file.size <= 1.5 * 1024 * 1024) {
+          resolve(file);
+          return;
+        }
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              const compressedFile = new File(
+                [blob],
+                file.name.replace(/\.[^/.]+$/, "") + ".jpg",
+                { type: "image/jpeg" }
+              );
+              resolve(compressedFile);
+            } else {
+              resolve(file);
+            }
+          },
+          "image/jpeg",
+          0.85
+        );
+      };
+
+      img.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        resolve(file);
+      };
+    });
+  };
+
   const processOCR = async (file: File) => {
     setIsProcessing(true);
     setOcrData(null);
     try {
-      const result = await uploadMutation.mutateAsync(file);
+      const fileToUpload = await compressImageIfNeeded(file);
+      const result = await uploadMutation.mutateAsync(fileToUpload);
       setOcrData(result);
       const conf = result.ocr_confidence_score || 0;
       setOcrConfidence(conf);

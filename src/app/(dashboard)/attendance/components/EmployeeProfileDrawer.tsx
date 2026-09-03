@@ -18,9 +18,10 @@ interface EmployeeProfileDrawerProps {
   onOpenChange: (open: boolean) => void;
   worker: Worker | null;
   onEditClick: (worker: Worker) => void;
+  onOpenMonthlyAttendance?: (worker: Worker) => void;
 }
 
-export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEditClick }: EmployeeProfileDrawerProps) {
+export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEditClick, onOpenMonthlyAttendance }: EmployeeProfileDrawerProps) {
   const DetailItem = ({ icon: Icon, label, value }: any) => (
     <div className="flex items-start gap-3 py-3 border-b border-border/50 last:border-0">
       <Icon className="text-muted-foreground mt-0.5" size={16} />
@@ -155,6 +156,19 @@ export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEd
                     </p>
                   </div>
                 </div>
+
+                {/* Full Month Attendance Action Button */}
+                <Button
+                  variant="default"
+                  onClick={() => {
+                    onOpenChange(false);
+                    if (onOpenMonthlyAttendance) onOpenMonthlyAttendance(worker);
+                  }}
+                  className="w-full bg-primary text-primary-foreground font-bold gap-2 py-2.5 rounded-xl shadow-sm"
+                >
+                  <CalendarDays size={18} />
+                  View & Edit Full Month Attendance
+                </Button>
 
                 {/* Personal Details */}
                 <div>

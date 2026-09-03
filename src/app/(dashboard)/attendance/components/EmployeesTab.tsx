@@ -1,8 +1,9 @@
 import React, { useState } from "react";
 import { Worker } from "@/types";
-import { Plus, Users, UserCheck, Briefcase } from "lucide-react";
+import { Plus, Users, UserCheck, Briefcase, CalendarDays } from "lucide-react";
 import EmployeeFormDrawer from "./EmployeeFormDrawer";
 import EmployeeProfileDrawer from "./EmployeeProfileDrawer";
+import EmployeeMonthlyAttendanceModal from "./EmployeeMonthlyAttendanceModal";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export default function EmployeesTab() {
   const [pageSize, setPageSize] = useState(10);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isMonthlyAttendanceOpen, setIsMonthlyAttendanceOpen] = useState(false);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [departmentFilter, setDepartmentFilter] = useState("All");
   const [customDeptFilter, setCustomDeptFilter] = useState("");
@@ -84,7 +86,7 @@ export default function EmployeesTab() {
       id: "shift",
       header: "Shift",
       accessor: (row: any) => {
-        const type = row.shiftType || row.shift_type || "General";
+        const type = row.shiftType || row.shift_start || "General";
         const start = row.shiftStart || row.shift_start;
         const end = row.shiftEnd || row.shift_end;
         return (
@@ -109,6 +111,25 @@ export default function EmployeesTab() {
         );
       },
       sortable: true,
+    },
+    {
+      id: "monthlySheet",
+      header: "Monthly Attendance",
+      accessor: (row: any) => (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedWorker(row);
+            setIsMonthlyAttendanceOpen(true);
+          }}
+          className="h-7 px-2.5 text-xs text-primary border-primary/30 hover:bg-primary/10 gap-1.5 rounded-lg font-bold"
+        >
+          <CalendarDays size={13} />
+          View / Edit Month
+        </Button>
+      ),
     },
   ];
 
@@ -198,7 +219,7 @@ export default function EmployeesTab() {
           searchKey={(row) => `${row.name} ${row.employeeId} ${row.department} ${row.mobileNumber}`}
           onRowClick={(row) => {
             setSelectedWorker(row);
-            setIsProfileOpen(true);
+            setIsMonthlyAttendanceOpen(true);
           }}
           rowId={(row) => row.id}
           hidePagination={true}
@@ -228,6 +249,16 @@ export default function EmployeesTab() {
           setSelectedWorker(worker);
           setIsFormOpen(true);
         }}
+        onOpenMonthlyAttendance={(worker) => {
+          setSelectedWorker(worker);
+          setIsMonthlyAttendanceOpen(true);
+        }}
+      />
+
+      <EmployeeMonthlyAttendanceModal
+        open={isMonthlyAttendanceOpen}
+        onOpenChange={setIsMonthlyAttendanceOpen}
+        worker={selectedWorker}
       />
     </div>
   );

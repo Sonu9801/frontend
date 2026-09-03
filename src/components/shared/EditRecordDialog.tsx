@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 export type FieldDefinition = {
   name: string;
   label: string;
-  type: "text" | "number" | "select" | "date" | "time";
+  type: "text" | "number" | "select" | "date" | "time" | "datetime-local";
   defaultValue?: any;
   options?: { label: string; value: string }[] | string[];
   disabled?: boolean;

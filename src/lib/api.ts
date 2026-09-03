@@ -397,8 +397,8 @@ export const qualityApi = {
 };
 
 export const dispatchApi = {
-  getAll: async (params?: { page?: number; pageSize?: number; search?: string }) => {
-    const response = await api.get("/dispatch", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search } });
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; month?: string; start_date?: string; end_date?: string }) => {
+    const response = await api.get("/dispatch", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search, month: params?.month, start_date: params?.start_date, end_date: params?.end_date } });
     return response.data;
   },
   create: async (data: any) => {
@@ -411,6 +411,10 @@ export const dispatchApi = {
   },
   updateStatus: async (id: number | string, status: string) => {
     const response = await api.patch(`/dispatch/${id}/status`, { status });
+    return response.data;
+  },
+  delete: async (id: number | string) => {
+    const response = await api.delete(`/dispatch/${id}`);
     return response.data;
   },
 };
@@ -563,6 +567,25 @@ export const attendanceApi = {
   getWorkerMonthlySummary: async (workerId: string | number, month?: string) => {
     const url = month ? `/attendance/worker/${workerId}/monthly-summary?month=${month}` : `/attendance/worker/${workerId}/monthly-summary`;
     const response = await api.get(url);
+    return response.data;
+  },
+  getWorkerFullMonthLogs: async (workerId: string | number, month?: string) => {
+    const url = month ? `/attendance/worker/${workerId}/full-month-logs?month=${month}` : `/attendance/worker/${workerId}/full-month-logs`;
+    const response = await api.get(url);
+    return response.data;
+  },
+  markDayAttendance: async (data: {
+    worker_id: number | string;
+    date: string;
+    status: string;
+    punch_in_time?: string;
+    punch_out_time?: string;
+    net_working_hours?: number;
+    ot_hours?: number;
+    is_sunday?: boolean;
+    reason?: string;
+  }) => {
+    const response = await api.post("/attendance/mark-day", data);
     return response.data;
   },
   submitCorrection: async (workerId: string | number, dateStr: string, type: string, notes: string) => {

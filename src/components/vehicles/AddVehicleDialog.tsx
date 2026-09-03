@@ -4,7 +4,9 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronDown, X, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Priority, Stage } from "@/types";
+import { useVehicles } from "@/hooks/useQueries";
+import { toast } from "sonner";
+import type { Priority, Stage, Vehicle } from "@/types";
 
 const MODELS_MAP: Record<string, string[]> = {
   "DV": ["DV-120", "DV-170", "DV- 220 City", "DV- 220 MAXX", "DV- 260 Strom", "DV-330", "Other"],
@@ -39,70 +41,42 @@ function CustomModelSelect({ value, onChange }: { value: string, onChange: (v: s
         onClick={() => setIsOpen(!isOpen)}
         className="w-full bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all flex items-center justify-between text-left"
       >
-        <span className="truncate">{value || "Select Model"}</span>
-        <ChevronDown size={12} className={cn("text-muted-foreground transition-transform", isOpen && "rotate-180")} />
+        <span>{value || "Select Model Series"}</span>
+        <ChevronDown size={14} className="text-muted-foreground" />
       </button>
-      
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -5 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full mt-1 bg-card border border-border rounded-xl shadow-xl max-h-[250px] overflow-y-auto py-1"
-          >
-            {Object.entries(MODELS_MAP).map(([series, variants]) => (
-              <div key={series} className="flex flex-col">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (variants.length === 1 && variants[0] === series) {
-                      onChange(series);
-                      setIsOpen(false);
-                    } else {
-                      setExpandedSeries(expandedSeries === series ? null : series);
-                    }
-                  }}
-                  className="w-full text-left px-3 py-2 text-sm font-semibold hover:bg-muted/50 text-primary flex items-center justify-between transition-colors"
-                >
-                  {series}
-                  {variants.length > 1 && (
-                    <ChevronDown size={14} className={cn("transition-transform", expandedSeries === series && "rotate-180")} />
-                  )}
-                </button>
-                <AnimatePresence>
-                  {expandedSeries === series && variants.length > 1 && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: "auto", opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      className="overflow-hidden bg-muted/10"
+      {isOpen && (
+        <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-popover border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto py-1">
+          {Object.entries(MODELS_MAP).map(([series, models]) => (
+            <div key={series}>
+              <button
+                type="button"
+                onClick={() => setExpandedSeries(expandedSeries === series ? null : series)}
+                className="w-full text-left px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:bg-muted/50 flex items-center justify-between"
+              >
+                <span>{series} Series</span>
+                <ChevronDown size={12} className={cn("transition-transform", expandedSeries === series && "rotate-180")} />
+              </button>
+              {expandedSeries === series && (
+                <div className="pl-4 bg-muted/20">
+                  {models.map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        onChange(m);
+                        setIsOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-1 text-xs text-foreground hover:bg-primary/10"
                     >
-                      {variants.map(variant => (
-                        <button
-                          key={variant}
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            onChange(variant);
-                            setIsOpen(false);
-                          }}
-                          className="w-full text-left px-4 pl-6 py-2 text-sm hover:bg-primary/10 hover:text-primary transition-colors flex items-center justify-between"
-                        >
-                          {variant}
-                          {value === variant && <span className="text-primary text-xs font-bold">✓</span>}
-                        </button>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -124,7 +98,9 @@ export interface AddVehicleDialogProps {
 
 export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, initialMode = "received" }: AddVehicleDialogProps) {
   const [activeMode, setActiveMode] = useState<"received" | "dispatch">(initialMode);
-  
+  const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
+  const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
+
   const [form, setForm] = useState({
     vehicleNumber: "",
     platformNumber: "",
@@ -159,6 +135,20 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    const chassisVal = (form.chassisNumber || form.vin || "").trim().toLowerCase();
+    if (chassisVal) {
+      const duplicate = vehiclesList.find(
+        (v) =>
+          (v.chassisNumber && v.chassisNumber.trim().toLowerCase() === chassisVal) ||
+          (v.vin && v.vin.trim().toLowerCase() === chassisVal) ||
+          ((v as any).chassis_number && String((v as any).chassis_number).trim().toLowerCase() === chassisVal)
+      );
+      if (duplicate) {
+        toast.error(`Chassis Number '${form.chassisNumber || form.vin}' already exists in the system (Tracking ID: ${duplicate.trackingId})! Duplicate receiving is not allowed.`);
+        return;
+      }
+    }
     
     const finalOemName = form.oemName === "Other" ? form.oemNameOther : form.oemName;
     const finalDealerName = form.dealerName === "Other" ? form.dealerNameOther : form.dealerName;

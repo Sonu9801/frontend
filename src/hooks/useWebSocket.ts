@@ -47,6 +47,7 @@ export function useWebSocket() {
             case "VEHICLE_STAGE_CHANGED":
               queryClient.invalidateQueries({ queryKey: ["vehicles"] });
               queryClient.invalidateQueries({ queryKey: ["activities"] });
+              queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });
               break;
             case "WORKER_CREATED":
             case "WORKER_UPDATED":

@@ -1,4 +1,5 @@
 import withPWAInit from "@ducanh2912/next-pwa";
+import path from "path";
 
 const withPWA = withPWAInit({
   dest: "public",
@@ -13,11 +14,23 @@ const withPWA = withPWAInit({
 
 const nextConfig = {
   reactStrictMode: true,
-  turbopack: {},
+  turbopack: {
+    root: path.resolve(__dirname, ".."),
+  },
   typescript: {
     ignoreBuildErrors: true,
   },
-  allowedDevOrigins: ['michigan-half-poly-projects.trycloudflare.com', 'baskets-ranks-use-gets.trycloudflare.com', 'necessary-doc-knights-dana.trycloudflare.com', 'sig-after-vampire-sitting.trycloudflare.com', 'wav-collapse-vista-hands.trycloudflare.com', '192.168.1.6', '10.19.107.83', 'deepness-computer-batboy.ngrok-free.dev'],
+  allowedDevOrigins: [
+    '192.168.1.3',
+    '192.168.1.6',
+    '10.19.107.83',
+    'michigan-half-poly-projects.trycloudflare.com',
+    'baskets-ranks-use-gets.trycloudflare.com',
+    'necessary-doc-knights-dana.trycloudflare.com',
+    'sig-after-vampire-sitting.trycloudflare.com',
+    'wav-collapse-vista-hands.trycloudflare.com',
+    'deepness-computer-batboy.ngrok-free.dev',
+  ],
   async rewrites() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     return [

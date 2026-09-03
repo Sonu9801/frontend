@@ -169,6 +169,16 @@ export interface DispatchRecord {
   driverName?: string | null;
   driverPhone?: string | null;
   dispatchDate?: string | null;
+  chassisNumber?: string | null;
+  vehicleNumber?: string | null;
+  oemName?: string | null;
+  vehicleModel?: string | null;
+  productCategory?: string | null;
+  truckNumber?: string | null;
+  lrNumber?: string | null;
+  invoiceNumber?: string | null;
+  dispatchChallanNumber?: string | null;
+  trackingId?: string | null;
 }
 
 
