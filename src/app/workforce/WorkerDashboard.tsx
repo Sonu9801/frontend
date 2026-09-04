@@ -798,17 +798,17 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
 
         {/* Attendance Tab (Detailed) */}
         {activeTab === "attendance" && (
-           <WorkerAttendanceTab history={history} />
+           <WorkerAttendanceTab history={history} workerId={worker?.worker_id || worker?.id} />
         )}
         
         {/* OT Tab */}
         {activeTab === "ot" && (
-           <WorkerOTTab history={history} />
+           <WorkerOTTab history={history} workerId={worker?.worker_id || worker?.id} />
         )}
 
         {/* Sunday Work Tab */}
         {activeTab === "sunday" && (
-           <WorkerSundayTab history={history} />
+           <WorkerSundayTab history={history} workerId={worker?.worker_id || worker?.id} />
         )}
 
         {/* Leave Tab */}

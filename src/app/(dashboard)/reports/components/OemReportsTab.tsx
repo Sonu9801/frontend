@@ -6,6 +6,8 @@ import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 export function OemReportsTab({ 
   vehicles,
   dispatchRecords,
@@ -17,8 +19,15 @@ export function OemReportsTab({
   dateRange: string;
   filters: any;
 }) {
+  const filteredVehicles = useMemo(() => {
+    return (vehicles || []).filter(v => {
+      const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+      return isDateInFilterRange(vDateRaw, dateRange);
+    });
+  }, [vehicles, dateRange]);
+
   const tableData = useMemo(() => {
-    return vehicles.map(v => {
+    return filteredVehicles.map(v => {
       const dispatch = dispatchRecords.find(d => d.vehicleId.toString() === v.id);
       return {
         OEM: v.oemName,
@@ -30,15 +39,15 @@ export function OemReportsTab({
         IsDelayed: new Date(v.estimatedDelivery) < new Date() && v.currentStage !== "dispatch" ? "Yes" : "No"
       };
     });
-  }, [vehicles, dispatchRecords]);
+  }, [filteredVehicles, dispatchRecords]);
 
   const headers = ["OEM", "TrackingID", "VehicleNumber", "ProductionStatus", "DispatchStatus", "ExpectedDelivery", "IsDelayed"];
 
   const oemWiseOrders = useMemo(() => {
     const counts: Record<string, number> = {};
-    vehicles.forEach(v => counts[v.oemName] = (counts[v.oemName] || 0) + 1);
+    filteredVehicles.forEach(v => counts[v.oemName] = (counts[v.oemName] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count);
-  }, [vehicles]);
+  }, [filteredVehicles]);
 
   const deliveredCount = dispatchRecords.filter(d => d.status.toLowerCase() === "delivered").length;
   const delayedCount = tableData.filter(d => d.IsDelayed === "Yes").length;

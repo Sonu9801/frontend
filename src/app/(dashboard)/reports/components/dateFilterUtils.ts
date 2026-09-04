@@ -47,8 +47,51 @@ export const isDateInFilterRange = (dateRaw?: string | Date | number | null, dat
     return compDate >= d30;
   } else if (dateRange === "This Month") {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    return compDate >= monthStart;
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    return compDate >= monthStart && compDate < monthEnd;
+  } else if (dateRange === "Last Month") {
+    const monthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth(), 1);
+    return compDate >= monthStart && compDate < monthEnd;
+  } else if (dateRange.startsWith("Month: ")) {
+    const monthVal = dateRange.replace("Month: ", "").trim();
+    const [y, m] = monthVal.split("-").map(Number);
+    if (y && m) {
+      const monthStart = new Date(y, m - 1, 1);
+      const monthEnd = new Date(y, m, 1);
+      return compDate >= monthStart && compDate < monthEnd;
+    }
+  } else if (dateRange.startsWith("Custom: ")) {
+    const rangePart = dateRange.replace("Custom: ", "").trim();
+    const [sStr, eStr] = rangePart.split(" to ");
+    if (sStr) {
+      const [sy, sm, sd] = sStr.split("-").map(Number);
+      const startDate = new Date(sy, sm - 1, sd || 1, 0, 0, 0);
+      if (eStr) {
+        const [ey, em, ed] = eStr.split("-").map(Number);
+        const endDate = new Date(ey, em - 1, ed, 23, 59, 59, 999);
+        return compDate >= startDate && compDate <= endDate;
+      }
+      return compDate >= startDate;
+    }
   }
 
   return true;
 };
+
+export const formatFilterLabel = (dateRange: string): string => {
+  if (!dateRange) return "All Time";
+  if (dateRange.startsWith("Month: ")) {
+    const monthVal = dateRange.replace("Month: ", "").trim();
+    const [y, m] = monthVal.split("-").map(Number);
+    if (y && m) {
+      const date = new Date(y, m - 1, 1);
+      return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+    }
+  }
+  if (dateRange.startsWith("Custom: ")) {
+    return dateRange.replace("Custom: ", "Custom Range: ");
+  }
+  return dateRange;
+};
+

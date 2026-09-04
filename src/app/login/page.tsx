@@ -34,9 +34,14 @@ export default function LoginPage() {
     const role = localStorage.getItem("role");
 
     if (token && role) {
-      if (role.toLowerCase() === "worker") {
+      const r = role.toLowerCase();
+      if (r === "attendance" || r === "attendance_only") {
+        router.push("/attendance");
+      } else if (r === "dispatcher" || r === "dispatch") {
+        router.push("/production");
+      } else if (r === "worker") {
         router.push("/workforce");
-      } else if (role.toLowerCase() === "supervisor") {
+      } else if (r === "supervisor") {
         router.push("/workforce/supervisor");
       } else {
         router.push("/");
@@ -89,9 +94,14 @@ export default function LoginPage() {
       const data = await authApi.login(email, password);
       loginStore(data.access_token, data.refresh_token, data.email || data.username, data.name, data.role);
       toast.success("Successfully signed in!");
-      if (data.role?.toLowerCase() === "worker") {
+      const r = (data.role || "").toLowerCase();
+      if (r === "attendance" || r === "attendance_only") {
+        router.push("/attendance");
+      } else if (r === "dispatcher" || r === "dispatch") {
+        router.push("/production");
+      } else if (r === "worker") {
         router.push("/workforce");
-      } else if (data.role?.toLowerCase() === "supervisor") {
+      } else if (r === "supervisor") {
         router.push("/workforce/supervisor");
       } else {
         router.push("/");

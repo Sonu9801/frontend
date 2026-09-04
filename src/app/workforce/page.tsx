@@ -139,7 +139,25 @@ export default function WorkforceOrchestrator() {
       return <ManagerDashboard worker={worker} onLogout={handleLogout} />;
     case "supervisor":
       return <SupervisorDashboard worker={worker} onLogout={handleLogout} />;
+    case "dispatcher":
+    case "dispatch":
+      if (typeof window !== "undefined") {
+        window.location.href = "/production";
+      }
+      return null;
+    case "attendance":
+    case "attendance_only":
+      if (typeof window !== "undefined") {
+        window.location.href = "/attendance";
+      }
+      return null;
     default:
+      if (worker.department?.toLowerCase() === "dispatch") {
+        if (typeof window !== "undefined") {
+          window.location.href = "/production";
+        }
+        return null;
+      }
       // Default fallback is worker
       return <WorkerDashboard worker={worker} onLogout={handleLogout} setWorker={handleSetWorker} />;
   }

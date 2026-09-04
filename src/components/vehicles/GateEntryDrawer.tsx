@@ -32,7 +32,7 @@ export function GateEntryDrawer({ vehicle, open, onOpenChange, onVerificationCom
   const [actionType, setActionType] = useState<"approve" | "reject" | "hold" | null>(null);
   const queryClient = useQueryClient();
 
-  const isVerifier = role === "supervisor" || role === "manager" || role === "admin" || role === "owner";
+  const isVerifier = role === "supervisor" || role === "manager" || role === "admin" || role === "owner" || role === "dispatcher" || role === "dispatch";
 
   const handleVerify = async (action: "approve" | "reject" | "hold") => {
     if (!remarks.trim() && action !== "approve") {

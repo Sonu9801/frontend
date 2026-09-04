@@ -7,6 +7,8 @@ import { Users, Truck, Clock, CheckCircle, AlertTriangle, ShieldCheck, Download 
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
 
+import { isDateInFilterRange } from "./dateFilterUtils";
+
 interface ExecutiveDashboardProps {
   vehicles: Vehicle[];
   dispatchRecords: DispatchRecord[];
@@ -25,15 +27,36 @@ export function ExecutiveDashboardTab({
   activities,
   dateRange 
 }: ExecutiveDashboardProps) {
+  const filteredVehicles = useMemo(() => {
+    return (vehicles || []).filter(v => {
+      const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+      return isDateInFilterRange(vDateRaw, dateRange);
+    });
+  }, [vehicles, dateRange]);
+
+  const filteredDispatch = useMemo(() => {
+    return (dispatchRecords || []).filter(d => {
+      const dDateRaw = (d as any).dispatchDate || (d as any).createdAt;
+      return isDateInFilterRange(dDateRaw, dateRange);
+    });
+  }, [dispatchRecords, dateRange]);
+
+  const filteredQC = useMemo(() => {
+    return (qcRecords || []).filter(q => {
+      const qDateRaw = (q as any).inspectionDate || (q as any).createdAt;
+      return isDateInFilterRange(qDateRaw, dateRange);
+    });
+  }, [qcRecords, dateRange]);
+
   // KPI Calculations
-  const totalVehicles = vehicles.length;
-  const readyForDispatch = vehicles.filter(v => (v.currentStage as string) === "rtd").length;
-  const dispatched = vehicles.filter(v => (v.currentStage as string) === "dispatch").length;
-  const delivered = dispatchRecords.filter(d => d.status.toLowerCase() === "delivered").length;
+  const totalVehicles = filteredVehicles.length;
+  const readyForDispatch = filteredVehicles.filter(v => (v.currentStage as string) === "rtd").length;
+  const dispatched = filteredVehicles.filter(v => (v.currentStage as string) === "dispatch").length;
+  const delivered = filteredDispatch.filter(d => d.status.toLowerCase() === "delivered").length;
   
   // New KPIs
-  const vehiclesInProduction = vehicles.filter(v => ["fabrication", "paint"].includes(v.currentStage as string)).length;
-  const delayedVehicles = vehicles.filter(v => v.estimatedDelivery && new Date(v.estimatedDelivery) < new Date() && (v.currentStage as string) !== "dispatch").length;
+  const vehiclesInProduction = filteredVehicles.filter(v => ["fabrication", "paint"].includes(v.currentStage as string)).length;
+  const delayedVehicles = filteredVehicles.filter(v => v.estimatedDelivery && new Date(v.estimatedDelivery) < new Date() && (v.currentStage as string) !== "dispatch").length;
   
   const todayStr = new Date().toISOString().split("T")[0];
   const presentWorkers = workers.filter(w => w.attendance && w.attendance.some((a: any) => {
@@ -44,20 +67,20 @@ export function ExecutiveDashboardTab({
     return false;
   })).length;
   const totalPayrollCost = workers.reduce((sum, w) => sum + (w.salary || 0), 0);
-  const qcPassRate = qcRecords.length ? Math.round((qcRecords.filter(q => q.status === "Pass").length / qcRecords.length) * 100) : 0;
+  const qcPassRate = filteredQC.length ? Math.round((filteredQC.filter(q => q.status === "Pass").length / filteredQC.length) * 100) : 0;
 
   // Chart Data
   const stageData = useMemo(() => {
     const counts: Record<string, number> = {};
-    vehicles.forEach(v => counts[v.currentStage] = (counts[v.currentStage] || 0) + 1);
+    filteredVehicles.forEach(v => counts[v.currentStage] = (counts[v.currentStage] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, count }));
-  }, [vehicles]);
+  }, [filteredVehicles]);
 
   const oemData = useMemo(() => {
     const counts: Record<string, number> = {};
-    vehicles.forEach(v => counts[v.oemName] = (counts[v.oemName] || 0) + 1);
+    filteredVehicles.forEach(v => counts[v.oemName] = (counts[v.oemName] || 0) + 1);
     return Object.entries(counts).map(([name, count]) => ({ name, value: count }));
-  }, [vehicles]);
+  }, [filteredVehicles]);
 
   const topPerformers = useMemo(() => {
     return [...workers]

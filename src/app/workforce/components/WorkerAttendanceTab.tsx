@@ -2,17 +2,22 @@ import React, { useState } from "react";
 import { format, parseISO, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from "date-fns";
 import { motion } from "motion/react";
 import { Calendar as CalendarIcon, Clock, Fingerprint, ChevronLeft, ChevronRight } from "lucide-react";
+import { useWorkerHistory } from "@/hooks/useQueries";
 
-export function WorkerAttendanceTab({ history }: { history: any[] }) {
+export function WorkerAttendanceTab({ history, workerId }: { history: any[]; workerId?: number | string }) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const today = new Date();
   
+  const selectedMonthStr = format(currentDate, "yyyy-MM");
+  const { data: monthHistory } = useWorkerHistory(workerId || "", selectedMonthStr);
+  const activeHistory = (monthHistory && monthHistory.length > 0) ? monthHistory : history;
+
   const firstDayOfMonth = startOfMonth(currentDate);
   const lastDayOfMonth = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: firstDayOfMonth, end: lastDayOfMonth });
 
   const getRecordForDay = (day: Date) => {
-    return history.find(record => isSameDay(parseISO(record.date), day));
+    return activeHistory.find((record: any) => isSameDay(parseISO(record.date), day));
   };
 
   const nextMonth = () => setCurrentDate(addMonths(currentDate, 1));
@@ -75,19 +80,19 @@ export function WorkerAttendanceTab({ history }: { history: any[] }) {
 
       {/* List View */}
       <div className="bg-white dark:bg-zinc-900 rounded-[24px] p-5 shadow-sm border border-zinc-200 dark:border-zinc-800 transition-colors">
-        <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-4">Past 30 Days Logs</p>
+        <p className="text-sm font-semibold text-zinc-500 dark:text-zinc-400 mb-4">{format(currentDate, "MMMM yyyy")} Logs</p>
         <div className="space-y-3">
-          {history.map((record: any) => (
+          {activeHistory.map((record: any) => (
             <div key={record.id} className="flex justify-between items-center p-3 border border-zinc-100 dark:border-zinc-800/50 rounded-xl bg-zinc-50/50 dark:bg-zinc-800/30">
               <div>
                 <p className="font-bold text-sm text-zinc-900 dark:text-white">{format(parseISO(record.date), "MMM dd, yyyy")}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-                    <Fingerprint size={12} /> {record.punch_in ? format(parseISO(record.punch_in), "HH:mm") : "--"}
+                    <Fingerprint size={12} /> {record.punch_in ? format(parseISO(record.punch_in), "hh:mm a") : "--"}
                   </div>
                   <span className="text-zinc-300 dark:text-zinc-600">•</span>
                   <div className="flex items-center gap-1 text-[11px] text-zinc-500 dark:text-zinc-400 font-medium">
-                    <Clock size={12} /> {record.punch_out ? format(parseISO(record.punch_out), "HH:mm") : "--"}
+                    <Clock size={12} /> {record.punch_out ? format(parseISO(record.punch_out), "hh:mm a") : "--"}
                   </div>
                 </div>
               </div>
@@ -100,7 +105,7 @@ export function WorkerAttendanceTab({ history }: { history: any[] }) {
               </div>
             </div>
           ))}
-          {history.length === 0 && <p className="text-center text-zinc-500 dark:text-zinc-400 text-xs py-4">No records found.</p>}
+          {activeHistory.length === 0 && <p className="text-center text-zinc-500 dark:text-zinc-400 text-xs py-4">No records found.</p>}
         </div>
       </div>
     </motion.div>

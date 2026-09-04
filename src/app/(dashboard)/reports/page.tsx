@@ -20,6 +20,8 @@ import { InvoiceReportsTab } from "./components/InvoiceReportsTab";
 import { ComponentReportsTab } from "./components/ComponentReportsTab";
 import { WorkersPerformanceTab } from "./components/WorkersPerformanceTab";
 
+import { formatFilterLabel } from "./components/dateFilterUtils";
+
 export default function ReportsPage() {
   const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
   const vehicles = vehiclesData?.items ?? [];
@@ -35,6 +37,10 @@ export default function ReportsPage() {
   const role = useAuthStore(state => state.role);
   const username = useAuthStore(state => state.name);
 
+  const [selectedPreset, setSelectedPreset] = useState("Last 30 Days");
+  const [customMonth, setCustomMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [dateRange, setDateRange] = useState("Last 30 Days");
   const [showFilters, setShowFilters] = useState(false);
   const [filters, setFilters] = useState({
@@ -46,6 +52,36 @@ export default function ReportsPage() {
     status: "All",
     shift: "All"
   });
+
+  const handlePresetChange = (preset: string) => {
+    setSelectedPreset(preset);
+    if (preset === "Custom Month") {
+      setDateRange(`Month: ${customMonth}`);
+    } else if (preset === "Custom Range") {
+      if (startDate && endDate) {
+        setDateRange(`Custom: ${startDate} to ${endDate}`);
+      } else {
+        setDateRange("All Time");
+      }
+    } else {
+      setDateRange(preset);
+    }
+  };
+
+  const handleCustomMonthChange = (monthVal: string) => {
+    setCustomMonth(monthVal);
+    if (selectedPreset === "Custom Month") {
+      setDateRange(`Month: ${monthVal}`);
+    }
+  };
+
+  const handleCustomDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    if (selectedPreset === "Custom Range" && start && end) {
+      setDateRange(`Custom: ${start} to ${end}`);
+    }
+  };
 
   const isLoading = isLoadingVehicles || isLoadingWorkers || isLoadingQC || isLoadingDispatch || isLoadingActivities || isLoadingInvoices;
 
@@ -90,26 +126,61 @@ export default function ReportsPage() {
               <h1 className="text-2xl font-bold text-foreground">Reports & Analytics</h1>
               <p className="text-sm text-muted-foreground mt-0.5">
                 {isOem ? "Enterprise OEM Reports" : "Executive Enterprise Dashboard"}
+                {dateRange !== "All Time" && (
+                  <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+                    Filter: {formatFilterLabel(dateRange)}
+                  </span>
+                )}
               </p>
             </div>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto mt-4 md:mt-0">
-            <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border border-border w-full md:w-auto">
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 bg-muted/50 rounded-lg border border-border w-full md:w-auto">
               <CalendarIcon size={16} className="text-muted-foreground shrink-0" />
               <select 
-                value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
+                value={selectedPreset}
+                onChange={(e) => handlePresetChange(e.target.value)}
                 className="bg-transparent text-sm font-medium text-foreground outline-none cursor-pointer flex-1"
               >
-                <option>Today</option>
-                <option>Yesterday</option>
-                <option>This Week</option>
-                <option>Last 7 Days</option>
-                <option>Last 30 Days</option>
-                <option>This Month</option>
-                <option>All Time</option>
+                <option value="Today">Today</option>
+                <option value="Yesterday">Yesterday</option>
+                <option value="This Week">This Week</option>
+                <option value="Last 7 Days">Last 7 Days</option>
+                <option value="Last 30 Days">Last 30 Days</option>
+                <option value="This Month">This Month</option>
+                <option value="Last Month">Last Month</option>
+                <option value="Custom Month">Select Month (Custom Month)</option>
+                <option value="Custom Range">Custom Date Range</option>
+                <option value="All Time">All Time</option>
               </select>
+
+              {selectedPreset === "Custom Month" && (
+                <input 
+                  type="month"
+                  value={customMonth}
+                  onChange={(e) => handleCustomMonthChange(e.target.value)}
+                  className="bg-background border border-input rounded-md px-2 py-1 text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                />
+              )}
+
+              {selectedPreset === "Custom Range" && (
+                <div className="flex items-center gap-1">
+                  <input 
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
+                    className="bg-background border border-input rounded-md px-2 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                  <span className="text-xs text-muted-foreground">to</span>
+                  <input 
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
+                    className="bg-background border border-input rounded-md px-2 py-1 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+              )}
             </div>
             <div className="flex gap-2 w-full md:w-auto">
               <Button variant="outline" className="gap-2 flex-1 md:flex-none" onClick={handlePrint}>

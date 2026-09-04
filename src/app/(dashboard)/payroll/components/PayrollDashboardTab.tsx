@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { format } from "date-fns";
 import { 
   Users, Banknote, Clock, CalendarDays, 
   IndianRupee, HandCoins, CheckCircle2, Factory, TrendingUp, AlertCircle
@@ -11,13 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 
 export default function PayrollDashboardTab() {
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), "yyyy-MM"));
   const [summary, setSummary] = useState<any>(null);
 
   useEffect(() => {
-    api.get("/payroll/summary")
+    api.get(`/payroll/summary?month=${selectedMonth}`)
       .then((res) => setSummary(res.data))
       .catch((err) => console.error(err));
-  }, []);
+  }, [selectedMonth]);
 
   if (!summary || summary.detail) {
     return (
@@ -44,7 +46,30 @@ export default function PayrollDashboardTab() {
     <div className="space-y-6 pb-20">
       
       {/* 1. TOP KPI CARDS */}
-      <h2 className="text-lg font-bold">Top KPIs</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold">Top KPIs</h2>
+        <div className="flex items-center gap-2 bg-card border border-border rounded-xl px-3 h-9 shrink-0">
+          <CalendarDays size={16} className="text-emerald-500 shrink-0" />
+          <span className="text-xs font-bold text-muted-foreground shrink-0">Month:</span>
+          <select
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+            className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+          >
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
+              const now = new Date();
+              const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+              const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+              const label = format(d, "MMMM yyyy");
+              return (
+                <option key={val} value={val} className="bg-popover text-popover-foreground">
+                  {label}
+                </option>
+              );
+            })}
+          </select>
+        </div>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {kpis.map((kpi, i) => (
           <motion.div

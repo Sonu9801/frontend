@@ -3,7 +3,7 @@ import { format, parseISO, isSunday } from "date-fns";
 import { motion } from "motion/react";
 import { Sun, Fingerprint, Clock } from "lucide-react";
 
-export function WorkerSundayTab({ history }: { history: any[] }) {
+export function WorkerSundayTab({ history, workerId }: { history: any[]; workerId?: number | string }) {
   // Filter history for Sundays
   const sundayRecords = history.filter(record => isSunday(parseISO(record.date)));
 
@@ -20,11 +20,11 @@ export function WorkerSundayTab({ history }: { history: any[] }) {
                 <p className="font-bold text-sm text-zinc-900">{format(parseISO(record.date), "MMM dd, yyyy")}</p>
                 <div className="flex items-center gap-2 mt-1">
                   <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-medium">
-                    <Fingerprint size={12} /> {record.punch_in ? format(parseISO(record.punch_in), "HH:mm") : "--"}
+                    <Fingerprint size={12} /> {record.punch_in ? format(parseISO(record.punch_in), "hh:mm a") : "--"}
                   </div>
                   <span className="text-zinc-300">•</span>
                   <div className="flex items-center gap-1 text-[11px] text-zinc-500 font-medium">
-                    <Clock size={12} /> {record.punch_out ? format(parseISO(record.punch_out), "HH:mm") : "--"}
+                    <Clock size={12} /> {record.punch_out ? format(parseISO(record.punch_out), "hh:mm a") : "--"}
                   </div>
                 </div>
               </div>

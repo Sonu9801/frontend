@@ -560,8 +560,9 @@ export const attendanceApi = {
     const response = await api.get(`/attendance/worker/${workerId}/summary`);
     return response.data;
   },
-  getWorkerHistory: async (workerId: string | number) => {
-    const response = await api.get(`/attendance/worker/${workerId}/history`);
+  getWorkerHistory: async (workerId: string | number, month?: string) => {
+    const url = month ? `/attendance/worker/${workerId}/history?month=${month}` : `/attendance/worker/${workerId}/history`;
+    const response = await api.get(url);
     return response.data;
   },
   getWorkerMonthlySummary: async (workerId: string | number, month?: string) => {

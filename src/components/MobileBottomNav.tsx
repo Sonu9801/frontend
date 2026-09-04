@@ -33,12 +33,23 @@ export function MobileBottomNav() {
       { label: "Portal", href: "/oem-portal", icon: Building2 },
       { label: "Settings", href: "/settings", icon: Settings },
     ];
+  } else if (currentRole === 'attendance' || currentRole === 'attendance_only') {
+    navItems = [
+      { label: "Attendance", href: "/attendance", icon: Clock },
+      { label: "Settings", href: "/settings", icon: Settings },
+    ];
+  } else if (currentRole === 'dispatcher' || currentRole === 'dispatch') {
+    navItems = [
+      { label: "Received", href: "/production?category=All+Categories", icon: Factory },
+      { label: "Dispatch", href: "/dispatch", icon: Truck },
+      { label: "Settings", href: "/settings", icon: Settings },
+    ];
   } else if (currentRole === 'supervisor') {
     navItems = [
       { label: "Home", href: "/", icon: LayoutDashboard },
       { label: "Production", href: "/production?category=All+Categories", icon: Factory },
+      { label: "Dispatch", href: "/dispatch", icon: Truck },
       { label: "Workers", href: "/workers", icon: Users },
-      { label: "Attendance", href: "/attendance", icon: Clock },
       { label: "Menu", href: "/reports", icon: Menu },
     ];
   } else {

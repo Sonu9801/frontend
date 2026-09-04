@@ -36,6 +36,175 @@ export interface EmployeeMonthlyAttendanceModalProps {
   worker: Worker | null;
 }
 
+const formatTime12h = (timeStr: string | null) => {
+  if (!timeStr || timeStr === "--:--" || !timeStr.trim()) return "--:--";
+  if (timeStr.toUpperCase().includes("AM") || timeStr.toUpperCase().includes("PM")) return timeStr;
+  try {
+    const parts = timeStr.split(":");
+    let h = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    if (isNaN(h) || isNaN(m)) return timeStr;
+    const ampm = h >= 12 ? "PM" : "AM";
+    h = h % 12;
+    if (h === 0) h = 12;
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")} ${ampm}`;
+  } catch {
+    return timeStr;
+  }
+};
+
+const to24hTime = (timeStr: string | null) => {
+  if (!timeStr || timeStr === "--:--" || !timeStr.trim()) return "09:30";
+  timeStr = timeStr.trim();
+  if (timeStr.toUpperCase().includes("AM") || timeStr.toUpperCase().includes("PM")) {
+    try {
+      const parts = timeStr.split(" ");
+      const timeParts = parts[0].split(":");
+      let h = parseInt(timeParts[0], 10);
+      const m = parseInt(timeParts[1], 10);
+      const isPm = parts[1].toUpperCase() === "PM";
+      if (isPm && h < 12) h += 12;
+      if (!isPm && h === 12) h = 0;
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    } catch {
+      return "09:30";
+    }
+  }
+  return timeStr;
+};
+
+interface TimeInput12hProps {
+  value24: string;
+  onChange: (val24: string) => void;
+}
+
+function TimeInput12h({ value24, onChange }: TimeInput12hProps) {
+  const parseVal = (str: string) => {
+    if (!str || !str.includes(":")) {
+      return { h12: "09", min: "30", ampm: "AM" };
+    }
+    const [hStr, mStr] = str.split(":");
+    let h = parseInt(hStr, 10);
+    const m = parseInt(mStr, 10);
+    if (isNaN(h)) h = 9;
+    const minVal = isNaN(m) ? "00" : String(m).padStart(2, "0");
+    const ampmVal = h >= 12 ? "PM" : "AM";
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    const h12Str = String(h12).padStart(2, "0");
+    return { h12: h12Str, min: minVal, ampm: ampmVal };
+  };
+
+  const { h12, min, ampm } = parseVal(value24);
+
+  const update = (newH12: string, newMin: string, newAmPm: string) => {
+    let h = parseInt(newH12, 10);
+    if (isNaN(h)) h = 12;
+    if (newAmPm === "PM" && h < 12) {
+      h += 12;
+    } else if (newAmPm === "AM" && h === 12) {
+      h = 0;
+    }
+    const h24Str = String(h).padStart(2, "0");
+    const mStr = String(parseInt(newMin, 10) || 0).padStart(2, "0");
+    onChange(`${h24Str}:${mStr}`);
+  };
+
+  const hoursList = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
+  const minutesList = ["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"];
+
+  return (
+    <div className="flex items-center gap-1.5 bg-background border border-input rounded-xl px-2 py-1 h-10 shadow-xs w-full">
+      <div className="flex items-center gap-1 flex-1">
+        <select
+          value={h12}
+          onChange={(e) => update(e.target.value, min, ampm)}
+          className="h-8 px-1 text-xs font-extrabold bg-muted/30 border border-border rounded-lg text-foreground focus:outline-none cursor-pointer text-center"
+        >
+          {hoursList.map((h) => (
+            <option key={h} value={h} className="bg-popover text-popover-foreground font-bold">
+              {h}
+            </option>
+          ))}
+        </select>
+
+        <span className="text-xs font-extrabold text-muted-foreground select-none">:</span>
+
+        <select
+          value={minutesList.includes(min) ? min : min}
+          onChange={(e) => update(h12, e.target.value, ampm)}
+          className="h-8 px-1 text-xs font-extrabold bg-muted/30 border border-border rounded-lg text-foreground focus:outline-none cursor-pointer text-center"
+        >
+          {!minutesList.includes(min) && (
+            <option value={min} className="bg-popover text-popover-foreground font-bold">
+              {min}
+            </option>
+          )}
+          {minutesList.map((m) => (
+            <option key={m} value={m} className="bg-popover text-popover-foreground font-bold">
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex rounded-lg border border-border overflow-hidden p-0.5 bg-muted/50 shrink-0">
+        <button
+          type="button"
+          onClick={() => update(h12, min, "AM")}
+          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${
+            ampm === "AM"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          AM
+        </button>
+        <button
+          type="button"
+          onClick={() => update(h12, min, "PM")}
+          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${
+            ampm === "PM"
+              ? "bg-primary text-primary-foreground shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          PM
+        </button>
+      </div>
+    </div>
+  );
+}
+
+const calcOtAndWorking = (in24: string, out24: string) => {
+  if (!in24 || !out24 || !in24.includes(":") || !out24.includes(":")) {
+    return { workingHours: 8.0, otHours: 0.0 };
+  }
+  const [inH, inM] = in24.split(":").map(Number);
+  const [outH, outM] = out24.split(":").map(Number);
+  if (isNaN(inH) || isNaN(outH)) return { workingHours: 8.0, otHours: 0.0 };
+
+  const inMins = inH * 60 + (inM || 0);
+  const outMins = outH * 60 + (outM || 0);
+
+  if (outMins <= inMins) return { workingHours: 8.0, otHours: 0.0 };
+
+  // OT ONLY calculates if checkout is at or after 18:30 (6:30 PM threshold)
+  const minOtMins = 18 * 60 + 30; // 18:30 (6:30 PM)
+  const shiftEndMins = 18 * 60; // 18:00 (6:00 PM)
+
+  let otHrs = 0.0;
+  if (outMins >= minOtMins) {
+    const otMins = outMins - shiftEndMins;
+    otHrs = Math.max(0, Math.round((otMins / 60.0) * 10) / 10);
+  }
+
+  return {
+    workingHours: 8.0,
+    otHours: otHrs
+  };
+};
+
 export default function EmployeeMonthlyAttendanceModal({
   open,
   onOpenChange,
@@ -78,6 +247,8 @@ export default function EmployeeMonthlyAttendanceModal({
       queryClient.invalidateQueries({ queryKey: ["worker-monthly-summary-modal", worker?.id] });
       queryClient.invalidateQueries({ queryKey: ["attendanceLogs"] });
       queryClient.invalidateQueries({ queryKey: ["attendanceAnalytics"] });
+      queryClient.invalidateQueries({ queryKey: ["workerHistory"] });
+      queryClient.invalidateQueries({ queryKey: ["workerMonthlySummary"] });
       toast.success(`Attendance updated for ${editingDay?.date}!`);
       setEditingDay(null);
     },
@@ -90,13 +261,17 @@ export default function EmployeeMonthlyAttendanceModal({
     setEditingDay(dayItem);
     setEditStatus(
       dayItem.status === "Not Punched" || dayItem.status === "Upcoming" || dayItem.status === "Sunday"
-        ? dayItem.is_sunday ? "Sunday Work" : "Present"
+        ? dayItem.is_sunday ? "Sunday Work" : (dayItem.is_calendar_sunday || dayItem.day_name === "Sun" ? "Holiday" : "Present")
         : dayItem.status
     );
-    setEditPunchIn(dayItem.punch_in || "09:30");
-    setEditPunchOut(dayItem.punch_out || "18:30");
-    setEditWorkingHours(dayItem.net_working_hours || (dayItem.status === "Half Day" ? 4.5 : 8.0));
-    setEditOtHours(dayItem.ot_hours || 0);
+    const inStr = dayItem.punch_in_24 || to24hTime(dayItem.punch_in) || "09:30";
+    const outStr = dayItem.punch_out_24 || to24hTime(dayItem.punch_out) || "18:00";
+    setEditPunchIn(inStr);
+    setEditPunchOut(outStr);
+
+    const calculated = calcOtAndWorking(inStr, outStr);
+    setEditWorkingHours(dayItem.net_working_hours > 0 ? dayItem.net_working_hours : calculated.workingHours);
+    setEditOtHours(dayItem.ot_hours > 0 ? dayItem.ot_hours : calculated.otHours);
     setEditIsSunday(Boolean(dayItem.is_sunday));
     setEditReason("Manual Edit by Manager");
   };
@@ -126,7 +301,7 @@ export default function EmployeeMonthlyAttendanceModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl max-h-[92vh] flex flex-col p-0 overflow-hidden rounded-2xl">
         {/* Modal Header */}
-        <DialogHeader className="px-6 py-4 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
+        <DialogHeader className="px-6 py-4 sm:pr-14 border-b border-border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-lg font-bold">
               {worker.name.charAt(0)}
@@ -142,7 +317,7 @@ export default function EmployeeMonthlyAttendanceModal({
           </div>
 
           {/* Month Selector */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 sm:mr-2">
             <Label className="text-xs font-bold text-muted-foreground">Month:</Label>
             <select
               value={selectedMonth}
@@ -190,7 +365,7 @@ export default function EmployeeMonthlyAttendanceModal({
             <div className="bg-card border border-border p-3 rounded-xl shadow-xs">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">OT Hours</p>
               <p className="text-xl font-extrabold text-purple-600 mt-0.5">
-                {isLoadingSummary ? "..." : `${monthSummary?.ot_hours || 0}h`}
+                {isLoadingSummary ? "..." : `${monthSummary?.ot_hours ? Number(monthSummary.ot_hours).toFixed(1).replace(/\.0$/, "") : 0}h`}
               </p>
             </div>
 
@@ -295,11 +470,11 @@ export default function EmployeeMonthlyAttendanceModal({
                             {formattedDate}
                           </td>
                           <td className="py-2.5 px-3">{statusBadge}</td>
-                          <td className="py-2.5 px-3 font-mono">
-                            {dayItem.punch_in || "--:--"}
+                          <td className="py-2.5 px-3 font-mono text-xs font-semibold">
+                            {formatTime12h(dayItem.punch_in)}
                           </td>
-                          <td className="py-2.5 px-3 font-mono">
-                            {dayItem.punch_out || "--:--"}
+                          <td className="py-2.5 px-3 font-mono text-xs font-semibold">
+                            {formatTime12h(dayItem.punch_out)}
                           </td>
                           <td className="py-2.5 px-3 font-bold">
                             {dayItem.net_working_hours > 0 ? `${dayItem.net_working_hours}h` : "-"}
@@ -309,11 +484,11 @@ export default function EmployeeMonthlyAttendanceModal({
                           </td>
                           <td className="py-2.5 px-3">
                             {dayItem.is_sunday ? (
-                              <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded font-bold">
+                              <span className="text-[10px] bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
                                 Yes
                               </span>
                             ) : (
-                              <span className="text-muted-foreground text-[10px]">No</span>
+                              <span className="text-muted-foreground text-[10px] font-medium">No</span>
                             )}
                           </td>
                           <td className="py-2.5 px-3 text-right">
@@ -361,9 +536,20 @@ export default function EmployeeMonthlyAttendanceModal({
                   onChange={(e) => {
                     const val = e.target.value;
                     setEditStatus(val);
-                    if (val === "Sunday Work") setEditIsSunday(true);
-                    if (val === "Half Day") setEditWorkingHours(4.5);
-                    if (val === "Present") setEditWorkingHours(8.0);
+                    if (val === "Absent" || val === "Leave" || val === "Holiday" || val === "Not Punched") {
+                      setEditPunchIn("");
+                      setEditPunchOut("");
+                      setEditWorkingHours(0);
+                      setEditOtHours(0);
+                      setEditIsSunday(false);
+                    } else if (val === "Sunday Work") {
+                      setEditIsSunday(true);
+                      setEditWorkingHours(8.0);
+                    } else if (val === "Half Day") {
+                      setEditWorkingHours(4.5);
+                    } else if (val === "Present") {
+                      setEditWorkingHours(8.0);
+                    }
                   }}
                   className="w-full h-9 px-3 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 font-medium"
                 >
@@ -378,23 +564,34 @@ export default function EmployeeMonthlyAttendanceModal({
               </div>
 
               {/* In Time & Out Time */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Punch In Time</Label>
-                  <Input
-                    type="time"
-                    value={editPunchIn}
-                    onChange={(e) => setEditPunchIn(e.target.value)}
-                    className="h-9 text-xs"
+                  <Label className="text-xs font-bold flex items-center justify-between">
+                    <span>Punch In Time</span>
+                    <span className="text-[11px] font-mono text-primary font-bold">{formatTime12h(editPunchIn)}</span>
+                  </Label>
+                  <TimeInput12h
+                    value24={editPunchIn}
+                    onChange={(newIn) => {
+                      setEditPunchIn(newIn);
+                      const calculated = calcOtAndWorking(newIn, editPunchOut);
+                      setEditOtHours(calculated.otHours);
+                    }}
                   />
                 </div>
+
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-bold">Punch Out Time</Label>
-                  <Input
-                    type="time"
-                    value={editPunchOut}
-                    onChange={(e) => setEditPunchOut(e.target.value)}
-                    className="h-9 text-xs"
+                  <Label className="text-xs font-bold flex items-center justify-between">
+                    <span>Punch Out Time</span>
+                    <span className="text-[11px] font-mono text-primary font-bold">{formatTime12h(editPunchOut)}</span>
+                  </Label>
+                  <TimeInput12h
+                    value24={editPunchOut}
+                    onChange={(newOut) => {
+                      setEditPunchOut(newOut);
+                      const calculated = calcOtAndWorking(editPunchIn, newOut);
+                      setEditOtHours(calculated.otHours);
+                    }}
                   />
                 </div>
               </div>
@@ -410,7 +607,7 @@ export default function EmployeeMonthlyAttendanceModal({
                     max="24"
                     value={editWorkingHours}
                     onChange={(e) => setEditWorkingHours(Number(e.target.value))}
-                    className="h-9 text-xs"
+                    className="h-9 text-xs font-medium"
                   />
                 </div>
                 <div className="space-y-1.5">
@@ -427,18 +624,23 @@ export default function EmployeeMonthlyAttendanceModal({
                 </div>
               </div>
 
-              {/* Sunday Work Checkbox */}
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="sundayWorkCheck"
-                  checked={editIsSunday}
-                  onChange={(e) => setEditIsSunday(e.target.checked)}
-                  className="w-4 h-4 rounded text-primary border-border focus:ring-primary"
-                />
-                <Label htmlFor="sundayWorkCheck" className="text-xs font-bold cursor-pointer">
-                  Mark as Sunday Work (Double / Overtime Day)
-                </Label>
+              {/* Sunday Work Selector (Yes / No) */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold">Sunday Work (Extra Shift / Pay)</Label>
+                <select
+                  value={editIsSunday ? "yes" : "no"}
+                  onChange={(e) => {
+                    const isYes = e.target.value === "yes";
+                    setEditIsSunday(isYes);
+                    if (isYes && (editStatus === "Holiday" || editStatus === "Sunday")) {
+                      setEditStatus("Sunday Work");
+                    }
+                  }}
+                  className="w-full h-9 px-3 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 font-bold"
+                >
+                  <option value="no">No (Regular Day / Normal Holiday)</option>
+                  <option value="yes">Yes (Mark as Sunday Work)</option>
+                </select>
               </div>
 
               {/* Reason */}

@@ -70,7 +70,7 @@ const navGroups = [
     title: "Quality & Delivery",
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
-      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "dispatcher"] },
+      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "supervisor", "dispatcher", "dispatch"] },
       { label: "Sales Invoices", href: "/revenue", icon: Banknote, roles: ["admin", "manager", "finance"] },
       { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "finance"] },
     ]

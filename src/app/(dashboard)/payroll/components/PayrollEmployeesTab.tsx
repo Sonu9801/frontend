@@ -27,11 +27,13 @@ import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
 import { useEmployeePayroll, useUpdateEmployeePayroll, useGeneratePayroll, useDeletePayroll } from "@/hooks/useQueries";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
+import { format } from "date-fns";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function PayrollEmployeesTab() {
-  const { data: employees = [], isLoading: loading } = useEmployeePayroll();
+  const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), "yyyy-MM"));
+  const { data: employees = [], isLoading: loading } = useEmployeePayroll(selectedMonth);
   const updatePayroll = useUpdateEmployeePayroll();
   const generatePayroll = useGeneratePayroll();
   const deletePayroll = useDeletePayroll();
@@ -234,8 +236,8 @@ export default function PayrollEmployeesTab() {
       
       {/* TOOLBAR */}
       <div className="p-4 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/10 gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
-          <div className="relative w-full sm:w-72">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input 
               placeholder="Search employees..." 
@@ -244,11 +246,35 @@ export default function PayrollEmployeesTab() {
               className="pl-9 h-10 bg-background rounded-xl border-input w-full"
             />
           </div>
+
+          {/* Month Selector */}
+          <div className="flex items-center gap-2 bg-background border border-input rounded-xl px-3 h-10 shrink-0 w-full sm:w-auto">
+            <CalendarDays size={16} className="text-emerald-500 shrink-0" />
+            <span className="text-xs font-bold text-muted-foreground shrink-0">Month:</span>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer w-full sm:w-auto"
+            >
+              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
+                const now = new Date();
+                const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                const label = format(d, "MMMM yyyy");
+                return (
+                  <option key={val} value={val} className="bg-popover text-popover-foreground">
+                    {label}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           <div className="flex gap-2 w-full sm:w-auto">
             <Button variant="outline" className="flex-1 sm:flex-none justify-center rounded-xl h-10 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20"
               onClick={() => {
-                generatePayroll.mutate(undefined, {
-                  onSuccess: () => toast.success("Payroll generation initiated")
+                generatePayroll.mutate(selectedMonth, {
+                  onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
                 });
               }}
             >

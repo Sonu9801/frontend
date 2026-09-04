@@ -560,10 +560,10 @@ export function useWorkerSummary(workerId: string | number) {
   });
 }
 
-export function useWorkerHistory(workerId: string | number) {
+export function useWorkerHistory(workerId: string | number, month?: string) {
   return useQuery({
-    queryKey: ["workerHistory", workerId],
-    queryFn: () => attendanceApi.getWorkerHistory(workerId),
+    queryKey: ["workerHistory", workerId, month],
+    queryFn: () => attendanceApi.getWorkerHistory(workerId, month),
     enabled: !!workerId,
   });
 }

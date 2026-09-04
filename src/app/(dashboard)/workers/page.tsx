@@ -26,6 +26,7 @@ import { useQuery } from "@tanstack/react-query";
 import { jobsApi, componentsApi } from "@/lib/api";
 import { format, differenceInMinutes } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import EmployeeFormDrawer from "../attendance/components/EmployeeFormDrawer";
 
 const DEPARTMENTS = ["All", "Fabrication", "Paint", "Assembly", "Quality", "Dispatch"];
 const STATUSES = ["All", "active", "break", "offline"];
@@ -681,99 +682,16 @@ export default function WorkersPage() {
         onSubmit={handleReasonAction}
       />
       
-      <EditRecordDialog
+      <EmployeeFormDrawer
         open={!!editRecord}
         onOpenChange={(open) => !open && setEditRecord(null)}
-        title={`Edit Worker: ${editRecord?.name}`}
-        isSubmitting={updateWorker.isPending}
-        initialValues={editRecord ? {
-          name: editRecord.name,
-          department: editRecord.department,
-          status: editRecord.status,
-          role: editRecord.role,
-          mobileNumber: editRecord.mobileNumber || "",
-          email: editRecord.email || "",
-        } : undefined}
-        fields={[
-          { name: "name", label: "Full Name", type: "text" },
-          { name: "department", label: "Department", type: "select", options: [
-            { label: "Fabrication", value: "Fabrication" },
-            { label: "Paint", value: "Paint" },
-            { label: "Assembly", value: "Assembly" },
-            { label: "QC", value: "Quality" },
-            { label: "Dispatch", value: "Dispatch" },
-          ]},
-          { name: "status", label: "Status", type: "select", options: [
-            { label: "Active", value: "Active" },
-            { label: "Offline", value: "Offline" },
-            { label: "Break", value: "Break" },
-          ]},
-          { name: "role", label: "Role", type: "select", options: [
-            { label: "Worker", value: "Worker" },
-            { label: "Supervisor", value: "Supervisor" },
-            { label: "Manager", value: "Manager" },
-          ]},
-          { name: "mobileNumber", label: "Mobile Number", type: "text" },
-          { name: "email", label: "Email Address", type: "text" },
-        ]}
-        onSubmit={(data, reason) => {
-          if (!editRecord) return;
-          updateWorker.mutate({
-            id: editRecord.id,
-            data: {
-              ...editRecord,
-              ...data,
-              reason,
-            }
-          }, {
-            onSuccess: () => {
-              toast.success("Worker updated successfully");
-              setEditRecord(null);
-            },
-            onError: () => toast.error("Failed to update worker")
-          });
-        }}
+        worker={editRecord}
       />
       
-      <EditRecordDialog
+      <EmployeeFormDrawer
         open={isCreateOpen}
         onOpenChange={setIsCreateOpen}
-        title="Add New Worker"
-        isSubmitting={createWorker.isPending}
-        requireReason={false}
-        fields={[
-          { name: "name", label: "Full Name", type: "text" },
-          { name: "department", label: "Department", type: "select", options: [
-            { label: "Fabrication", value: "Fabrication" },
-            { label: "Paint", value: "Paint" },
-            { label: "Assembly", value: "Assembly" },
-            { label: "QC", value: "Quality" },
-            { label: "Dispatch", value: "Dispatch" },
-          ]},
-          { name: "role", label: "Role", type: "select", options: [
-            { label: "Worker", value: "Worker" },
-            { label: "Supervisor", value: "Supervisor" },
-            { label: "Manager", value: "Manager" },
-          ]},
-          { name: "mobileNumber", label: "Mobile Number", type: "text" },
-          { name: "employeeId", label: "Employee ID", type: "text", disabled: true, defaultValue: "Auto-generated on save" },
-        ]}
-        onSubmit={(data) => {
-          createWorker.mutate({
-            ...data,
-            status: "Offline", // Default status
-            performanceScore: 0,
-            hoursToday: 0
-          }, {
-            onSuccess: () => {
-              toast.success("Worker created successfully");
-              setIsCreateOpen(false);
-            },
-            onError: (err: any) => {
-              toast.error(err.response?.data?.detail || "Failed to create worker");
-            }
-          });
-        }}
+        worker={null}
       />
       <ViewProfileDialog
         open={!!viewRecord}

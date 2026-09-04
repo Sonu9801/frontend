@@ -11,20 +11,12 @@ import type { DispatchRecord, Vehicle } from "@/types";
 import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 import { 
   Calendar as CalendarIcon, 
-  CalendarDays, 
-  List, 
   ExternalLink, 
   MapPin, 
-  Package, 
   Truck, 
   Edit, 
   History, 
   ChevronDown, 
-  ChevronLeft, 
-  ChevronRight,
-  Info,
-  X,
-  Search,
   CheckCircle2,
   Clock,
   Trash2
@@ -54,11 +46,6 @@ const STATUS_CONFIG: Record<
 
 const STATUSES = ["All", "pending", "scheduled", "in_transit", "dispatched", "delivered"];
 const CARRIERS = ["All", "BlueDart", "DHL", "FedEx", "DTDC", "Gati", "Self Transport"];
-
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December"
-];
 
 function DispatchStatusBadge({ status }: { status: string }) {
   const normStatus = (status || "pending").toLowerCase();
@@ -132,14 +119,6 @@ function DispatchExpand({ record, vehicle }: { record: DispatchRecord; vehicle?:
 }
 
 export default function DispatchPage() {
-  const [viewMode, setViewMode] = useState<"calendar" | "table">("calendar");
-
-  // Date selection state for Calendar View
-  const today = new Date();
-  const [currentYear, setCurrentYear] = useState<number>(today.getFullYear());
-  const [currentMonth, setCurrentMonth] = useState<number>(today.getMonth()); // 0-indexed
-  const [selectedDayDispatches, setSelectedDayDispatches] = useState<{ dateStr: string; records: any[] } | null>(null);
-
   // Table pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -192,15 +171,6 @@ export default function DispatchPage() {
     return {};
   }, [dateFilter, customMonth, customStartDate, customEndDate]);
 
-  // Month query string (YYYY-MM)
-  const monthQuery = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}`;
-
-  // Fetch dispatch records for calendar (pageSize=1000 for full month view)
-  const { data: monthDispatchData, isLoading: isLoadingMonthDispatch } = useDispatchRecords({
-    month: monthQuery,
-    pageSize: 1000,
-  });
-
   // Fetch paginated dispatch records for table view
   const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({
     page,
@@ -209,19 +179,18 @@ export default function DispatchPage() {
     ...dateQueryParams,
   });
 
-  const monthRecords = monthDispatchData?.items ?? [];
   const dispatchRecords = dispatchData?.items ?? [];
   const totalDispatch = dispatchData?.total ?? 0;
   const totalPages = dispatchData?.total_pages ?? 1;
 
-  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
   const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
   const updateDispatchMutation = useUpdateDispatchRecord();
   const deleteDispatchMutation = useDeleteDispatchRecord();
 
   const { useAuthStore } = require("@/store/authStore");
-  const userRole = useAuthStore((state: any) => state.role) || "operator";
-  const canEdit = ["admin", "owner"].includes(userRole);
+  const userRole = (useAuthStore((state: any) => state.role) || "operator").toLowerCase();
+  const canEdit = ["admin", "owner", "manager", "supervisor", "dispatcher", "dispatch"].includes(userRole);
 
   const [editRecord, setEditRecord] = useState<DispatchRecord | null>(null);
   const [historyRecord, setHistoryRecord] = useState<DispatchRecord | null>(null);
@@ -234,115 +203,44 @@ export default function DispatchPage() {
     }, {});
   }, [vehiclesList]);
 
-  // Combined month dispatch records with vehicle details merged
-  const enrichedMonthRecords = useMemo(() => {
-    return monthRecords.map((d: any) => {
-      const v = vehicleMap[String(d.vehicleId)];
-      return {
-        ...d,
-        chassisNumber: d.chassisNumber || v?.chassisNumber || v?.vin || "N/A",
-        vehicleNumber: d.vehicleNumber || v?.vehicleNumber || "N/A",
-        oemName: d.oemName || v?.oemName || "OEM",
-        vehicleModel: d.vehicleModel || (v as any)?.modelName || v?.vehicleModel || "Standard",
-        productCategory: d.productCategory || v?.productCategory || "Cargo Box",
-        driverName: d.driverName || v?.driverName,
-        driverPhone: d.driverPhone || v?.driverMobileNumber,
-      };
+  // Filtered dispatches for status and carrier
+  const filteredRecords = useMemo(() => {
+    return dispatchRecords.filter((d: any) => {
+      if (statusFilter !== "All" && (d.status || "").toLowerCase() !== statusFilter.toLowerCase()) {
+        return false;
+      }
+      if (carrierFilter !== "All") {
+        const v = vehicleMap[String(d.vehicleId)];
+        const carrierName = d.carrier || v?.transportCompany || v?.driverName || "Self Transport";
+        if (carrierName.toLowerCase() !== carrierFilter.toLowerCase()) return false;
+      }
+      return true;
     });
-  }, [monthRecords, vehicleMap]);
+  }, [dispatchRecords, statusFilter, carrierFilter, vehicleMap]);
 
-  // Overall Stats for top cards
-  const monthStats = useMemo(() => {
-    const totalMonth = enrichedMonthRecords.length;
-    const oemCounts: Record<string, number> = {};
-    const categoryCounts: Record<string, number> = {};
+  // Overall Stats calculation
+  const stats = useMemo(() => {
+    const total = filteredRecords.length;
     let scheduled = 0;
     let inTransit = 0;
     let delivered = 0;
+    let pending = 0;
+    const oemCounts: Record<string, number> = {};
 
-    enrichedMonthRecords.forEach((d: any) => {
-      const st = (d.status || "").toLowerCase();
-      if (st === "scheduled" || st === "pending") scheduled++;
+    filteredRecords.forEach((d: any) => {
+      const st = (d.status || "pending").toLowerCase();
+      if (st === "dispatched" || st === "delivered") delivered++;
       else if (st === "in_transit" || st === "intransit") inTransit++;
-      else delivered++;
+      else if (st === "scheduled") scheduled++;
+      else pending++;
 
-      const oem = d.oemName || "Unknown OEM";
+      const v = vehicleMap[String(d.vehicleId)];
+      const oem = d.oemName || (d as any).oem_name || v?.oemName || "OEM";
       oemCounts[oem] = (oemCounts[oem] || 0) + 1;
-
-      const cat = d.productCategory || "General";
-      categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
     });
 
-    return { totalMonth, scheduled, inTransit, delivered, oemCounts, categoryCounts };
-  }, [enrichedMonthRecords]);
-
-  // Calendar Grid calculation
-  const calendarDays = useMemo(() => {
-    const firstDayIndex = new Date(currentYear, currentMonth, 1).getDay(); // 0 = Sun, 1 = Mon
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-
-    // Map dispatches by day of month
-    const dispatchesByDay: Record<number, any[]> = {};
-    enrichedMonthRecords.forEach((rec: any) => {
-      if (rec.scheduledDate) {
-        const d = new Date(rec.scheduledDate);
-        if (d.getFullYear() === currentYear && d.getMonth() === currentMonth) {
-          const dayNum = d.getDate();
-          if (!dispatchesByDay[dayNum]) dispatchesByDay[dayNum] = [];
-          dispatchesByDay[dayNum].push(rec);
-        }
-      }
-    });
-
-    const days = [];
-    // Blank cells before day 1
-    for (let i = 0; i < firstDayIndex; i++) {
-      days.push({ blank: true, key: `blank-${i}` });
-    }
-    // Days 1 to N
-    for (let day = 1; day <= daysInMonth; day++) {
-      const dayDispatches = dispatchesByDay[day] || [];
-      const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-      const isToday =
-        today.getFullYear() === currentYear &&
-        today.getMonth() === currentMonth &&
-        today.getDate() === day;
-
-      days.push({
-        blank: false,
-        key: `day-${day}`,
-        day,
-        dateStr,
-        isToday,
-        dispatches: dayDispatches,
-      });
-    }
-    return days;
-  }, [currentYear, currentMonth, enrichedMonthRecords, today]);
-
-  // Navigation handlers for Calendar
-  const handlePrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((y) => y - 1);
-    } else {
-      setCurrentMonth((m) => m - 1);
-    }
-  };
-
-  const handleNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((y) => y + 1);
-    } else {
-      setCurrentMonth((m) => m + 1);
-    }
-  };
-
-  const handleToday = () => {
-    setCurrentYear(today.getFullYear());
-    setCurrentMonth(today.getMonth());
-  };
+    return { total, scheduled, pending, inTransit, delivered, oemCounts };
+  }, [filteredRecords, vehicleMap]);
 
   // Table view columns
   const columns: ColumnDef<DispatchRecord>[] = useMemo(
@@ -540,7 +438,7 @@ export default function DispatchPage() {
         </div>
       </div>
 
-      {/* Global Date Calendar Filter Bar */}
+      {/* Global Date Filter Bar */}
       <GlobalDateFilterBar
         dateFilter={dateFilter}
         setDateFilter={(v) => { setDateFilter(v); setPage(1); }}
@@ -552,7 +450,7 @@ export default function DispatchPage() {
         setCustomEndDate={(v) => { setCustomEndDate(v); setPage(1); }}
       />
 
-      {/* Month-Wise Metric Cards */}
+      {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
           <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
@@ -560,10 +458,10 @@ export default function DispatchPage() {
           </div>
           <div>
             <p className="text-2xl font-bold font-display text-foreground">
-              {monthStats.totalMonth}
+              {totalDispatch}
             </p>
             <p className="text-xs font-semibold text-muted-foreground">
-              Dispatches in {MONTH_NAMES[currentMonth]} {currentYear}
+              Total Dispatches
             </p>
           </div>
         </div>
@@ -574,7 +472,7 @@ export default function DispatchPage() {
           </div>
           <div>
             <p className="text-2xl font-bold font-display text-foreground">
-              {monthStats.delivered + monthStats.inTransit}
+              {stats.delivered + stats.inTransit}
             </p>
             <p className="text-xs font-semibold text-muted-foreground">
               Dispatched / Delivered
@@ -588,21 +486,21 @@ export default function DispatchPage() {
           </div>
           <div>
             <p className="text-2xl font-bold font-display text-foreground">
-              {monthStats.scheduled}
+              {stats.scheduled + stats.pending}
             </p>
             <p className="text-xs font-semibold text-muted-foreground">
-              Scheduled Dispatches
+              Scheduled / Pending
             </p>
           </div>
         </div>
 
         <div className="bg-card border border-border rounded-xl p-4 flex flex-col justify-center shadow-sm">
-          <p className="text-xs font-bold text-foreground mb-1">OEM Dispatches (This Month)</p>
+          <p className="text-xs font-bold text-foreground mb-1">OEM Dispatches Summary</p>
           <div className="flex items-center gap-2 flex-wrap">
-            {Object.keys(monthStats.oemCounts).length === 0 ? (
+            {Object.keys(stats.oemCounts).length === 0 ? (
               <span className="text-xs text-muted-foreground">No dispatches</span>
             ) : (
-              Object.entries(monthStats.oemCounts).map(([oem, cnt]) => (
+              Object.entries(stats.oemCounts).map(([oem, cnt]) => (
                 <span key={oem} className="text-[11px] font-semibold bg-muted px-2 py-0.5 rounded-md text-foreground">
                   {oem}: <span className="text-primary font-bold">{cnt}</span>
                 </span>
@@ -612,165 +510,91 @@ export default function DispatchPage() {
         </div>
       </div>
 
-      {/* DISPATCH TABLE LIST VIEW */}
+      {/* TABLE LIST VIEW */}
       <div className="space-y-4">
-          <DataTable
-            columns={columns}
-            data={dispatchRecords}
-            rowId={(d) => String(d.id)}
-            hidePagination={true}
-            bulkAction={(selectedRows: DispatchRecord[]) => (
-              <Button
-                size="sm"
-                variant="destructive"
-                className="h-8 text-xs font-semibold gap-1.5"
-                onClick={() => {
-                  if (window.confirm(`Are you sure you want to delete ${selectedRows.length} selected dispatch records?`)) {
-                    Promise.all(selectedRows.map((r) => deleteDispatchMutation.mutateAsync(r.id)))
-                      .then(() => toast.success(`${selectedRows.length} dispatch records deleted successfully`))
-                      .catch((err: any) => toast.error(err.response?.data?.detail || "Failed to delete selected records"));
-                  }
+        <DataTable
+          columns={columns}
+          data={filteredRecords}
+          rowId={(d) => String(d.id)}
+          hidePagination={true}
+          bulkAction={(selectedRows: DispatchRecord[]) => (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="h-8 text-xs font-semibold gap-1.5"
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to delete ${selectedRows.length} selected dispatch records?`)) {
+                  Promise.all(selectedRows.map((r) => deleteDispatchMutation.mutateAsync(r.id)))
+                    .then(() => toast.success(`${selectedRows.length} dispatch records deleted successfully`))
+                    .catch((err: any) => toast.error(err.response?.data?.detail || "Failed to delete selected records"));
+                }
+              }}
+            >
+              <Trash2 size={13} />
+              Delete Selected ({selectedRows.length})
+            </Button>
+          )}
+          searchKey={(d) => {
+            const v = vehicleMap[String(d.vehicleId)];
+            const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || "";
+            const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "";
+            const oem = d.oemName || (d as any).oem_name || v?.oemName || "";
+            const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "";
+            const invoice = d.invoiceNumber || v?.invoiceNumber || "";
+            const driver = d.driverName || (d as any).driver_name || v?.driverName || "";
+            const truck = d.truckNumber || v?.truckNumber || "";
+            const lr = d.lrNumber || v?.lrNumber || "";
+            return `${d.trackingNumber} ${chassis} ${vehicleNum} ${oem} ${d.carrier} ${d.destination} ${challan} ${invoice} ${driver} ${truck} ${lr}`;
+          }}
+          expandable={(d) => {
+            const v = vehicleMap[String(d.vehicleId)];
+            return <DispatchExpand record={d} vehicle={v} />;
+          }}
+          extraFilters={
+            <>
+              <select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value);
+                  setPage(1);
                 }}
+                className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
               >
-                <Trash2 size={13} />
-                Delete Selected ({selectedRows.length})
-              </Button>
-            )}
-            searchKey={(d) => {
-              const v = vehicleMap[String(d.vehicleId)];
-              const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || "";
-              const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "";
-              const oem = d.oemName || (d as any).oem_name || v?.oemName || "";
-              const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "";
-              const invoice = d.invoiceNumber || v?.invoiceNumber || "";
-              const driver = d.driverName || (d as any).driver_name || v?.driverName || "";
-              const truck = d.truckNumber || v?.truckNumber || "";
-              const lr = d.lrNumber || v?.lrNumber || "";
-              return `${d.trackingNumber} ${chassis} ${vehicleNum} ${oem} ${d.carrier} ${d.destination} ${challan} ${invoice} ${driver} ${truck} ${lr}`;
-            }}
-            expandable={(d) => {
-              const v = vehicleMap[String(d.vehicleId)];
-              return <DispatchExpand record={d} vehicle={v} />;
-            }}
-            extraFilters={
-              <>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s === "All" ? "All Statuses" : s.replace("_", " ").toUpperCase()}
-                    </option>
-                  ))}
-                </select>
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "All" ? "All Statuses" : s.replace("_", " ").toUpperCase()}
+                  </option>
+                ))}
+              </select>
 
-                <select
-                  value={carrierFilter}
-                  onChange={(e) => setCarrierFilter(e.target.value)}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-                >
-                  {CARRIERS.map((c) => (
-                    <option key={c} value={c}>
-                      {c === "All" ? "All Carriers" : c}
-                    </option>
-                  ))}
-                </select>
-              </>
-            }
-          />
-
-          <Pagination
-            page={page}
-            pageSize={pageSize}
-            total={totalDispatch}
-            totalPages={totalPages}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
-            }}
-            isLoading={isLoadingDispatch}
-          />
-        </div>
-
-      {/* DAY DISPATCH DETAILS DIALOG */}
-      {selectedDayDispatches && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-border rounded-2xl max-w-2xl w-full p-6 space-y-4 shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between border-b border-border pb-3">
-              <div>
-                <h3 className="text-lg font-bold font-display text-foreground flex items-center gap-2">
-                  <CalendarDays size={20} className="text-emerald-600" />
-                  Dispatches on {new Date(selectedDayDispatches.dateStr).toLocaleDateString("en-IN", { day: 'numeric', month: 'long', year: 'numeric' })}
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  {selectedDayDispatches.records.length} vehicle(s) dispatched on this date
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedDayDispatches(null)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              <select
+                value={carrierFilter}
+                onChange={(e) => setCarrierFilter(e.target.value)}
+                className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
               >
-                <X size={18} />
-              </button>
-            </div>
+                {CARRIERS.map((c) => (
+                  <option key={c} value={c}>
+                    {c === "All" ? "All Carriers" : c}
+                  </option>
+                ))}
+              </select>
+            </>
+          }
+        />
 
-            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-              {selectedDayDispatches.records.map((d: any) => (
-                <div
-                  key={d.id}
-                  className="p-4 rounded-xl border border-border bg-muted/20 space-y-2 hover:border-emerald-500/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <p className="text-sm font-bold font-mono text-foreground flex items-center gap-2">
-                        Chassis: {d.chassisNumber}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Vehicle #: {d.vehicleNumber} | OEM: <span className="font-semibold text-foreground">{d.oemName}</span>
-                      </p>
-                    </div>
-                    <DispatchStatusBadge status={d.status} />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-border/50 text-muted-foreground">
-                    <div>
-                      <span className="font-medium text-foreground">Carrier:</span> {d.carrier}
-                    </div>
-                    <div>
-                      <span className="font-medium text-foreground">Destination:</span> {d.destination}
-                    </div>
-                    {d.driverName && (
-                      <div>
-                        <span className="font-medium text-foreground">Driver:</span> {d.driverName} ({d.driverPhone || 'N/A'})
-                      </div>
-                    )}
-                    <div>
-                      <span className="font-medium text-foreground">Tracking #:</span> {d.trackingNumber}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="pt-2 text-right">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedDayDispatches(null)}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={totalDispatch}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          isLoading={isLoadingDispatch}
+        />
+      </div>
 
       {/* EDIT RECORD DIALOG */}
       <EditRecordDialog

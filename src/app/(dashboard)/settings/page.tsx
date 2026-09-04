@@ -94,6 +94,7 @@ const ROLES = [
   "admin",
   "manager",
   "supervisor",
+  "dispatcher",
   "oem",
 ];
 
@@ -672,9 +673,11 @@ function TeamSection() {
                           ? "Manager"
                           : r === "supervisor"
                             ? "Supervisor"
-                            : r === "oem"
-                              ? "OEM"
-                              : r}
+                            : r === "dispatcher"
+                              ? "Dispatch Team"
+                              : r === "oem"
+                                ? "OEM"
+                                : r}
                     </SelectItem>
                   ))}
                 </SelectContent>

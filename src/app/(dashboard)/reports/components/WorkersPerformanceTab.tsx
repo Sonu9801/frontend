@@ -13,10 +13,14 @@ export function WorkersPerformanceTab({
   dateRange: string;
   filters: any;
 }) {
-  // Convert dateRange/filters to a YYYY-MM if needed, or pass the selected month
-  // For simplicity, assuming current month if not specifically passed in a standard format
-  const currentMonth = new Date().toISOString().slice(0, 7); // YYYY-MM
-  const { data: performanceDataRaw, isLoading } = useWorkerPerformance(currentMonth);
+  const targetMonth = useMemo(() => {
+    if (dateRange?.startsWith("Month: ")) {
+      return dateRange.replace("Month: ", "").trim();
+    }
+    return new Date().toISOString().slice(0, 7);
+  }, [dateRange]);
+
+  const { data: performanceDataRaw, isLoading } = useWorkerPerformance(targetMonth);
 
   const performanceData = useMemo(() => {
     if (Array.isArray(performanceDataRaw)) return performanceDataRaw;

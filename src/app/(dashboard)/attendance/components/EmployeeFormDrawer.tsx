@@ -285,9 +285,11 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
                   <Select value={(form.role || "worker").toLowerCase()} onValueChange={v => setForm({...form, role: v})}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Select role" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="worker">Worker</SelectItem>
+                      <SelectItem value="worker">Worker (Standard Jobs)</SelectItem>
+                      <SelectItem value="attendance">Attendance Only (No My Jobs)</SelectItem>
                       <SelectItem value="operator">Operator</SelectItem>
                       <SelectItem value="supervisor">Supervisor</SelectItem>
+                      <SelectItem value="dispatcher">Dispatch Team</SelectItem>
                       <SelectItem value="manager">Manager</SelectItem>
                       <SelectItem value="admin">Admin</SelectItem>
                     </SelectContent>
@@ -318,10 +320,17 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
               <div className="px-6 grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <Label>Shift Type</Label>
-                  <Select value={form.shiftType} onValueChange={v => setForm({...form, shiftType: v})}>
+                  <Select value={form.shiftType} onValueChange={v => {
+                    if (v === "Evening Shift (05:30 PM - 11:00 PM)") {
+                      setForm({...form, shiftType: v, shiftStart: "17:30", shiftEnd: "23:00"});
+                    } else {
+                      setForm({...form, shiftType: v});
+                    }
+                  }}>
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Shift" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="General Shift">General Shift</SelectItem>
+                      <SelectItem value="Evening Shift (05:30 PM - 11:00 PM)">Evening (05:30 PM - 11:00 PM)</SelectItem>
+                      <SelectItem value="General Shift">General Shift (09:30 AM - 06:00 PM)</SelectItem>
                       <SelectItem value="Morning Shift">Morning Shift</SelectItem>
                       <SelectItem value="Evening Shift">Evening Shift</SelectItem>
                       <SelectItem value="Night Shift">Night Shift</SelectItem>

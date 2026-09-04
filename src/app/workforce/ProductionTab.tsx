@@ -11,7 +11,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { AssignJobDialog } from "@/components/vehicles/AssignJobDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
-import { useCreateVehicle, useVerifyVehicle, useWorkers, useUpdateVehicleStage } from "@/hooks/useQueries";
+import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
+import { useCreateVehicle, useVerifyVehicle, useWorkers, useUpdateVehicleStage, useUpdateVehicle } from "@/hooks/useQueries";
 import { toast } from "sonner";
 
 export function ProductionTab({ activeUser }: { activeUser: any }) {
@@ -26,11 +27,48 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
     isOpen: false,
     vehicle: null,
   });
+  const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<any | null>(null);
 
   const createVehicleMutation = useCreateVehicle();
   const verifyVehicleMutation = useVerifyVehicle();
   const updateStageMutation = useUpdateVehicleStage();
+  const updateVehicleMutation = useUpdateVehicle();
   const { data: workers = [] } = useWorkers();
+
+  const handleFinalDispatchSubmit = (values: DispatchFormValues) => {
+    if (!pendingDispatchVehicle) return;
+
+    updateVehicleMutation.mutate(
+      {
+        id: pendingDispatchVehicle.id,
+        data: {
+          current_stage: "dispatch",
+          progress_percent: 100,
+          transport_company: values.transportCompany,
+          truck_number: values.truckNumber,
+          driver_name: values.driverName,
+          driver_mobile_number: values.driverMobileNumber,
+          dispatch_challan_number: values.dispatchChallanNumber,
+          invoice_number: values.invoiceNumber,
+          lr_number: values.lrNumber,
+          dealer_name: values.destination,
+          dispatch_date_time: values.dispatchDateTime,
+          remarks: values.remarks,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            `Vehicle ${pendingDispatchVehicle.platformNumber || pendingDispatchVehicle.trackingId || pendingDispatchVehicle.vehicleNumber || ""} dispatched successfully!`
+          );
+          setPendingDispatchVehicle(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
+        },
+      }
+    );
+  };
 
   const { data: platforms = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
@@ -197,12 +235,13 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
                                   </button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent>
-                                  {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Delivered"].map(stageLabel => {
+                                  {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch", "Delivered"].map(stageLabel => {
                                     const stageMap: Record<string, string> = {
                                       "Received": "received",
                                       "Fabrication": "fabrication",
                                       "Paint": "paint",
                                       "Ready-to-Dispatch": "rtd",
+                                      "Dispatch": "dispatch",
                                       "Delivered": "delivered"
                                     };
                                     return (
@@ -210,13 +249,16 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
                                         key={stageLabel}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          let progress = 0;
                                           const targetStage = stageMap[stageLabel];
+                                          if (targetStage === "dispatch" || targetStage === "delivered") {
+                                            setPendingDispatchVehicle(pf);
+                                            return;
+                                          }
+                                          let progress = 0;
                                           if (targetStage === "received") progress = 0;
                                           else if (targetStage === "fabrication") progress = 30;
                                           else if (targetStage === "paint") progress = 60;
                                           else if (targetStage === "rtd") progress = 90;
-                                          else if (targetStage === "dispatch" || targetStage === "delivered") progress = 100;
                                           updateStageMutation.mutate({ id: pf.id, stage: targetStage, progress });
                                         }}
                                       >
@@ -261,6 +303,14 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
         open={verifyState.isOpen}
         onOpenChange={(open) => setVerifyState({ isOpen: open, vehicle: open ? verifyState.vehicle : null })}
         onVerificationComplete={() => setVerifyState({ isOpen: false, vehicle: null })}
+      />
+
+      <DispatchVehicleDialog
+        open={!!pendingDispatchVehicle}
+        onOpenChange={(open) => !open && setPendingDispatchVehicle(null)}
+        vehicle={pendingDispatchVehicle}
+        onSubmit={handleFinalDispatchSubmit}
+        isSubmitting={updateVehicleMutation.isPending}
       />
     </div>
   );

@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect, useRef } from "react";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
-import { useVehicles, useWorkers, useUpdateVehicleStage } from "@/hooks/useQueries";
+import { useVehicles, useWorkers, useUpdateVehicleStage, useUpdateVehicle } from "@/hooks/useQueries";
+import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
 import type { Vehicle, Worker } from "@/types";
 import {
   AlertTriangle,
@@ -557,7 +558,9 @@ export default function WorkerMobilePage() {
   const workers = workersData?.items ?? [];
 
   const updateStageMutation = useUpdateVehicleStage();
+  const updateVehicleMutation = useUpdateVehicle();
 
+  const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<Vehicle | null>(null);
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
   const [activeJobStart, setActiveJobStart] = useState<Date | null>(null);
@@ -604,8 +607,13 @@ export default function WorkerMobilePage() {
   const handleComplete = () => {
     if (activeVehicle) {
       const nextStage = getNextStage(activeVehicle.currentStage);
+
+      if (nextStage === "dispatch" || nextStage === "delivered") {
+        setPendingDispatchVehicle(activeVehicle);
+        return;
+      }
+
       const progress = getStageProgress(nextStage);
-      
       updateStageMutation.mutate({ id: activeVehicle.id, stage: nextStage, progress }, {
         onSuccess: () => {
           setActiveJobId(null);
@@ -620,6 +628,43 @@ export default function WorkerMobilePage() {
         }
       });
     }
+  };
+
+  const handleFinalDispatchSubmit = (values: DispatchFormValues) => {
+    if (!pendingDispatchVehicle) return;
+
+    updateVehicleMutation.mutate(
+      {
+        id: pendingDispatchVehicle.id,
+        data: {
+          current_stage: "dispatch",
+          progress_percent: 100,
+          transport_company: values.transportCompany,
+          truck_number: values.truckNumber,
+          driver_name: values.driverName,
+          driver_mobile_number: values.driverMobileNumber,
+          dispatch_challan_number: values.dispatchChallanNumber,
+          invoice_number: values.invoiceNumber,
+          lr_number: values.lrNumber,
+          dealer_name: values.destination,
+          dispatch_date_time: values.dispatchDateTime,
+          remarks: values.remarks,
+        },
+      },
+      {
+        onSuccess: () => {
+          setActiveJobId(null);
+          setActiveJobStart(null);
+          toast.success(
+            `Vehicle ${pendingDispatchVehicle.chassisNumber || pendingDispatchVehicle.trackingId || pendingDispatchVehicle.vehicleNumber || ""} dispatched successfully!`
+          );
+          setPendingDispatchVehicle(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
+        },
+      }
+    );
   };
 
   const handlePhotoFile = (file: File) => {
@@ -837,6 +882,14 @@ export default function WorkerMobilePage() {
           <HistorySheet onClose={() => setShowHistorySheet(false)} />
         )}
       </AnimatePresence>
+
+      <DispatchVehicleDialog
+        open={!!pendingDispatchVehicle}
+        onOpenChange={(open) => !open && setPendingDispatchVehicle(null)}
+        vehicle={pendingDispatchVehicle}
+        onSubmit={handleFinalDispatchSubmit}
+        isSubmitting={updateVehicleMutation.isPending}
+      />
     </div>
   );
 }

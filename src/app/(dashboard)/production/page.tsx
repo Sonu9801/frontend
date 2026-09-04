@@ -8,8 +8,9 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Priority, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
-import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table } from "lucide-react";
+import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table, Calendar as CalendarIcon } from "lucide-react";
 import { exportToCSV, exportToExcel } from "../reports/components/exportUtils";
+import { isDateInFilterRange, formatFilterLabel } from "../reports/components/dateFilterUtils";
 import { toast } from "sonner";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
@@ -590,10 +591,47 @@ export default function ProductionPage() {
   const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
   const [categoryFilter, setCategoryFilter] = useState(categoryParam || "All Categories");
 
-  // Enterprise Admin
+  // Date Filter State for Production Board
+  const [selectedDatePreset, setSelectedDatePreset] = useState("All Time");
+  const [customMonth, setCustomMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [dateRange, setDateRange] = useState("All Time");
+
+  const handleDatePresetChange = (preset: string) => {
+    setSelectedDatePreset(preset);
+    if (preset === "Custom Month") {
+      setDateRange(`Month: ${customMonth}`);
+    } else if (preset === "Custom Range") {
+      if (startDate && endDate) {
+        setDateRange(`Custom: ${startDate} to ${endDate}`);
+      } else {
+        setDateRange("All Time");
+      }
+    } else {
+      setDateRange(preset);
+    }
+  };
+
+  const handleCustomMonthChange = (monthVal: string) => {
+    setCustomMonth(monthVal);
+    if (selectedDatePreset === "Custom Month") {
+      setDateRange(`Month: ${monthVal}`);
+    }
+  };
+
+  const handleCustomDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    if (selectedDatePreset === "Custom Range" && start && end) {
+      setDateRange(`Custom: ${start} to ${end}`);
+    }
+  };
+
+  // Enterprise Admin & Operational Roles (Supervisor, Dispatcher, Manager)
   const { useAuthStore } = require("@/store/authStore");
-  const userRole = useAuthStore((state: any) => state.role) || "operator";
-  const canEdit = ["admin", "owner"].includes(userRole);
+  const userRole = (useAuthStore((state: any) => state.role) || "operator").toLowerCase();
+  const canEdit = ["admin", "owner", "manager", "supervisor", "dispatcher", "dispatch"].includes(userRole);
   const [editRecord, setEditRecord] = useState<Vehicle | null>(null);
   const [historyRecord, setHistoryRecord] = useState<Vehicle | null>(null);
   const [holdRecord, setHoldRecord] = useState<Vehicle | null>(null);
@@ -704,9 +742,13 @@ export default function ProductionPage() {
       const matchesCategory =
         categoryFilter === "All Categories" ||
         categoryStr.toLowerCase() === categoryFilter.toLowerCase();
-      return matchesSearch && matchesPriority && matchesCategory;
+
+      const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+      const matchesDate = isDateInFilterRange(vDateRaw, dateRange);
+
+      return matchesSearch && matchesPriority && matchesCategory && matchesDate;
     });
-  }, [vehicles, search, priorityFilter, categoryFilter]);
+  }, [vehicles, search, priorityFilter, categoryFilter, dateRange]);
 
   const byStage = useMemo(() => {
     const initialGrouped: Record<string, Vehicle[]> = {
@@ -937,6 +979,23 @@ export default function ProductionPage() {
                 </button>
               </span>
             )}
+            {dateRange !== "All Time" && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
+                <CalendarIcon size={11} />
+                {formatFilterLabel(dateRange)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedDatePreset("All Time");
+                    setDateRange("All Time");
+                  }}
+                  className="ml-0.5 hover:text-primary/60"
+                  aria-label="Clear date filter"
+                >
+                  <X size={9} />
+                </button>
+              </span>
+            )}
 
             {/* Action Buttons: Received & Dispatch */}
             <button
@@ -977,6 +1036,54 @@ export default function ProductionPage() {
               className="w-full pl-9 pr-3 py-2 text-sm bg-muted/50 border border-input rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all"
               data-ocid="production.search_input"
             />
+          </div>
+
+          {/* Date Range & Custom Month Filter Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 rounded-lg border border-border w-full sm:w-auto">
+            <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
+            <select 
+              value={selectedDatePreset}
+              onChange={(e) => handleDatePresetChange(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer"
+            >
+              <option value="All Time">All Time (All Dates)</option>
+              <option value="Today">Today</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="This Week">This Week</option>
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="This Month">This Month</option>
+              <option value="Last Month">Last Month</option>
+              <option value="Custom Month">Select Month (Custom)</option>
+              <option value="Custom Range">Custom Date Range</option>
+            </select>
+
+            {selectedDatePreset === "Custom Month" && (
+              <input 
+                type="month"
+                value={customMonth}
+                onChange={(e) => handleCustomMonthChange(e.target.value)}
+                className="bg-background border border-input rounded px-2 py-0.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              />
+            )}
+
+            {selectedDatePreset === "Custom Range" && (
+              <div className="flex items-center gap-1">
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-[10px] text-muted-foreground">to</span>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center w-full sm:w-auto overflow-x-auto no-scrollbar gap-1 bg-muted/50 rounded-lg p-0.5 border border-border">
@@ -1363,6 +1470,11 @@ export default function ProductionPage() {
         ]}
         onSubmit={(data) => {
           if (!editRecord) return;
+          if (data.stage === "dispatch" || data.stage === "delivered") {
+            setPendingDispatchVehicle(editRecord);
+            setEditRecord(null);
+            return;
+          }
           updateStageMutation.mutate({ 
             id: editRecord.id, 
             stage: data.stage,

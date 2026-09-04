@@ -80,6 +80,7 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ["workerSummary"] });
               queryClient.invalidateQueries({ queryKey: ["workerHistory"] });
               queryClient.invalidateQueries({ queryKey: ["workerMonthlySummary"] });
+              queryClient.invalidateQueries({ queryKey: ["worker-full-month-logs"] });
               break;
             case "LEAVE_UPDATE":
               queryClient.invalidateQueries({ queryKey: ["notifications"] });

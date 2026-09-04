@@ -28,12 +28,20 @@ export default function DashboardLayout({
     if (!token) {
       window.location.href = "/login";
     } else {
-      const role = localStorage.getItem("role");
-      if (role?.toLowerCase() === 'worker' && window.location.pathname === '/') {
+      const role = localStorage.getItem("role")?.toLowerCase();
+      if ((role === 'attendance' || role === 'attendance_only') && window.location.pathname === '/') {
+        window.location.href = "/attendance";
+        return;
+      }
+      if ((role === 'dispatcher' || role === 'dispatch') && window.location.pathname === '/') {
+        window.location.href = "/production";
+        return;
+      }
+      if (role === 'worker' && window.location.pathname === '/') {
         window.location.href = "/workforce";
         return;
       }
-      if (role?.toLowerCase() === 'oem' && window.location.pathname === '/') {
+      if (role === 'oem' && window.location.pathname === '/') {
         window.location.href = "/oem-portal";
         return;
       }
