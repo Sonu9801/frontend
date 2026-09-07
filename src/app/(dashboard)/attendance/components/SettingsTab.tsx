@@ -126,6 +126,16 @@ export default function SettingsTab() {
     }
   };
 
+  const handleSyncDefaultHolidays = async () => {
+    try {
+      const res = await api.post("/settings/attendance/holidays/seed-defaults");
+      queryClient.invalidateQueries({ queryKey: ["holidays"] });
+      toast.success(res.data.message || "Holidays synced successfully");
+    } catch (error) {
+      toast.error("Failed to sync default holidays");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/10">
@@ -472,12 +482,15 @@ export default function SettingsTab() {
 
               {activeTab === "holidays" && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
-                  <div className="mb-6 flex justify-between items-center">
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-semibold">Holiday Management</h3>
-                      <p className="text-sm text-muted-foreground">Configure national and festival holidays for payroll exemptions.</p>
+                      <p className="text-sm text-muted-foreground">Configure national and festival holidays for worker attendance & payroll.</p>
                     </div>
-                    <Button size="sm" onClick={() => { setHolidayForm({ date: "", name: "", type: "National" }); setShowHolidayModal(true); }}>Add Holiday</Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={handleSyncDefaultHolidays}>Sync Standard Holidays</Button>
+                      <Button size="sm" onClick={() => { setHolidayForm({ date: "", name: "", type: "National" }); setShowHolidayModal(true); }}>Add Custom Holiday</Button>
+                    </div>
                   </div>
                   <div className="border border-border rounded-xl overflow-hidden">
                     <table className="w-full text-sm">

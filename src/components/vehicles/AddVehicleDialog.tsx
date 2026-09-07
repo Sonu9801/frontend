@@ -96,6 +96,16 @@ export interface AddVehicleDialogProps {
   initialMode?: "received" | "dispatch";
 }
 
+const formatForDateTimeLocal = (d?: Date) => {
+  const date = d || new Date();
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+};
+
 export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, initialMode = "received" }: AddVehicleDialogProps) {
   const [activeMode, setActiveMode] = useState<"received" | "dispatch">(initialMode);
   const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
@@ -117,6 +127,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
     productCategory: "Cargo Box",
     productCategoryOther: "",
     priority: "normal" as Priority,
+    receivedDate: formatForDateTimeLocal(),
     estimatedDelivery: "",
     notes: "",
     // Logistics Fields
@@ -198,7 +209,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
       priority: form.priority,
       currentStage: targetStage,
       assignedWorkerIds: [],
-      receivedAt: now,
+      receivedAt: form.receivedDate ? new Date(form.receivedDate).toISOString() : now,
       estimatedDelivery: form.estimatedDelivery
         ? new Date(form.estimatedDelivery).toISOString()
         : new Date(Date.now() + 7 * 86400000).toISOString(),
@@ -371,6 +382,9 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                       <option value="Sincear Marketing">Sincear Marketing</option>
                       <option value="Bhutani Auto Cap">Bhutani Auto Cap</option>
                       <option value="KK Auto mobile">KK Auto mobile</option>
+                      <option value="SHREE BALAJI MOTORS">SHREE BALAJI MOTORS</option>
+                      <option value="RAJAN AUTOTECH LLP">RAJAN AUTOTECH LLP</option>
+                      <option value="ALLIED EV SOLUTIONS">ALLIED EV SOLUTIONS</option>
                       <option value="Other">Other</option>
                     </select>
                     <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
@@ -470,6 +484,16 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                   </div>
                 </div>
                 
+                <div>
+                  <label className={labelCls}>Received Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={form.receivedDate}
+                    onChange={(e) => setForm((f) => ({ ...f, receivedDate: e.target.value }))}
+                    className={inputCls}
+                  />
+                </div>
+
                 <div>
                   <label className={labelCls}>Estimated Delivery</label>
                   <input

@@ -451,10 +451,10 @@ export default function EmployeeMonthlyAttendanceModal({
                             Sunday Work
                           </Badge>
                         );
-                      } else if (isSunday && dayItem.status === "Sunday") {
+                      } else if (dayItem.status === "Holiday" || dayItem.status.startsWith("Holiday") || (isSunday && (dayItem.status === "Sunday" || !dayItem.has_record))) {
                         statusBadge = (
-                          <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500/30 font-bold">
-                            Sunday
+                          <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-bold">
+                            {dayItem.status.startsWith("Holiday") ? dayItem.status : "Holiday"}
                           </Badge>
                         );
                       }
