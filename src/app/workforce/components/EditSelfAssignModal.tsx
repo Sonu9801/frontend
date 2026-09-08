@@ -1,22 +1,24 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { X, Loader2, HardHat } from "lucide-react";
+import { X, Loader2, Edit3 } from "lucide-react";
 import { toast } from "sonner";
 import { componentsApi } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useWorkers } from "@/hooks/useQueries";
 
-export function SelfAssignModal({
+export function EditSelfAssignModal({
   isOpen,
   onClose,
   workerId,
+  task
 }: {
   isOpen: boolean;
   onClose: () => void;
   workerId: number;
+  task: any;
 }) {
   const [componentType, setComponentType] = useState("Platform");
   const [customType, setCustomType] = useState("");
@@ -29,9 +31,30 @@ export function SelfAssignModal({
   const workersList = workersData?.items || workersData || [];
   const availablePartners = workersList.filter((w: any) => w.id !== workerId);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (task && isOpen) {
+      const predefinedTypes = ["Platform", "Gate", "Aircutter", "Paint", "Model", "Band", "Cutting"];
+      if (predefinedTypes.includes(task.component_type)) {
+        setComponentType(task.component_type);
+        setCustomType("");
+      } else {
+        setComponentType("Other");
+        setCustomType(task.component_type);
+      }
+      setComponentNumber(task.component_number);
+      
+      const otherPartner = task.workers?.find((w: any) => w.id !== workerId);
+      if (otherPartner) {
+        setPartnerId(otherPartner.id.toString());
+      } else {
+        setPartnerId("");
+      }
+    }
+  }, [task, isOpen, workerId]);
 
-  const handleStart = async (e: React.FormEvent) => {
+  if (!isOpen || !task) return null;
+
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!componentNumber) {
       toast.error("Please enter a component number");
@@ -42,15 +65,19 @@ export function SelfAssignModal({
     
     setLoading(true);
     try {
-      await componentsApi.startTask(finalType, componentNumber, partnerId || undefined);
-      toast.success(`${finalType} task started successfully!`);
+      await componentsApi.updateTask(task.id, {
+        component_type: finalType,
+        component_number: componentNumber,
+        partner_id: partnerId || undefined
+      });
+      toast.success(`Task updated successfully!`);
       queryClient.invalidateQueries({ queryKey: ["workerComponents", workerId] });
       if (partnerId) {
         queryClient.invalidateQueries({ queryKey: ["workerComponents", parseInt(partnerId)] });
       }
       onClose();
     } catch (err: any) {
-      const msg = err.response?.data?.detail || "Failed to start task";
+      const msg = err.response?.data?.detail || "Failed to update task";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -68,14 +95,14 @@ export function SelfAssignModal({
         >
           <div className="p-5 border-b border-gray-100 dark:border-zinc-800 flex justify-between items-center">
             <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-              <HardHat className="text-blue-500" /> Start New Work
+              <Edit3 className="text-blue-500" /> Edit Work
             </h2>
-            <button onClick={onClose} className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
+            <button type="button" onClick={onClose} className="p-2 bg-gray-100 dark:bg-zinc-800 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white">
               <X size={20} />
             </button>
           </div>
           
-          <form onSubmit={handleStart} className="p-5 space-y-4">
+          <form onSubmit={handleUpdate} className="p-5 space-y-4">
             <div className="space-y-2">
               <Label>Component Type</Label>
               <select
@@ -141,7 +168,7 @@ export function SelfAssignModal({
               disabled={loading || !componentNumber || (componentType === "Other" && !customType.trim())}
               className="w-full h-12 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-lg mt-2"
             >
-              {loading ? <Loader2 className="animate-spin mr-2" /> : "Start Work"}
+              {loading ? <Loader2 className="animate-spin mr-2" /> : "Save Changes"}
             </Button>
           </form>
         </motion.div>

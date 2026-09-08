@@ -6,13 +6,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, Clock, PauseCircle, PlayCircle, Camera, 
-  Briefcase, RefreshCw, AlertTriangle, Trash2, Upload 
+  Briefcase, RefreshCw, AlertTriangle, Trash2, Upload, Calendar as CalendarIcon, CheckCircle2, Edit3
 } from "lucide-react";
 import Webcam from "react-webcam";
 import { toast } from "sonner";
 import { jobsApi, componentsApi } from "@/lib/api";
 import type { ProductionJob } from "@/types";
 import { SelfAssignModal } from "./components/SelfAssignModal";
+import { EditSelfAssignModal } from "./components/EditSelfAssignModal";
 import { SubmitComponentModal } from "./components/SubmitComponentModal";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -22,6 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function WorkerJobs({ workerId }: { workerId: string }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("All");
+  const [doneMonth, setDoneMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   
   const [showCamera, setShowCamera] = useState(false);
   const [completingJobId, setCompletingJobId] = useState<number | null>(null);
@@ -31,6 +36,8 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
   const [showSelfAssign, setShowSelfAssign] = useState(false);
   const [showComponentSubmit, setShowComponentSubmit] = useState(false);
   const [completingComponentId, setCompletingComponentId] = useState<number | null>(null);
+  const [showEditTask, setShowEditTask] = useState(false);
+  const [editingTask, setEditingTask] = useState<any>(null);
 
   // 1. React Query for fetching jobs
   const { data: jobs, isLoading, isError, refetch, isRefetching } = useQuery({
@@ -59,6 +66,15 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
       return data;
     },
     refetchInterval: 10000,
+  });
+
+  const { data: jobHistory } = useQuery({
+    queryKey: ["workerJobHistory", workerId],
+    queryFn: async () => {
+      const data = await jobsApi.getWorkerJobHistory(workerId);
+      return data as ProductionJob[];
+    },
+    refetchInterval: 30000,
   });
 
   // 2. React Query for mutations
@@ -183,14 +199,26 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
   
   const highPriorityCount = statsSource?.filter(j => (j as any).priority?.toLowerCase() === 'high' || (j as any).priority?.toLowerCase() === 'urgent').length || 0;
 
-  // Filter jobs by tab
+  // Filter jobs by tab (excluding Completed tab which has its own logic)
   const filteredJobs = jobs?.filter(job => {
     if (activeTab === "All") return true;
     if (activeTab === "Pending") return job.status === "assigned" || job.status === "not_started";
     if (activeTab === "In_Progress") return job.status === "in_progress" || job.status === "paused";
-    if (activeTab === "Completed") return job.status === "completed";
-    return true;
+    return false; // Completed tab handled separately
   });
+
+  // Filter completed items for Done tab
+  const completedJobs = jobHistory?.filter(j => {
+    if (!j.end_time) return false;
+    return j.end_time.startsWith(doneMonth);
+  }) || [];
+
+  const completedComponentTasks = componentTasks?.filter((t: any) => {
+    if (t.status !== "completed" || !t.end_time) return false;
+    return t.end_time.startsWith(doneMonth);
+  }) || [];
+
+  const activeComponentTasks = componentTasks?.filter((t: any) => t.status !== "completed") || [];
 
   return (
     <div className="flex flex-col gap-5 px-1 py-4 max-w-xl mx-auto">
@@ -249,6 +277,81 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
             <div className="space-y-4">
               <Skeleton className="h-48 w-full rounded-2xl" />
               <Skeleton className="h-48 w-full rounded-2xl" />
+            </div>
+          ) : activeTab === "Completed" ? (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center bg-white dark:bg-zinc-900 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-zinc-800">
+                <span className="font-semibold text-gray-700 dark:text-gray-300 text-sm pl-2">Filter Month:</span>
+                <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-3 py-1.5 rounded-xl">
+                  <CalendarIcon size={14} className="text-gray-500" />
+                  <input 
+                    type="month"
+                    value={doneMonth}
+                    onChange={(e) => setDoneMonth(e.target.value)}
+                    className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none"
+                  />
+                </div>
+              </div>
+
+              <AnimatePresence mode="popLayout">
+                {completedJobs.length === 0 && completedComponentTasks.length === 0 ? (
+                  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12 bg-white dark:bg-zinc-900 rounded-3xl border border-gray-100 dark:border-zinc-800">
+                    <CheckCircle2 size={40} className="mx-auto text-gray-300 dark:text-zinc-700 mb-3" />
+                    <h3 className="text-lg font-bold text-gray-500">No completed tasks</h3>
+                    <p className="text-sm text-gray-400">Nothing completed in {doneMonth}</p>
+                  </motion.div>
+                ) : (
+                  <div className="space-y-4">
+                    {completedJobs.map((job: any) => (
+                      <motion.div 
+                        key={`done-job-${job.id}`}
+                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className="bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-sm border border-emerald-100 dark:border-emerald-900/30"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <Badge variant="outline" className="mb-2 bg-emerald-50 text-emerald-700 border-emerald-200">
+                              {job.stage || "Regular Job"}
+                            </Badge>
+                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">
+                              {job.platform_number ? `PF No.- ${job.platform_number}` : `Job #${job.id}`}
+                            </h4>
+                          </div>
+                          <Badge className="bg-emerald-100 text-emerald-800">Done</Badge>
+                        </div>
+                        <div className="text-emerald-600 text-sm font-bold mt-3 flex items-center gap-2">
+                          <CheckCircle2 size={16} />
+                          Completed on {new Date(job.end_time).toLocaleDateString()}
+                        </div>
+                      </motion.div>
+                    ))}
+
+                    {completedComponentTasks.map((task: any) => (
+                      <motion.div 
+                        key={`done-task-${task.id}`}
+                        initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                        className="bg-white dark:bg-zinc-900 rounded-3xl p-5 shadow-sm border border-emerald-100 dark:border-emerald-900/30"
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <Badge variant="outline" className="mb-2 bg-blue-50 text-blue-700 border-blue-200">
+                              {task.component_type || "Self Assigned"}
+                            </Badge>
+                            <h4 className="font-bold text-gray-900 dark:text-white text-lg">
+                              {task.component_number}
+                            </h4>
+                          </div>
+                          <Badge className="bg-emerald-100 text-emerald-800">Done</Badge>
+                        </div>
+                        <div className="text-emerald-600 text-sm font-bold mt-3 flex items-center gap-2">
+                          <CheckCircle2 size={16} />
+                          Completed on {new Date(task.end_time).toLocaleDateString()}
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                )}
+              </AnimatePresence>
             </div>
           ) : (
             <AnimatePresence mode="wait">
@@ -365,12 +468,12 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
         </div>
       </Tabs>
 
-      {/* Component Tasks Section */}
-      {componentTasks && componentTasks.length > 0 && (
+      {/* Component Tasks Section (Only Pending/Running) */}
+      {activeTab !== "Completed" && activeComponentTasks.length > 0 && (
         <div className="mt-8">
           <h3 className="text-xl font-bold tracking-tight text-gray-900 dark:text-gray-100 mb-4">Self-Assigned Tasks</h3>
           <div className="space-y-4">
-            {componentTasks.map((task: any) => (
+            {activeComponentTasks.map((task: any) => (
               <motion.div 
                 key={`comp-${task.id}`}
                 initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
@@ -388,11 +491,14 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                       {task.status.replace("_", " ")}
                     </Badge>
                     <button
-                      onClick={() => handleDeleteComponentTask(task.id)}
-                      className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-xl transition-colors"
-                      title="Delete Task"
+                      onClick={() => {
+                        setEditingTask(task);
+                        setShowEditTask(true);
+                      }}
+                      className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-xl transition-colors"
+                      title="Edit Task"
                     >
-                      <Trash2 size={18} />
+                      <Edit3 size={18} />
                     </button>
                   </div>
                 </div>
@@ -407,11 +513,6 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                   >
                     <Camera size={18} className="mr-2" /> Submit Proof
                   </Button>
-                )}
-                {task.status === "completed" && (
-                  <div className="flex gap-2 items-center text-emerald-600 text-sm font-bold mt-2 bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                    <AlertCircle size={16} /> Completed on {new Date(task.end_time).toLocaleDateString()}
-                  </div>
                 )}
               </motion.div>
             ))}
@@ -434,6 +535,13 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
         isOpen={showSelfAssign} 
         onClose={() => setShowSelfAssign(false)} 
         workerId={parseInt(workerId)} 
+      />
+      
+      <EditSelfAssignModal
+        isOpen={showEditTask}
+        onClose={() => setShowEditTask(false)}
+        workerId={parseInt(workerId)}
+        task={editingTask}
       />
       
       <SubmitComponentModal 

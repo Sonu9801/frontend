@@ -537,7 +537,8 @@ export const attendanceApi = {
     return response.data;
   },
   getLogs: async (params?: { page?: number; pageSize?: number; search?: string; status?: string; department?: string; date_from?: string; date_to?: string }) => {
-    const response = await api.get("/attendance/logs/detailed", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
+    const { pageSize, ...rest } = params || {};
+    const response = await api.get("/attendance/logs/detailed", { params: { page: rest?.page ?? 1, page_size: pageSize ?? 10, ...rest } });
     return response.data;
   },
   getAll: async () => {
@@ -694,8 +695,15 @@ export const leaveApi = {
 };
 
 export const componentsApi = {
-  startTask: async (component_type: string, component_number: string) => {
-    const response = await api.post("/components/start", { component_type, component_number });
+  startTask: async (component_type: string, component_number: string, partner_id?: string | number) => {
+    const payload: any = { component_type, component_number };
+    if (partner_id) payload.partner_id = parseInt(partner_id as string);
+    const response = await api.post("/components/start", payload);
+    return response.data;
+  },
+  updateTask: async (task_id: number, data: { component_type?: string, component_number?: string, partner_id?: string | number }) => {
+    if (data.partner_id) data.partner_id = parseInt(data.partner_id as string);
+    const response = await api.put(`/components/${task_id}`, data);
     return response.data;
   },
   submitTask: async (task_id: number, photo_proof_url: string, notes?: string) => {

@@ -34,8 +34,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+const getLocalDateString = (d: Date = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function DashboardTab({ workers, isLoading }: { workers: Worker[], isLoading: boolean }) {
   const [dateRange, setDateRange] = useState("Today");
+  const [customStartDate, setCustomStartDate] = useState(getLocalDateString(new Date()));
+  const [customEndDate, setCustomEndDate] = useState(getLocalDateString(new Date()));
   const [showFilters, setShowFilters] = useState(false);
   const [filterDept, setFilterDept] = useState("All");
   const [filterType, setFilterType] = useState("All");
@@ -52,7 +61,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
 
   const { kpis, presentPercent, absentPercent, latePercent } = React.useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(now);
 
     // Filter logs for this specific date range for KPIs calculation
     const rangeLogs = (logs || []).filter((l: any) => {
@@ -62,18 +71,21 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
       if (dateRange === "Yesterday") {
         const yest = new Date();
         yest.setDate(yest.getDate() - 1);
-        const yestStr = yest.toISOString().split('T')[0];
+        const yestStr = getLocalDateString(yest);
         return l.date === yestStr;
       }
       if (dateRange === "This Week") {
         const startOfWeek = new Date();
         startOfWeek.setDate(now.getDate() - now.getDay());
-        const startStr = startOfWeek.toISOString().split('T')[0];
+        const startStr = getLocalDateString(startOfWeek);
         return l.date >= startStr && l.date <= todayStr;
       }
       if (dateRange === "This Month") {
         const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
         return l.date >= startStr && l.date <= todayStr;
+      }
+      if (dateRange === "Custom Range") {
+        return l.date >= customStartDate && l.date <= customEndDate;
       }
       return true;
     });
@@ -112,15 +124,15 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
       absentPercent: aPct,
       latePercent: lPct
     };
-  }, [logs, dateRange, workers, analytics]);
+  }, [logs, dateRange, customStartDate, customEndDate, workers, analytics]);
 
   const monthlyAvg = 92;
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateString(new Date());
   
   const tableLogs = React.useMemo(() => {
     const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
+    const todayStr = getLocalDateString(now);
 
     return (logs || []).filter((l: any) => {
       // 1. Apply date range
@@ -130,16 +142,18 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
       } else if (dateRange === "Yesterday") {
         const yest = new Date();
         yest.setDate(yest.getDate() - 1);
-        const yestStr = yest.toISOString().split('T')[0];
+        const yestStr = getLocalDateString(yest);
         matchDate = l.date === yestStr;
       } else if (dateRange === "This Week") {
         const startOfWeek = new Date();
         startOfWeek.setDate(now.getDate() - now.getDay());
-        const startStr = startOfWeek.toISOString().split('T')[0];
+        const startStr = getLocalDateString(startOfWeek);
         matchDate = l.date >= startStr && l.date <= todayStr;
       } else if (dateRange === "This Month") {
         const startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
         matchDate = l.date >= startStr && l.date <= todayStr;
+      } else if (dateRange === "Custom Range") {
+        matchDate = l.date >= customStartDate && l.date <= customEndDate;
       } else {
         matchDate = true;
       }
@@ -155,7 +169,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
 
       return matchDate && matchDept && matchType;
     });
-  }, [logs, dateRange, filterDept, filterType]);
+  }, [logs, dateRange, customStartDate, customEndDate, filterDept, filterType]);
   
   const liveFeed = (logs || []).slice(0, 10).map((log: any) => {
      let text = `${log.employee_name} Punched In`;
@@ -208,16 +222,37 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
           Attendance Command Center
         </h2>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
-          <select 
-            value={dateRange}
-            onChange={(e) => setDateRange(e.target.value)}
-            className="flex-1 sm:flex-none bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
-          >
-            <option>Today</option>
-            <option>Yesterday</option>
-            <option>This Week</option>
-            <option>This Month</option>
-          </select>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select 
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="flex-1 sm:flex-none bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              <option>Today</option>
+              <option>Yesterday</option>
+              <option>This Week</option>
+              <option>This Month</option>
+              <option value="Custom Range">Custom Range</option>
+            </select>
+
+            {dateRange === "Custom Range" && (
+              <div className="flex items-center gap-1 animate-in fade-in slide-in-from-left-2">
+                <input 
+                  type="date"
+                  value={customStartDate}
+                  onChange={(e) => setCustomStartDate(e.target.value)}
+                  className="bg-muted/50 border border-input rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <span className="text-xs text-muted-foreground hidden sm:inline">to</span>
+                <input 
+                  type="date"
+                  value={customEndDate}
+                  onChange={(e) => setCustomEndDate(e.target.value)}
+                  className="bg-muted/50 border border-input rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+            )}
+          </div>
           <button 
             onClick={() => setShowFilters(!showFilters)}
             className={`flex-1 sm:flex-none justify-center flex items-center gap-2 border border-input px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters ? 'bg-primary/20 text-primary border-primary/30' : 'bg-muted/50 hover:bg-muted text-foreground'}`}
