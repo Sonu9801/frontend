@@ -38,8 +38,8 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     employmentStatus: "Active",
     
     shiftType: "General Shift",
-    shiftStart: "09:30",
-    shiftEnd: "18:00",
+    shiftStart: "09:00",
+    shiftEnd: "17:30",
     
     salaryType: "Monthly",
     monthlySalary: "",
@@ -94,8 +94,8 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
           employmentStatus: worker.employmentStatus || "Active",
         
         shiftType: worker.shiftType || "General Shift",
-        shiftStart: worker.shiftStart || "09:30",
-        shiftEnd: worker.shiftEnd || "18:00",
+        shiftStart: worker.shiftStart || "09:00",
+        shiftEnd: worker.shiftEnd || "17:30",
         
         salaryType: worker.salaryProfile?.salaryType || "Monthly",
         monthlySalary: worker.salaryProfile?.monthlySalary?.toString() || "",
@@ -330,7 +330,7 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
                     <SelectTrigger className="mt-1"><SelectValue placeholder="Shift" /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Evening Shift (05:30 PM - 11:00 PM)">Evening (05:30 PM - 11:00 PM)</SelectItem>
-                      <SelectItem value="General Shift">General Shift (09:30 AM - 06:00 PM)</SelectItem>
+                      <SelectItem value="General Shift">General Shift (09:00 AM - 05:30 PM)</SelectItem>
                       <SelectItem value="Morning Shift">Morning Shift</SelectItem>
                       <SelectItem value="Evening Shift">Evening Shift</SelectItem>
                       <SelectItem value="Night Shift">Night Shift</SelectItem>

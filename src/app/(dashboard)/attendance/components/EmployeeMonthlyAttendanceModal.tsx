@@ -54,7 +54,7 @@ const formatTime12h = (timeStr: string | null) => {
 };
 
 const to24hTime = (timeStr: string | null) => {
-  if (!timeStr || timeStr === "--:--" || !timeStr.trim()) return "09:30";
+  if (!timeStr || timeStr === "--:--" || !timeStr.trim()) return "09:00";
   timeStr = timeStr.trim();
   if (timeStr.toUpperCase().includes("AM") || timeStr.toUpperCase().includes("PM")) {
     try {
@@ -67,7 +67,7 @@ const to24hTime = (timeStr: string | null) => {
       if (!isPm && h === 12) h = 0;
       return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
     } catch {
-      return "09:30";
+      return "09:00";
     }
   }
   return timeStr;
@@ -189,9 +189,9 @@ const calcOtAndWorking = (in24: string, out24: string) => {
 
   if (outMins <= inMins) return { workingHours: 8.0, otHours: 0.0 };
 
-  // OT ONLY calculates if checkout is at or after 18:30 (6:30 PM threshold)
-  const minOtMins = 18 * 60 + 30; // 18:30 (6:30 PM)
-  const shiftEndMins = 18 * 60; // 18:00 (6:00 PM)
+  // OT ONLY calculates if checkout is at or after 18:00 (6:00 PM threshold - 30m buffer after 17:30 shift end)
+  const minOtMins = 18 * 60; // 18:00 (6:00 PM)
+  const shiftEndMins = 17 * 60 + 30; // 17:30 (5:30 PM)
 
   let otHrs = 0.0;
   if (outMins >= minOtMins) {
@@ -264,8 +264,8 @@ export default function EmployeeMonthlyAttendanceModal({
         ? dayItem.is_sunday ? "Sunday Work" : (dayItem.is_calendar_sunday || dayItem.day_name === "Sun" ? "Holiday" : "Present")
         : dayItem.status
     );
-    const inStr = dayItem.punch_in_24 || to24hTime(dayItem.punch_in) || "09:30";
-    const outStr = dayItem.punch_out_24 || to24hTime(dayItem.punch_out) || "18:00";
+    const inStr = dayItem.punch_in_24 || to24hTime(dayItem.punch_in) || "09:00";
+    const outStr = dayItem.punch_out_24 || to24hTime(dayItem.punch_out) || "17:30";
     setEditPunchIn(inStr);
     setEditPunchOut(outStr);
 
@@ -370,7 +370,7 @@ export default function EmployeeMonthlyAttendanceModal({
             </div>
 
             <div className="bg-card border border-border p-3 rounded-xl shadow-xs">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Sunday Work</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Sunday / Festival Work</p>
               <p className="text-xl font-extrabold text-blue-600 mt-0.5">
                 {isLoadingSummary ? "..." : `${monthSummary?.sunday_work || 0} day(s)`}
               </p>
@@ -449,6 +449,12 @@ export default function EmployeeMonthlyAttendanceModal({
                         statusBadge = (
                           <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 font-bold">
                             Sunday Work
+                          </Badge>
+                        );
+                      } else if (dayItem.status === "Festival Work" || dayItem.status === "Holiday Work") {
+                        statusBadge = (
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-bold">
+                            Festival Work
                           </Badge>
                         );
                       } else if (dayItem.status === "Holiday" || dayItem.status.startsWith("Holiday") || (isSunday && (dayItem.status === "Sunday" || !dayItem.has_record))) {
@@ -559,6 +565,7 @@ export default function EmployeeMonthlyAttendanceModal({
                   <option value="Leave">Leave</option>
                   <option value="Late">Late</option>
                   <option value="Sunday Work">Sunday Work</option>
+                  <option value="Festival Work">Festival Work</option>
                   <option value="Holiday">Holiday</option>
                 </select>
               </div>

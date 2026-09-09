@@ -144,7 +144,7 @@ export default function EmployeeProfileDrawer({ open, onOpenChange, worker, onEd
                     </p>
                   </div>
                   <div className="bg-muted/30 p-3 rounded-lg border border-border/50">
-                    <p className="text-xs text-muted-foreground flex items-center gap-1.5"><TrendingUp size={14}/> Sunday Work</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1.5"><TrendingUp size={14}/> Sunday / Festival Work</p>
                     <p className="text-lg font-semibold mt-1">
                       {isLoadingSummary ? "..." : `${attendanceSummary?.sunday_work || 0} day(s)`}
                     </p>

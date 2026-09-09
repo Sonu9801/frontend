@@ -100,7 +100,7 @@ export default function PayrollDashboardTab() {
             <div className="space-y-4">
               <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm font-medium">Total Base Salary</span><span className="font-bold">₹{(summary.baseSalaryCost || 0).toLocaleString()}</span></div>
               <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm font-medium">Total OT Pay</span><span className="font-bold">₹{(summary.otCost || 0).toLocaleString()}</span></div>
-              <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm font-medium">Total Sunday Pay</span><span className="font-bold">₹{(summary.sundayCost || 0).toLocaleString()}</span></div>
+              <div className="flex justify-between items-center"><span className="text-muted-foreground text-sm font-medium">Total Sunday / Festival Pay</span><span className="font-bold">₹{(summary.sundayCost || 0).toLocaleString()}</span></div>
               <div className="pt-4 border-t border-border flex justify-between items-center"><span className="text-foreground font-bold">Total Labour Cost</span><span className="font-black text-xl text-primary">₹{(summary.monthlyPayrollCost || 0).toLocaleString()}</span></div>
             </div>
           </div>

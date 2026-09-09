@@ -55,7 +55,7 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
     }
   };
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://192.168.1.6:8000";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
   let BASE_URL = API_URL.replace(/\/api\/?$/, "");
   // Replace 0.0.0.0 with localhost for browser compatibility
   if (BASE_URL.includes("0.0.0.0")) {

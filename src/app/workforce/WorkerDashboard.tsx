@@ -571,7 +571,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                 {[
                   { id: 'attendance', icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", action: () => handleTabChange("attendance") },
                   { id: 'ot', icon: Clock, label: "Overtime", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", action: () => handleTabChange("ot") },
-                  { id: 'sunday', icon: Sun, label: "Sunday Work", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", action: () => handleTabChange("sunday") },
+                  { id: 'sunday', icon: Sun, label: "Sunday / Festival", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", action: () => handleTabChange("sunday") },
                   { id: 'jobs', icon: Clipboard, label: "My Jobs", color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", action: () => handleTabChange("jobs") },
                   { id: 'leave', icon: Briefcase, label: "Leave", color: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", action: () => handleTabChange("leave") },
                   { id: 'notice', icon: Megaphone, label: "Notices", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", action: () => handleTabChange("notice") },

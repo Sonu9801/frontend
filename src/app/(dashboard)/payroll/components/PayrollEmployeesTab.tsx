@@ -141,7 +141,7 @@ export default function PayrollEmployeesTab() {
     },
     {
       id: "sundayAmount",
-      header: "Sunday",
+      header: "Sunday / Festival",
       accessor: (row) => <span className="font-mono text-purple-500">₹{row.sundayAmount}</span>,
     },
     {
@@ -348,7 +348,7 @@ export default function PayrollEmployeesTab() {
                       <span className="font-black text-orange-600">{selectedEmp.otHours}h</span>
                     </div>
                     <div className="bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl flex justify-between items-center">
-                      <span className="text-xs font-semibold text-purple-600">Sunday Hrs</span>
+                      <span className="text-xs font-semibold text-purple-600">Sunday / Festival Hrs</span>
                       <span className="font-black text-purple-600">{selectedEmp.sundayHours}h</span>
                     </div>
                   </div>
@@ -360,7 +360,7 @@ export default function PayrollEmployeesTab() {
                   <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-3 font-mono text-sm">
                     <div className="flex justify-between"><span>Base Salary</span><span>₹{selectedEmp.baseSalary}</span></div>
                     <div className="flex justify-between text-orange-500"><span>Overtime Pay</span><span>+ ₹{selectedEmp.otAmount}</span></div>
-                    <div className="flex justify-between text-purple-500"><span>Sunday Pay</span><span>+ ₹{selectedEmp.sundayAmount}</span></div>
+                    <div className="flex justify-between text-purple-500"><span>Sunday / Festival Pay</span><span>+ ₹{selectedEmp.sundayAmount}</span></div>
                     <div className="flex justify-between text-emerald-500"><span>Bonus</span><span>+ ₹{selectedEmp.bonusAmount}</span></div>
                     <div className="flex justify-between text-destructive"><span>Deductions</span><span>- ₹{selectedEmp.deductions}</span></div>
                     <div className="pt-3 mt-3 border-t border-border flex justify-between text-lg font-bold text-foreground">

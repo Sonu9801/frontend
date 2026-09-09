@@ -146,7 +146,7 @@ function ViewProfileDialog({
             <div className="flex justify-between border-b border-border/50 pb-1.5">
               <span className="text-muted-foreground">Shift Timings</span>
               <span className="font-semibold text-foreground">
-                {worker.shiftStart || "09:30:00"} - {worker.shiftEnd || "18:00:00"}
+                {worker.shiftStart || "09:00:00"} - {worker.shiftEnd || "17:30:00"}
               </span>
             </div>
             <div className="flex justify-between border-b border-border/50 pb-1.5">

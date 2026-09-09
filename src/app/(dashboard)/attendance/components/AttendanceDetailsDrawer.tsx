@@ -4,6 +4,7 @@ import {
   X, MapPin, Camera, Clock, Calendar, Smartphone, Globe, Activity, CheckCircle, AlertCircle
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { API_URL } from "@/lib/api";
 
 export default function AttendanceDetailsDrawer({ open, onOpenChange, record }: any) {
   const isVisible = open && !!record;
@@ -113,7 +114,7 @@ export default function AttendanceDetailsDrawer({ open, onOpenChange, record }: 
                    <p className="text-xs font-medium text-center text-muted-foreground">Punch In</p>
                    {record.punch_in_photo_url ? (
                       <div className="aspect-[3/4] rounded-lg overflow-hidden border border-border shadow-sm">
-                         <img src={`http://192.168.1.6:8000${record.punch_in_photo_url}`} alt="Punch In" className="w-full h-full object-cover" />
+                         <img src={`${API_URL}${record.punch_in_photo_url}`} alt="Punch In" className="w-full h-full object-cover" />
                       </div>
                    ) : (
                       <div className="aspect-[3/4] rounded-lg bg-muted flex items-center justify-center border border-border shadow-sm text-xs text-muted-foreground flex-col gap-2">
@@ -125,7 +126,7 @@ export default function AttendanceDetailsDrawer({ open, onOpenChange, record }: 
                    <p className="text-xs font-medium text-center text-muted-foreground">Punch Out</p>
                    {record.punch_out_photo_url ? (
                       <div className="aspect-[3/4] rounded-lg overflow-hidden border border-border shadow-sm">
-                         <img src={`http://192.168.1.6:8000${record.punch_out_photo_url}`} alt="Punch Out" className="w-full h-full object-cover" />
+                         <img src={`${API_URL}${record.punch_out_photo_url}`} alt="Punch Out" className="w-full h-full object-cover" />
                       </div>
                    ) : (
                       <div className="aspect-[3/4] rounded-lg bg-muted flex items-center justify-center border border-border shadow-sm text-xs text-muted-foreground flex-col gap-2">

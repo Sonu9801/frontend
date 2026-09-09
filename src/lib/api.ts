@@ -8,7 +8,7 @@ const getApiUrl = () => {
   return "/api";
 };
 
-const API_URL = getApiUrl();
+export const API_URL = getApiUrl();
 
 export const api = axios.create({
   baseURL: API_URL,

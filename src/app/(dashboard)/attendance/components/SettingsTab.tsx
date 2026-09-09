@@ -232,11 +232,11 @@ export default function SettingsTab() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label className="text-xs font-semibold text-muted-foreground mb-2 block">Default Shift Start</Label>
-                      <Input type="time" value={form.defaultShiftStart || "09:30"} onChange={(e) => handleChange("defaultShiftStart", e.target.value)} className="mt-1" />
+                      <Input type="time" value={form.defaultShiftStart || "09:00"} onChange={(e) => handleChange("defaultShiftStart", e.target.value)} className="mt-1" />
                     </div>
                     <div>
                       <Label>Default Shift End</Label>
-                      <Input type="time" value={form.defaultShiftEnd || "18:00"} onChange={(e) => handleChange("defaultShiftEnd", e.target.value)} className="mt-1" />
+                      <Input type="time" value={form.defaultShiftEnd || "17:30"} onChange={(e) => handleChange("defaultShiftEnd", e.target.value)} className="mt-1" />
                     </div>
                     <div>
                       <Label>Present Window Ends At</Label>
@@ -265,7 +265,7 @@ export default function SettingsTab() {
                     <div className="grid grid-cols-2 gap-4 p-4 border border-border rounded-xl bg-muted/10">
                       <div>
                         <Label>OT Start Time</Label>
-                        <Input type="time" value={form.otStartTime || "18:30"} onChange={(e) => handleChange("otStartTime", e.target.value)} className="mt-1" />
+                        <Input type="time" value={form.otStartTime || "18:00"} onChange={(e) => handleChange("otStartTime", e.target.value)} className="mt-1" />
                       </div>
                       <div>
                         <Label>OT Rate Multiplier (e.g. 1.5x)</Label>

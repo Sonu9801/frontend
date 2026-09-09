@@ -116,6 +116,10 @@ export default function LogsTab() {
           case "Sunday Work":
             colorClass = "border-blue-500 text-blue-500 bg-blue-500/10";
             break;
+          case "Festival Work":
+          case "Holiday Work":
+            colorClass = "border-purple-500 text-purple-500 bg-purple-500/10";
+            break;
         }
 
         return <Badge variant={variant} className={colorClass}>{row.status}</Badge>;
