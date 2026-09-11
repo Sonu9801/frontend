@@ -387,7 +387,7 @@ export default function PayrollEmployeesTab() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => {
                   if (confirm(`Are you sure you want to reset/delete the payroll record for ${row.employeeName}?`)) {
-                    deletePayroll.mutate({ id: row.id, month: row.month || "2026-06" }, {
+                    deletePayroll.mutate({ id: row.id, month: row.month || selectedMonth }, {
                       onSuccess: () => toast.success("Payroll record deleted/reset"),
                       onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete")
                     });
@@ -624,7 +624,7 @@ export default function PayrollEmployeesTab() {
         ] : []}
         onSubmit={(data) => {
           if (!editRecord) return;
-          updatePayroll.mutate({ id: editRecord.id, data: { ...data, month: editRecord.month || "2026-06" } }, {
+          updatePayroll.mutate({ id: editRecord.id, data: { ...data, month: editRecord.month || selectedMonth } }, {
             onSuccess: () => {
               toast.success("Payroll updated successfully");
               setEditRecord(null);
@@ -643,7 +643,7 @@ export default function PayrollEmployeesTab() {
           if (!markPaidRecord) return;
           updatePayroll.mutate({ 
             id: markPaidRecord.id, 
-            data: { month: markPaidRecord.month || "2026-06", status: "Paid", reason } 
+            data: { month: markPaidRecord.month || selectedMonth, status: "Paid", reason } 
           }, {
             onSuccess: () => {
               toast.success("Payroll marked as paid");
