@@ -239,13 +239,13 @@ export default function SettingsTab() {
                       <Input type="time" value={form.defaultShiftEnd || "17:30"} onChange={(e) => handleChange("defaultShiftEnd", e.target.value)} className="mt-1" />
                     </div>
                     <div>
-                      <Label>Present Window Ends At</Label>
-                      <Input type="time" value={form.presentWindowEnd || "10:00"} onChange={(e) => handleChange("presentWindowEnd", e.target.value)} className="mt-1" />
-                      <p className="text-xs text-muted-foreground mt-1">Workers punching in after this time will be marked Late or Half Day.</p>
+                      <Label>Present Window Ends At (Late Threshold)</Label>
+                      <Input type="time" value={form.presentWindowEnd || "09:30"} onChange={(e) => handleChange("presentWindowEnd", e.target.value)} className="mt-1" />
+                      <p className="text-xs text-muted-foreground mt-1">Workers punching in after 09:30 AM will be marked Late (30 mins relaxation after 09:00 AM shift start).</p>
                     </div>
                     <div>
                       <Label>Half Day Starts At</Label>
-                      <Input type="time" value={form.halfDayStart || "10:00"} onChange={(e) => handleChange("halfDayStart", e.target.value)} className="mt-1" />
+                      <Input type="time" value={form.halfDayStart || "13:00"} onChange={(e) => handleChange("halfDayStart", e.target.value)} className="mt-1" />
                     </div>
                   </div>
                 </div>

@@ -399,7 +399,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
             {getTranslation(langIndex, getGreeting())}, {(worker?.name || "Worker").split(' ')[0]} 👋
           </h1>
           <p className="text-[12px] font-[500] text-[#6B7280] dark:text-gray-400 leading-none truncate mt-0.5">
-            ID: {worker.employee_id || worker.worker_id} • {getTranslation(langIndex, worker.shift_name || "General Shift")}
+            ID: {worker.employee_id || worker.worker_id} • {getTranslation(langIndex, worker.shift_type || worker.shift_name || "Evening Shift (05:30 PM - 11:00 PM)")}
           </p>
         </div>
 
@@ -515,11 +515,22 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                       <div className="mb-4 mt-2">
                         <p className="text-[10px] text-white/70 font-medium mb-1.5 tracking-wide">Shift Time</p>
                         <p className="text-[11px] font-bold text-white tracking-wide leading-tight">
-                          {attendanceSettings?.defaultShiftStart ? (() => {
+                          {worker?.shift_start && worker?.shift_end ? (() => {
+                            try {
+                              const formatT = (tStr: string) => {
+                                const [h, m] = tStr.split(':');
+                                const d = new Date();
+                                d.setHours(parseInt(h));
+                                d.setMinutes(parseInt(m));
+                                return format(d, 'hh:mm a');
+                              };
+                              return `${formatT(worker.shift_start)} - ${formatT(worker.shift_end)}`;
+                            } catch { return worker.shift_type || "05:30 PM - 11:00 PM"; }
+                          })() : (worker?.shift_type || (attendanceSettings?.defaultShiftStart ? (() => {
                             try { const [h,m] = attendanceSettings.defaultShiftStart.split(':'); const d=new Date(); d.setHours(parseInt(h)); d.setMinutes(parseInt(m)); return format(d, 'hh:mm a'); } catch { return "09:00 AM"; }
-                          })() : "09:00 AM"} - {attendanceSettings?.defaultShiftEnd ? (() => {
+                          })() : "09:00 AM") + " - " + (attendanceSettings?.defaultShiftEnd ? (() => {
                             try { const [h,m] = attendanceSettings.defaultShiftEnd.split(':'); const d=new Date(); d.setHours(parseInt(h)); d.setMinutes(parseInt(m)); return format(d, 'hh:mm a'); } catch { return "06:00 PM"; }
-                          })() : "06:00 PM"}
+                          })() : "06:00 PM"))}
                         </p>
                       </div>
 
