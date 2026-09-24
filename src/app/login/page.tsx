@@ -62,10 +62,11 @@ export default function LoginPage() {
 
     const checkSetupAndInvite = async () => {
       try {
-        const { setup_required } = await authApi.getSetupStatus();
-        setSetupRequired(setup_required);
+        const res = await authApi.getSetupStatus();
+        const isSetupRequired = Boolean(res && res.setup_required);
+        setSetupRequired(isSetupRequired);
         
-        if (setup_required) {
+        if (isSetupRequired) {
           setRegRole("admin");
           setStep("register");
         } else if (inviteParam && emailParam) {

@@ -52,6 +52,9 @@ const navGroups = [
     items: [
       { label: "All Vehicles", href: "/production?category=All+Categories", icon: Factory },
       { label: "Cargo Box", href: "/production?category=Cargo+Box", icon: Package },
+      { label: "Cargo Box / Air Cutter / Battery Box", href: "/production?category=Cargo+Box+%2F+Air+Cutter+%2F+Battery+Box", icon: Package },
+      { label: "Cargo Box / Air Cutter", href: "/production?category=Cargo+Box+%2F+Air+Cutter", icon: Package },
+      { label: "Cargo Box / Battery Box", href: "/production?category=Cargo+Box+%2F+Battery+Box", icon: Package },
       { label: "Garbage Body", href: "/production?category=Garbage+Body", icon: Trash2 },
       { label: "Grocery Cart", href: "/production?category=Grocery+Cart", icon: Package },
       { label: "Food Cart", href: "/production?category=Food+Cart", icon: Package },

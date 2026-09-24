@@ -144,6 +144,9 @@ const STAGE_CONFIG: Record<
 const PRODUCT_CATEGORIES = [
   "All Categories",
   "Cargo Box",
+  "Cargo Box / Air Cutter / Battery Box",
+  "Cargo Box / Air Cutter",
+  "Cargo Box / Battery Box",
   "Garbage Body",
   "Grocery Cart",
   "Food Cart",
@@ -712,6 +715,12 @@ export default function ProductionPage() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addModalMode, setAddModalMode] = useState<"received" | "dispatch">("received");
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [oemFilter, setOemFilter] = useState<string>("All OEMs");
+  const [showOemDropdown, setShowOemDropdown] = useState(false);
+  const [dealerFilter, setDealerFilter] = useState<string>("All Dealers");
+  const [showDealerDropdown, setShowDealerDropdown] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"All Statuses" | "Pending Only" | "Dispatched Only">("All Statuses");
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [drawerVehicle, setDrawerVehicle] = useState<Vehicle | null>(null);
 
   const draggingId = useRef<string | null>(null);
@@ -723,12 +732,25 @@ export default function ProductionPage() {
     }, {});
   }, [workers]);
 
+  const allOemOptions = useMemo(() => {
+    const oemsInVehicles = vehicles.map((v: Vehicle) => v.oemName).filter(Boolean) as string[];
+    const set = new Set(["All OEMs", ...oemsInVehicles]);
+    return Array.from(set);
+  }, [vehicles]);
+
+  const allDealerOptions = useMemo(() => {
+    const dealersInVehicles = vehicles.map((v: Vehicle) => v.dealerName).filter(Boolean) as string[];
+    const set = new Set(["All Dealers", ...dealersInVehicles]);
+    return Array.from(set);
+  }, [vehicles]);
+
   const filtered = useMemo(() => {
     return vehicles.filter((v: Vehicle) => {
       const q = search.toLowerCase();
       const trackingIdStr = v.trackingId || "";
       const vehicleNumStr = v.vehicleNumber || "";
       const oemNameStr = v.oemName || "";
+      const dealerNameStr = v.dealerName || "";
       const priorityStr = v.priority || "";
       const categoryStr = v.productCategory || "";
 
@@ -736,19 +758,33 @@ export default function ProductionPage() {
         !q ||
         trackingIdStr.toLowerCase().includes(q) ||
         vehicleNumStr.toLowerCase().includes(q) ||
-        oemNameStr.toLowerCase().includes(q);
+        oemNameStr.toLowerCase().includes(q) ||
+        dealerNameStr.toLowerCase().includes(q);
       const matchesPriority =
         priorityFilter === "all" || priorityStr.toLowerCase() === priorityFilter.toLowerCase();
       const matchesCategory =
         categoryFilter === "All Categories" ||
         categoryStr.toLowerCase() === categoryFilter.toLowerCase();
+      const matchesOem =
+        oemFilter === "All OEMs" ||
+        oemNameStr.toLowerCase().trim() === oemFilter.toLowerCase().trim();
+      const matchesDealer =
+        dealerFilter === "All Dealers" ||
+        dealerNameStr.toLowerCase().trim() === dealerFilter.toLowerCase().trim();
+
+      const normStage = (v.currentStage || (v as any).current_stage || "received").toLowerCase().trim();
+      const isDispatched = normStage === "dispatch" || normStage === "dispatched" || normStage === "delivered";
+      const matchesStatus =
+        statusFilter === "All Statuses" ||
+        (statusFilter === "Pending Only" && !isDispatched) ||
+        (statusFilter === "Dispatched Only" && isDispatched);
 
       const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
       const matchesDate = isDateInFilterRange(vDateRaw, dateRange);
 
-      return matchesSearch && matchesPriority && matchesCategory && matchesDate;
+      return matchesSearch && matchesPriority && matchesCategory && matchesOem && matchesDealer && matchesStatus && matchesDate;
     });
-  }, [vehicles, search, priorityFilter, categoryFilter, dateRange]);
+  }, [vehicles, search, priorityFilter, categoryFilter, oemFilter, dealerFilter, statusFilter, dateRange]);
 
   const byStage = useMemo(() => {
     const initialGrouped: Record<string, Vehicle[]> = {
@@ -871,7 +907,7 @@ export default function ProductionPage() {
 
   const urgentCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "urgent").length, [vehicles]);
   const highCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "high").length, [vehicles]);
-  const isFiltered = search || priorityFilter !== "all" || categoryFilter !== "All Categories";
+  const isFiltered = search || priorityFilter !== "all" || categoryFilter !== "All Categories" || oemFilter !== "All OEMs" || dealerFilter !== "All Dealers" || statusFilter !== "All Statuses" || dateRange !== "All Time";
 
   if (isLoadingVehicles) {
     return (
@@ -974,6 +1010,45 @@ export default function ProductionPage() {
                   onClick={() => setCategoryFilter("All Categories")}
                   className="ml-0.5 hover:text-primary/60"
                   aria-label="Clear category filter"
+                >
+                  <X size={9} />
+                </button>
+              </span>
+            )}
+            {oemFilter !== "All OEMs" && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
+                OEM: {oemFilter}
+                <button
+                  type="button"
+                  onClick={() => setOemFilter("All OEMs")}
+                  className="ml-0.5 hover:text-primary/60"
+                  aria-label="Clear OEM filter"
+                >
+                  <X size={9} />
+                </button>
+              </span>
+            )}
+            {dealerFilter !== "All Dealers" && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
+                Dealer: {dealerFilter}
+                <button
+                  type="button"
+                  onClick={() => setDealerFilter("All Dealers")}
+                  className="ml-0.5 hover:text-primary/60"
+                  aria-label="Clear dealer filter"
+                >
+                  <X size={9} />
+                </button>
+              </span>
+            )}
+            {statusFilter !== "All Statuses" && (
+              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                Status: {statusFilter}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("All Statuses")}
+                  className="ml-0.5 hover:text-amber-600"
+                  aria-label="Clear status filter"
                 >
                   <X size={9} />
                 </button>
@@ -1112,7 +1187,11 @@ export default function ProductionPage() {
           <div className="relative w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => setShowCategoryDropdown((v) => !v)}
+              onClick={() => {
+                setShowCategoryDropdown((v) => !v);
+                setShowOemDropdown(false);
+                setShowDealerDropdown(false);
+              }}
               data-ocid="production.category.select"
               className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full"
             >
@@ -1151,6 +1230,176 @@ export default function ProductionPage() {
                       )}
                     >
                       {cat}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* OEM Name Filter Dropdown */}
+          <div className="relative w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowOemDropdown((v) => !v);
+                setShowCategoryDropdown(false);
+                setShowDealerDropdown(false);
+              }}
+              data-ocid="production.oem.select"
+              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
+            >
+              <span className="truncate">{oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
+              <ChevronDown
+                size={11}
+                className={cn(
+                  "transition-transform",
+                  showOemDropdown && "rotate-180",
+                )}
+              />
+            </button>
+            <AnimatePresence>
+              {showOemDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                  data-ocid="production.oem.dropdown_menu"
+                >
+                  {allOemOptions.map((oem) => (
+                    <button
+                      key={oem}
+                      type="button"
+                      onClick={() => {
+                        setOemFilter(oem);
+                        setShowOemDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                        oemFilter === oem
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {oem}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Dealer Name Filter Dropdown */}
+          <div className="relative w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowDealerDropdown((v) => !v);
+                setShowCategoryDropdown(false);
+                setShowOemDropdown(false);
+                setShowStatusDropdown(false);
+              }}
+              data-ocid="production.dealer.select"
+              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
+            >
+              <span className="truncate">{dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
+              <ChevronDown
+                size={11}
+                className={cn(
+                  "transition-transform",
+                  showDealerDropdown && "rotate-180",
+                )}
+              />
+            </button>
+            <AnimatePresence>
+              {showDealerDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                  data-ocid="production.dealer.dropdown_menu"
+                >
+                  {allDealerOptions.map((dealer) => (
+                    <button
+                      key={dealer}
+                      type="button"
+                      onClick={() => {
+                        setDealerFilter(dealer);
+                        setShowDealerDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                        dealerFilter === dealer
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {dealer}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Status Filter Dropdown (Pending / Dispatched) */}
+          <div className="relative w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowStatusDropdown((v) => !v);
+                setShowCategoryDropdown(false);
+                setShowOemDropdown(false);
+                setShowDealerDropdown(false);
+              }}
+              data-ocid="production.status.select"
+              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
+            >
+              <span className="truncate">
+                {statusFilter === "All Statuses" ? "All Statuses" : statusFilter === "Pending Only" ? "⏳ Pending Only" : "✅ Dispatched Only"}
+              </span>
+              <ChevronDown
+                size={11}
+                className={cn(
+                  "transition-transform",
+                  showStatusDropdown && "rotate-180",
+                )}
+              />
+            </button>
+            <AnimatePresence>
+              {showStatusDropdown && (
+                <motion.div
+                  initial={{ opacity: 0, y: -6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[170px]"
+                  data-ocid="production.status.dropdown_menu"
+                >
+                  {[
+                    { id: "All Statuses", label: "All Statuses" },
+                    { id: "Pending Only", label: "⏳ Pending Vehicles Only" },
+                    { id: "Dispatched Only", label: "✅ Dispatched Only" },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setStatusFilter(item.id as any);
+                        setShowStatusDropdown(false);
+                      }}
+                      className={cn(
+                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                        statusFilter === item.id
+                          ? "bg-primary/10 text-primary font-semibold"
+                          : "text-foreground hover:bg-muted",
+                      )}
+                    >
+                      {item.label}
                     </button>
                   ))}
                 </motion.div>

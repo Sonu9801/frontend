@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronDown, X, Upload } from "lucide-react";
+import { ChevronDown, X, Upload, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useVehicles } from "@/hooks/useQueries";
 import { toast } from "sonner";
@@ -81,9 +81,36 @@ function CustomModelSelect({ value, onChange }: { value: string, onChange: (v: s
   );
 }
 
+const DEFAULT_OEM_OPTIONS = [
+  "EULER MOTORS",
+  "MONTRA ELECTRIC",
+  "BAJAJ AUTO",
+  "PIAGGIO",
+  "JUPITER ELECTRIC MOBILITY",
+  "TVS MOTORS",
+  "E NEXT MOBILITY",
+  "TATA MOTORS",
+  "MAHINDRA",
+];
+
+const DEFAULT_DEALER_OPTIONS = [
+  "Tech UP",
+  "Eco Edge",
+  "Smart Solution",
+  "Sincear Marketing",
+  "Bhutani Auto Cap",
+  "KK Auto mobile",
+  "SHREE BALAJI MOTORS",
+  "RAJAN AUTOTECH LLP",
+  "ALLIED EV SOLUTIONS",
+];
+
 const PRODUCT_CATEGORIES = [
   "All Categories",
   "Cargo Box",
+  "Cargo Box / Air Cutter / Battery Box",
+  "Cargo Box / Air Cutter",
+  "Cargo Box / Battery Box",
   "Garbage Body",
   "Grocery Cart",
   "Food Cart",
@@ -110,6 +137,86 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
   const [activeMode, setActiveMode] = useState<"received" | "dispatch">(initialMode);
   const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
   const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
+
+  const [customOems, setCustomOems] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("custom_oem_names");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [customDealers, setCustomDealers] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const saved = localStorage.getItem("custom_dealer_names");
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showAddOemModal, setShowAddOemModal] = useState(false);
+  const [newOemInput, setNewOemInput] = useState("");
+
+  const [showAddDealerModal, setShowAddDealerModal] = useState(false);
+  const [newDealerInput, setNewDealerInput] = useState("");
+
+  const oemOptions = React.useMemo(() => {
+    const vehicleOems = vehiclesList.map((v) => v.oemName).filter(Boolean) as string[];
+    const combined = Array.from(new Set([...DEFAULT_OEM_OPTIONS, ...customOems, ...vehicleOems]));
+    return combined.sort((a, b) => a.localeCompare(b));
+  }, [customOems, vehiclesList]);
+
+  const dealerOptions = React.useMemo(() => {
+    const vehicleDealers = vehiclesList.map((v) => v.dealerName).filter(Boolean) as string[];
+    const combined = Array.from(new Set([...DEFAULT_DEALER_OPTIONS, ...customDealers, ...vehicleDealers]));
+    return combined.sort((a, b) => a.localeCompare(b));
+  }, [customDealers, vehiclesList]);
+
+  const handleAddOem = (nameToAdd?: string) => {
+    const name = (nameToAdd || newOemInput).trim();
+    if (!name) {
+      toast.error("Please enter OEM Name");
+      return;
+    }
+    if (!customOems.includes(name) && !DEFAULT_OEM_OPTIONS.includes(name)) {
+      const updated = [...customOems, name];
+      setCustomOems(updated);
+      try {
+        localStorage.setItem("custom_oem_names", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setForm((f) => ({ ...f, oemName: name, oemNameOther: "" }));
+    setNewOemInput("");
+    setShowAddOemModal(false);
+    toast.success(`OEM "${name}" added and selected!`);
+  };
+
+  const handleAddDealer = (nameToAdd?: string) => {
+    const name = (nameToAdd || newDealerInput).trim();
+    if (!name) {
+      toast.error("Please enter Dealer Name");
+      return;
+    }
+    if (!customDealers.includes(name) && !DEFAULT_DEALER_OPTIONS.includes(name)) {
+      const updated = [...customDealers, name];
+      setCustomDealers(updated);
+      try {
+        localStorage.setItem("custom_dealer_names", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    setForm((f) => ({ ...f, dealerName: name, dealerNameOther: "" }));
+    setNewDealerInput("");
+    setShowAddDealerModal(false);
+    toast.success(`Dealer "${name}" added and selected!`);
+  };
 
   const [form, setForm] = useState({
     vehicleNumber: "",
@@ -332,72 +439,104 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                     />
                   </div>
                 
-                <div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
                   <label className={labelCls}>OEM Name *</label>
-                  <div className="relative">
-                    <select
-                      required
-                      value={form.oemName}
-                      onChange={(e) => setForm((f) => ({ ...f, oemName: e.target.value }))}
-                      className={cn(inputCls, "appearance-none pr-7")}
-                    >
-                      <option value="">Select OEM</option>
-                      <option value="EULER MOTORS">EULER MOTORS</option>
-                      <option value="MONTRA ELECTRIC">MONTRA ELECTRIC</option>
-                      <option value="BAJAJ AUTO">BAJAJ AUTO</option>
-                      <option value="PIAGGIO">PIAGGIO</option>
-                      <option value="JUPITER ELECTRIC MOBILITY">JUPITER ELECTRIC MOBILITY</option>
-                      <option value="TVS MOTORS">TVS MOTORS</option>
-                      <option value="E NEXT MOBILITY">E NEXT MOBILITY</option>
-                      <option value="TATA MOTORS">TATA MOTORS</option>
-                      <option value="MAHINDRA">MAHINDRA</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  </div>
-                  {form.oemName === "Other" && (
-                    <input
-                      required
-                      placeholder="Enter OEM Name"
-                      value={form.oemNameOther}
-                      onChange={(e) => setForm((f) => ({ ...f, oemNameOther: e.target.value }))}
-                      className={cn(inputCls, "mt-2")}
-                    />
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddOemModal(true)}
+                    className="text-xs text-primary font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Add New OEM</span>
+                  </button>
                 </div>
-                
-                <div>
+                <div className="relative">
+                  <select
+                    required
+                    value={form.oemName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__ADD_NEW__") {
+                        setShowAddOemModal(true);
+                      } else {
+                        setForm((f) => ({ ...f, oemName: val }));
+                      }
+                    }}
+                    className={cn(inputCls, "appearance-none pr-7")}
+                  >
+                    <option value="">Select OEM</option>
+                    {oemOptions.map((oem) => (
+                      <option key={oem} value={oem}>
+                        {oem}
+                      </option>
+                    ))}
+                    <option value="Other">Other</option>
+                    <option value="__ADD_NEW__" className="font-semibold text-primary">
+                      + Add New OEM...
+                    </option>
+                  </select>
+                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                </div>
+                {form.oemName === "Other" && (
+                  <input
+                    required
+                    placeholder="Enter OEM Name"
+                    value={form.oemNameOther}
+                    onChange={(e) => setForm((f) => ({ ...f, oemNameOther: e.target.value }))}
+                    className={cn(inputCls, "mt-2")}
+                  />
+                )}
+              </div>
+            
+              <div>
+                <div className="flex items-center justify-between mb-1">
                   <label className={labelCls}>Dealer Name *</label>
-                  <div className="relative">
-                    <select
-                      required
-                      value={form.dealerName}
-                      onChange={(e) => setForm((f) => ({ ...f, dealerName: e.target.value }))}
-                      className={cn(inputCls, "appearance-none pr-7")}
-                    >
-                      <option value="">Select Dealer</option>
-                      <option value="Tech UP">Tech UP</option>
-                      <option value="Eco Edge">Eco Edge</option>
-                      <option value="Smart Solution">Smart Solution</option>
-                      <option value="Sincear Marketing">Sincear Marketing</option>
-                      <option value="Bhutani Auto Cap">Bhutani Auto Cap</option>
-                      <option value="KK Auto mobile">KK Auto mobile</option>
-                      <option value="SHREE BALAJI MOTORS">SHREE BALAJI MOTORS</option>
-                      <option value="RAJAN AUTOTECH LLP">RAJAN AUTOTECH LLP</option>
-                      <option value="ALLIED EV SOLUTIONS">ALLIED EV SOLUTIONS</option>
-                      <option value="Other">Other</option>
-                    </select>
-                    <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                  </div>
-                  {form.dealerName === "Other" && (
-                    <input
-                      placeholder="Enter Dealer Name"
-                      value={form.dealerNameOther}
-                      onChange={(e) => setForm((f) => ({ ...f, dealerNameOther: e.target.value }))}
-                      className={cn(inputCls, "mt-2")}
-                    />
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowAddDealerModal(true)}
+                    className="text-xs text-primary font-medium hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Plus size={13} />
+                    <span>Add New Dealer</span>
+                  </button>
                 </div>
+                <div className="relative">
+                  <select
+                    required
+                    value={form.dealerName}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "__ADD_NEW__") {
+                        setShowAddDealerModal(true);
+                      } else {
+                        setForm((f) => ({ ...f, dealerName: val }));
+                      }
+                    }}
+                    className={cn(inputCls, "appearance-none pr-7")}
+                  >
+                    <option value="">Select Dealer</option>
+                    {dealerOptions.map((dealer) => (
+                      <option key={dealer} value={dealer}>
+                        {dealer}
+                      </option>
+                    ))}
+                    <option value="Other">Other</option>
+                    <option value="__ADD_NEW__" className="font-semibold text-primary">
+                      + Add New Dealer...
+                    </option>
+                  </select>
+                  <ChevronDown size={12} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                </div>
+                {form.dealerName === "Other" && (
+                  <input
+                    placeholder="Enter Dealer Name"
+                    value={form.dealerNameOther}
+                    onChange={(e) => setForm((f) => ({ ...f, dealerNameOther: e.target.value }))}
+                    className={cn(inputCls, "mt-2")}
+                  />
+                )}
+              </div>
 
                 <div>
                   <label className={labelCls}>Model Name *</label>
@@ -654,6 +793,122 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
           </div>
         </form>
       </motion.div>
+
+      {/* Quick Add OEM Modal */}
+      <AnimatePresence>
+        {showAddOemModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border border-border rounded-xl p-5 w-full max-w-sm shadow-2xl flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-foreground">Add New OEM</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddOemModal(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">OEM Name</label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. HERO ELECTRIC"
+                  value={newOemInput}
+                  onChange={(e) => setNewOemInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddOem();
+                    }
+                  }}
+                  className="w-full bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddOemModal(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddOem()}
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Add & Select
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick Add Dealer Modal */}
+      <AnimatePresence>
+        {showAddDealerModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-card border border-border rounded-xl p-5 w-full max-w-sm shadow-2xl flex flex-col gap-4"
+            >
+              <div className="flex items-center justify-between">
+                <h3 className="text-base font-semibold text-foreground">Add New Dealer</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowAddDealerModal(false)}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground mb-1 block">Dealer Name</label>
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="e.g. ROHAN MOTORS"
+                  value={newDealerInput}
+                  onChange={(e) => setNewDealerInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleAddDealer();
+                    }
+                  }}
+                  className="w-full bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddDealerModal(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium bg-muted text-muted-foreground hover:bg-muted/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleAddDealer()}
+                  className="px-4 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90"
+                >
+                  Add & Select
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
