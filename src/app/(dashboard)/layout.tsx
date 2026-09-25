@@ -56,7 +56,7 @@ export default function DashboardLayout({
       }
 
       // Route Protection: Prevent non-admin roles from accessing admin-only pages
-      const adminOnlyPaths = ["/analytics", "/payroll", "/revenue", "/invoices", "/settings", "/activity-logs"];
+      const adminOnlyPaths = ["/analytics", "/payroll", "/revenue", "/settings", "/activity-logs"];
       if (adminOnlyPaths.some(p => currentPath.startsWith(p)) && !['admin', 'manager', 'owner', 'hr', 'finance'].includes(role)) {
         if (role === 'supervisor') {
           router.replace("/workforce/supervisor");

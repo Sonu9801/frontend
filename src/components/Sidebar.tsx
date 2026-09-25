@@ -76,7 +76,7 @@ const navGroups = [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2, roles: ["admin", "manager", "owner", "supervisor"] },
       { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
       { label: "Sales Invoices", href: "/revenue", icon: Banknote, roles: ["admin", "manager", "owner", "finance"] },
-      { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "owner", "finance"] },
+      { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "owner", "finance", "supervisor"] },
     ]
   },
   {

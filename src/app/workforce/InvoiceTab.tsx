@@ -2,10 +2,11 @@ import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoicesApi } from "@/lib/api";
 import { useInvoiceDashboardStats } from "@/hooks/useQueries";
-import { Receipt, IndianRupee, Clock, CheckCircle2, FileText, Download, Plus } from "lucide-react";
+import { Receipt, IndianRupee, Clock, CheckCircle2, FileText, Download, Plus, UploadCloud } from "lucide-react";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { AddInvoiceDialog } from "@/components/invoices/AddInvoiceDialog";
+import { UploadInvoiceDialog } from "@/components/invoices/UploadInvoiceDialog";
 
 export function InvoiceTab({ activeUser }: { activeUser: any }) {
   const { data: invoicesData, isLoading } = useQuery({
@@ -19,6 +20,7 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
 
   const router = useRouter();
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -54,16 +56,17 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
             Add Invoice
           </button>
           <button 
-            onClick={() => router.push("/invoices/upload?returnTo=/workforce/supervisor")}
+            onClick={() => setShowUploadModal(true)}
             className="flex-1 flex items-center justify-center gap-2 bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm transition-colors"
           >
-            <Plus size={16} />
+            <UploadCloud size={16} />
             Upload Invoice
           </button>
         </div>
       </div>
 
       <AddInvoiceDialog open={showAddModal} onOpenChange={setShowAddModal} />
+      <UploadInvoiceDialog open={showUploadModal} onOpenChange={setShowUploadModal} />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 gap-3 mb-6">
