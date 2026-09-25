@@ -15,7 +15,7 @@ import { useAuthStore } from "@/store/authStore";
 import { useQueryClient } from "@tanstack/react-query";
 import { vehiclesApi } from "@/lib/api";
 import { toast } from "sonner";
-import { MapPin, FileText, Clock, User, CheckCircle, XCircle, PauseCircle, Download } from "lucide-react";
+import { MapPin, FileText, Clock, User, CheckCircle, XCircle, PauseCircle, Download, ExternalLink } from "lucide-react";
 import type { Vehicle } from "@/types";
 
 interface GateEntryDrawerProps {
@@ -134,6 +134,23 @@ export function GateEntryDrawer({ vehicle, open, onOpenChange, onVerificationCom
                 <div>
                   <p className="text-xs text-muted-foreground">LR Number</p>
                   <p className="font-semibold">{vehicle.lrNumber || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Uploaded Document</p>
+                  {vehicle.documentsUrl ? (
+                    <a
+                      href={vehicle.documentsUrl.startsWith("http") || vehicle.documentsUrl.startsWith("/") ? vehicle.documentsUrl : `#`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline mt-0.5"
+                    >
+                      <FileText size={14} />
+                      <span className="truncate max-w-[130px]">{vehicle.documentsUrl}</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  ) : (
+                    <p className="font-semibold text-muted-foreground text-xs">No file attached</p>
+                  )}
                 </div>
               </div>
             </section>

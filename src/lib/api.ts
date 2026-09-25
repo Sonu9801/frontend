@@ -1,11 +1,8 @@
 import axios from "axios";
 
 const getApiUrl = () => {
-  if (typeof window === "undefined") {
-    const base = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
-    return `${base}/api`;
-  }
-  return "/api";
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8000";
+  return base.endsWith("/api") ? base : `${base}/api`;
 };
 
 export const API_URL = getApiUrl();
@@ -510,10 +507,18 @@ export const activitiesApi = {
 
 export const notificationsApi = {
   getAll: async (unreadOnly: boolean = false) => {
-    const response = await api.get(`/notifications?unread_only=${unreadOnly}`);
-    return response.data;
+    try {
+      const response = await api.get(`/notifications?unread_only=${unreadOnly}`);
+      return response.data || [];
+    } catch {
+      return [];
+    }
   },
   markAsRead: async (id: number | string) => {
+    const response = await api.post(`/notifications/${id}/read`);
+    return response.data;
+  },
+  markRead: async (id: number | string) => {
     const response = await api.post(`/notifications/${id}/read`);
     return response.data;
   },
@@ -522,6 +527,10 @@ export const notificationsApi = {
     return response.data;
   },
   markAllAsRead: async () => {
+    const response = await api.post("/notifications/read-all");
+    return response.data;
+  },
+  markAllRead: async () => {
     const response = await api.post("/notifications/read-all");
     return response.data;
   },
@@ -635,6 +644,10 @@ export const attendanceApi = {
 };
 
 export const jobsApi = {
+  getAll: async () => {
+    const response = await api.get("/jobs");
+    return response.data;
+  },
   assign: async (data: any) => {
     const response = await api.post("/jobs/assign", data);
     return response.data;

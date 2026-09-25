@@ -2,12 +2,14 @@
 
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { componentsApi } from "@/lib/api";
+import { componentsApi, jobsApi } from "@/lib/api";
+import { useWorkers } from "@/hooks/useQueries";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Download, FileText, Eye, Image as ImageIcon } from "lucide-react";
+import { Loader2, Download, FileText, Eye, Image as ImageIcon, Search, User, Boxes, RotateCcw, X, Filter } from "lucide-react";
+import { isDateInFilterRange } from "./dateFilterUtils";
 import { exportToCSV, exportToExcel, exportToPDF } from "./exportUtils";
 
 interface ComponentReportsTabProps {
@@ -18,6 +20,7 @@ interface ComponentReportsTabProps {
 const parseDate = (dateRaw?: string | null) => {
   if (!dateRaw) return null;
   let str = String(dateRaw).trim();
+  str = str.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/, "$1T$2");
   if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(str)) {
     str += "Z";
   }
@@ -33,70 +36,187 @@ const formatDate = (dateRaw?: string | null) => {
 export function ComponentReportsTab({ dateRange = "All Time", filters }: ComponentReportsTabProps) {
   const [selectedPhoto, setSelectedPhoto] = useState<{ url: string; title: string } | null>(null);
 
-  const { data: allComponents = [], isLoading } = useQuery({
+  // Local filter states
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedWorker, setSelectedWorker] = useState("All");
+  const [selectedComponentType, setSelectedComponentType] = useState("All");
+  const [selectedStatus, setSelectedStatus] = useState("All");
+
+  const { data: allComponents = [], isLoading: isLoadingComponents } = useQuery({
     queryKey: ["allComponents"],
     queryFn: async () => {
       return await componentsApi.getAllTasks();
     },
-    staleTime: 5 * 60 * 1000, // 5 minutes cache
+    staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
-  // Filter components by dateRange and global filters
+  const { data: allJobs = [], isLoading: isLoadingJobs } = useQuery({
+    queryKey: ["allJobs"],
+    queryFn: async () => {
+      return await jobsApi.getAll();
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+  });
+
+  const { data: workersData } = useWorkers({ pageSize: 1000 });
+
+  const isLoading = isLoadingComponents || isLoadingJobs;
+
+  // Combine component tasks and production jobs
+  const combinedItems = useMemo(() => {
+    const compList = Array.isArray(allComponents)
+      ? allComponents
+      : (allComponents as any)?.items || (allComponents as any)?.data || [];
+
+    const jobsList = Array.isArray(allJobs)
+      ? allJobs
+      : (allJobs as any)?.items || (allJobs as any)?.data || [];
+
+    const normComponents = compList.map((c: any) => ({
+      id: `comp-${c.id}`,
+      component_type: c.component_type,
+      component_number: c.component_number,
+      status: c.status || "in_progress",
+      workers: c.workers || [],
+      start_time: c.start_time || c.created_at,
+      end_time: c.end_time,
+      photo_proof_url: c.photo_proof_url,
+      source: "Self-Task"
+    }));
+
+    const normJobs = jobsList.map((j: any) => {
+      let photoUrl = j.photo_proof_url;
+      if (!photoUrl && j.photos && j.photos.length > 0) {
+        photoUrl = j.photos[j.photos.length - 1].photo_url;
+      }
+      const vehicleNum = j.vehicle
+        ? (j.vehicle.vehicle_number || j.vehicle.chassis_number || j.vehicle.platform_number || `PF-${j.vehicle_id}`)
+        : `Job #${j.id}`;
+
+      const stageCapitalized = j.stage ? (j.stage.charAt(0).toUpperCase() + j.stage.slice(1)) : "Production Job";
+
+      return {
+        id: `job-${j.id}`,
+        component_type: stageCapitalized,
+        component_number: vehicleNum,
+        status: j.status || "assigned",
+        workers: j.workers || [],
+        start_time: j.start_time || j.assigned_date,
+        end_time: j.end_time,
+        photo_proof_url: photoUrl,
+        source: "Assigned Job"
+      };
+    });
+
+    return [...normComponents, ...normJobs];
+  }, [allComponents, allJobs]);
+
+  // Registered Workers List for filter dropdown
+  const allRegisteredWorkers = useMemo(() => {
+    const list = workersData?.items ?? (Array.isArray(workersData) ? workersData : []);
+    const names = new Set<string>();
+    list.forEach((w: any) => {
+      if (w.name) names.add(w.name);
+    });
+    combinedItems.forEach((item: any) => {
+      if (Array.isArray(item.workers)) {
+        item.workers.forEach((w: any) => {
+          if (w.name) names.add(w.name);
+        });
+      }
+    });
+    return Array.from(names).sort();
+  }, [workersData, combinedItems]);
+
+  // Component Types / Stages for filter dropdown
+  const allComponentTypes = useMemo(() => {
+    const defaultStages = ["Platform", "Gate", "Aircutter", "Paint", "Model", "Band", "Cutting", "Chassis", "Assembly"];
+    const set = new Set<string>(defaultStages);
+    combinedItems.forEach((item: any) => {
+      if (item.component_type) set.add(item.component_type);
+    });
+    return Array.from(set).sort();
+  }, [combinedItems]);
+
+  // Filter components by dateRange, global filters, and local search/dropdown filters
   const filteredComponents = useMemo(() => {
-    if (!allComponents || !Array.isArray(allComponents)) return [];
+    if (!combinedItems || !Array.isArray(combinedItems)) return [];
 
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Effective filter values (merging parent filters if present)
+    const effWorker = selectedWorker !== "All"
+      ? selectedWorker
+      : (filters?.workerName && filters.workerName !== "All" ? filters.workerName : (filters?.worker && filters.worker !== "All" ? filters.worker : "All"));
 
-    return allComponents.filter((comp: any) => {
+    const effCompType = selectedComponentType !== "All"
+      ? selectedComponentType
+      : (filters?.componentType && filters.componentType !== "All" ? filters.componentType : (filters?.department && filters.department !== "All" ? filters.department : "All"));
+
+    const effStatus = selectedStatus !== "All"
+      ? selectedStatus
+      : (filters?.status && filters.status !== "All" ? filters.status : "All");
+
+    const effSearch = (searchQuery || filters?.searchQuery || "").trim().toLowerCase();
+
+    return combinedItems.filter((comp: any) => {
       // 1. Date Range Filtering
-      if (dateRange && dateRange !== "All Time") {
-        const compDateRaw = comp.start_time || comp.created_at;
-        if (compDateRaw) {
-          const compDate = parseDate(compDateRaw);
-          if (compDate) {
-            if (dateRange === "Today") {
-              if (compDate < todayStart) return false;
-            } else if (dateRange === "Yesterday") {
-              const yestStart = new Date(todayStart);
-              yestStart.setDate(yestStart.getDate() - 1);
-              if (compDate < yestStart || compDate >= todayStart) return false;
-            } else if (dateRange === "This Week") {
-              const weekStart = new Date(todayStart);
-              weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-              if (compDate < weekStart) return false;
-            } else if (dateRange === "Last 7 Days") {
-              const d7 = new Date(todayStart);
-              d7.setDate(d7.getDate() - 7);
-              if (compDate < d7) return false;
-            } else if (dateRange === "Last 30 Days") {
-              const d30 = new Date(todayStart);
-              d30.setDate(d30.getDate() - 30);
-              if (compDate < d30) return false;
-            } else if (dateRange === "This Month") {
-              const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-              if (compDate < monthStart) return false;
-            }
-          }
-        }
+      const compDateRaw = comp.start_time || comp.end_time;
+      if (!isDateInFilterRange(compDateRaw, dateRange)) {
+        return false;
       }
 
-      // 2. Secondary filters (Status / Department)
-      if (filters?.status && filters.status !== "All") {
-        if (comp.status?.toLowerCase() !== filters.status.toLowerCase()) return false;
+      // 2. Status filter
+      if (effStatus !== "All") {
+        if (comp.status?.toLowerCase() !== effStatus.toLowerCase()) return false;
       }
 
-      if (filters?.department && filters.department !== "All") {
-        const deptMatch = comp.workers?.some((w: any) => w.department?.toLowerCase() === filters.department.toLowerCase());
-        if (!deptMatch && comp.component_type?.toLowerCase() !== filters.department.toLowerCase()) return false;
+      // 3. Component Type / Stage filter (component-wise)
+      if (effCompType !== "All") {
+        const typeMatch = comp.component_type?.toLowerCase() === effCompType.toLowerCase() ||
+                          comp.workers?.some((w: any) => w.department?.toLowerCase() === effCompType.toLowerCase());
+        if (!typeMatch) return false;
+      }
+
+      // 4. Worker Name filter (worker-wise)
+      if (effWorker !== "All") {
+        const workerMatch = comp.workers?.some((w: any) => 
+          (w.name && w.name.toLowerCase() === effWorker.toLowerCase()) ||
+          (w.id && String(w.id) === String(effWorker))
+        );
+        if (!workerMatch) return false;
+      }
+
+      // 5. Search Query (matches Component Number/ID, Type, Worker Name, Status, Source)
+      if (effSearch) {
+        const compNum = (comp.component_number || "").toLowerCase();
+        const compType = (comp.component_type || "").toLowerCase();
+        const workerNames = (comp.workers || []).map((w: any) => (w.name || "").toLowerCase()).join(" ");
+        const statusStr = (comp.status || "").toLowerCase();
+        const sourceStr = (comp.source || "").toLowerCase();
+
+        const match = compNum.includes(effSearch) ||
+                      compType.includes(effSearch) ||
+                      workerNames.includes(effSearch) ||
+                      statusStr.includes(effSearch) ||
+                      sourceStr.includes(effSearch);
+        if (!match) return false;
       }
 
       return true;
     });
-  }, [allComponents, dateRange, filters]);
+  }, [combinedItems, dateRange, filters, selectedWorker, selectedComponentType, selectedStatus, searchQuery]);
 
-  const headers = ["Type", "Number/ID", "Status", "Workers", "Start Time", "End Time"];
+  const hasActiveFilters = searchQuery !== "" || selectedWorker !== "All" || selectedComponentType !== "All" || selectedStatus !== "All";
+
+  const resetLocalFilters = () => {
+    setSearchQuery("");
+    setSelectedWorker("All");
+    setSelectedComponentType("All");
+    setSelectedStatus("All");
+  };
+
+  const headers = ["Type", "Number/ID", "Status", "Workers", "Start Time", "End Time", "Source"];
   
   const tableData = useMemo(() => {
     return filteredComponents.map((c: any) => ({
@@ -105,7 +225,8 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
       Status: c.status?.replace("_", " "),
       Workers: c.workers?.map((w: any) => w.name).join(", ") || "-",
       "Start Time": formatDate(c.start_time),
-      "End Time": formatDate(c.end_time)
+      "End Time": formatDate(c.end_time),
+      Source: c.source
     }));
   }, [filteredComponents]);
 
@@ -113,7 +234,7 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
     const filename = `Component_Production_Report_${dateRange.replace(/\s+/g, '_')}`;
     if (type === "csv") exportToCSV(filename, headers, tableData);
     else if (type === "excel") exportToExcel(filename, headers, tableData);
-    else exportToPDF(filename, "Component Production Report", headers, tableData, { dateRange, summary: "Production report of self-assigned component tasks." });
+    else exportToPDF(filename, "Component Production Report", headers, tableData, { dateRange, summary: "Combined Component & Worker PWA Production Report." });
   };
 
   if (isLoading) {
@@ -147,11 +268,112 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
         </div>
       </div>
 
+      {/* Embedded Worker & Component Filter Controls */}
+      <div className="p-4 bg-card border border-border rounded-xl shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Filter size={15} className="text-primary" />
+            <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+              Filter Log (Worker-wise & Component-wise)
+            </span>
+          </div>
+          {hasActiveFilters && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetLocalFilters}
+              className="text-xs text-muted-foreground hover:text-foreground h-7 px-2 gap-1"
+            >
+              <RotateCcw className="w-3 h-3" /> Reset Filters
+            </Button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* 1. Worker Name Filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+              <User size={12} className="text-primary" /> Worker Name
+            </label>
+            <select
+              value={selectedWorker}
+              onChange={(e) => setSelectedWorker(e.target.value)}
+              className="w-full py-1.5 px-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground font-medium cursor-pointer"
+            >
+              <option value="All">All Workers</option>
+              {allRegisteredWorkers.map((wName: string) => (
+                <option key={wName} value={wName}>
+                  {wName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 2. Component Type / Stage Filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+              <Boxes size={12} className="text-primary" /> Component / Stage
+            </label>
+            <select
+              value={selectedComponentType}
+              onChange={(e) => setSelectedComponentType(e.target.value)}
+              className="w-full py-1.5 px-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground font-medium cursor-pointer"
+            >
+              <option value="All">All Component Types</option>
+              {allComponentTypes.map((type: string) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Status Filter */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted-foreground">Status</label>
+            <select
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full py-1.5 px-2.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground font-medium cursor-pointer"
+            >
+              <option value="All">All Statuses</option>
+              <option value="completed">Completed</option>
+              <option value="in_progress">In Progress</option>
+              <option value="assigned">Assigned</option>
+            </select>
+          </div>
+
+          {/* 4. Text Search Query */}
+          <div className="flex flex-col gap-1">
+            <label className="text-[11px] font-semibold text-muted-foreground">Search Component / ID</label>
+            <div className="relative w-full">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+              <input
+                type="text"
+                placeholder="Search ID, worker, type..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-8 pr-7 py-1.5 text-xs bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 text-foreground"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="border border-border bg-card">
           <CardContent className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Total Components</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Total Components & Jobs</h3>
             <p className="text-3xl font-bold text-foreground">{filteredComponents.length}</p>
           </CardContent>
         </Card>
@@ -165,9 +387,9 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
         </Card>
         <Card className="border border-border bg-card">
           <CardContent className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">In Progress</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">In Progress / Assigned</h3>
             <p className="text-3xl font-bold text-amber-600">
-              {filteredComponents.filter((c: any) => c.status === "in_progress").length}
+              {filteredComponents.filter((c: any) => c.status === "in_progress" || c.status === "assigned" || c.status === "not_started").length}
             </p>
           </CardContent>
         </Card>
@@ -176,19 +398,19 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
       {/* Main Data Table */}
       <Card className="border border-border bg-card overflow-hidden">
         <CardHeader className="border-b border-border p-4 bg-muted/20">
-          <CardTitle className="text-sm font-semibold text-foreground">Component Production Log</CardTitle>
+          <CardTitle className="text-sm font-semibold text-foreground">Component & Worker Production Log</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           {filteredComponents.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground text-sm font-medium">
-              No component tasks found for {dateRange}.
+              No component or worker tasks found for {dateRange}.
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
                 <thead className="text-[10px] uppercase font-semibold text-muted-foreground bg-muted/50 border-b border-border">
                   <tr>
-                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Type / Stage</th>
                     <th className="px-4 py-3">Number/ID</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Workers</th>
@@ -198,48 +420,68 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredComponents.map((comp: any) => (
-                    <tr key={comp.id} className="hover:bg-muted/30 transition-colors">
-                      <td className="px-4 py-3 font-semibold text-foreground">{comp.component_type}</td>
-                      <td className="px-4 py-3 font-mono font-semibold text-primary">{comp.component_number}</td>
-                      <td className="px-4 py-3">
-                        <Badge variant={comp.status === "completed" ? "secondary" : "default"} className={comp.status === "completed" ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : "bg-amber-500/15 text-amber-600 dark:text-amber-400"}>
-                          {comp.status?.replace("_", " ")}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex flex-wrap gap-1">
-                          {comp.workers?.map((w: any) => (
-                            <span key={w.id} className="text-[10px] font-medium text-foreground bg-muted px-2 py-0.5 rounded-md">
-                              {w.name}
-                            </span>
-                          ))}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(comp.start_time)}
-                      </td>
-                      <td className="px-4 py-3 text-muted-foreground">
-                        {formatDate(comp.end_time)}
-                      </td>
-                      <td className="px-4 py-3">
-                        {comp.photo_proof_url ? (
-                          <button
-                            type="button"
-                            onClick={() => setSelectedPhoto({
-                              url: comp.photo_proof_url,
-                              title: `${comp.component_type} - ${comp.component_number}`
-                            })}
-                            className="text-primary hover:underline font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"
+                  {filteredComponents.map((comp: any) => {
+                    const isCompleted = comp.status === "completed";
+                    const isInProgress = comp.status === "in_progress";
+                    return (
+                      <tr key={comp.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="px-4 py-3 font-semibold text-foreground">
+                          {comp.component_type}
+                          <span className="block text-[10px] font-normal text-muted-foreground">{comp.source}</span>
+                        </td>
+                        <td className="px-4 py-3 font-mono font-semibold text-primary">{comp.component_number}</td>
+                        <td className="px-4 py-3">
+                          <Badge
+                            variant={isCompleted ? "secondary" : "default"}
+                            className={
+                              isCompleted
+                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                : isInProgress
+                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                            }
                           >
-                            <Eye size={13} /> View Photo
-                          </button>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">No Photo</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                            {comp.status?.replace("_", " ")}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1">
+                            {comp.workers?.length > 0 ? (
+                              comp.workers.map((w: any) => (
+                                <span key={w.id} className="text-[10px] font-medium text-foreground bg-muted px-2 py-0.5 rounded-md">
+                                  {w.name}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="text-muted-foreground text-xs">-</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatDate(comp.start_time)}
+                        </td>
+                        <td className="px-4 py-3 text-muted-foreground">
+                          {formatDate(comp.end_time)}
+                        </td>
+                        <td className="px-4 py-3">
+                          {comp.photo_proof_url ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedPhoto({
+                                url: comp.photo_proof_url,
+                                title: `${comp.component_type} - ${comp.component_number}`
+                              })}
+                              className="text-primary hover:underline font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"
+                            >
+                              <Eye size={13} /> View Photo
+                            </button>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No Photo</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -276,3 +518,4 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
     </div>
   );
 }
+

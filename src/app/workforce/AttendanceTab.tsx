@@ -18,37 +18,42 @@ export function AttendanceTab({ activeUser }: { activeUser: any }) {
     refetchInterval: 60000,
   });
 
-  const { data: workers = [], isLoading } = useQuery({
+  const { data: workersData, isLoading } = useQuery({
     queryKey: ["workers"],
     queryFn: () => workersApi.getAll(),
     refetchInterval: 60000,
   });
 
-  const getFilteredWorkers = () => {
-    let filtered = workers;
+  const workersList = React.useMemo(() => {
+    if (Array.isArray(workersData)) return workersData;
+    if (workersData && Array.isArray((workersData as any).items)) return (workersData as any).items;
+    if (workersData && Array.isArray((workersData as any).data)) return (workersData as any).data;
+    return [];
+  }, [workersData]);
+
+  const filteredWorkers = React.useMemo(() => {
+    let filtered = workersList;
     
     // Search
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((w: any) => 
-        w.name.toLowerCase().includes(q) || w.employee_id.toLowerCase().includes(q)
+        (w.name || "").toLowerCase().includes(q) || (w.employee_id || w.employeeId || "").toLowerCase().includes(q)
       );
     }
     
-    // Status Filter (Mocked status logic for UI since full live status might require specific endpoint)
+    // Status Filter
     if (activeFilter !== "all") {
       filtered = filtered.filter((w: any) => {
         const s = (w.status || "offline").toLowerCase();
-        if (activeFilter === "present") return s === "online" || s === "working";
-        if (activeFilter === "absent") return s === "offline" || s === "on_leave";
+        if (activeFilter === "present") return s === "online" || s === "working" || s === "active";
+        if (activeFilter === "absent") return s === "offline" || s === "on_leave" || s === "inactive";
         return true;
       });
     }
     
     return filtered;
-  };
-
-  const filteredWorkers = getFilteredWorkers();
+  }, [workersList, searchQuery, activeFilter]);
 
   return (
     <div className="p-4 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">

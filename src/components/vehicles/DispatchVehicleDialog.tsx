@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Truck, User, Phone, FileText, MapPin, Calendar, ShieldCheck, CheckCircle2 } from "lucide-react";
+import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import type { Vehicle } from "@/types";
 
 export interface DispatchFormValues {
@@ -26,6 +27,7 @@ export interface DispatchFormValues {
   destination: string;
   dispatchDateTime: string;
   remarks: string;
+  documentsUrl?: string;
 }
 
 export interface DispatchVehicleDialogProps {
@@ -53,6 +55,7 @@ export function DispatchVehicleDialog({
   const [destination, setDestination] = useState("");
   const [dispatchDateTime, setDispatchDateTime] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [documentsUrl, setDocumentsUrl] = useState("");
 
   useEffect(() => {
     if (open && vehicle) {
@@ -73,6 +76,7 @@ export function DispatchVehicleDialog({
         .slice(0, 16);
       setDispatchDateTime(vehicle.dispatchDateTime ? vehicle.dispatchDateTime.slice(0, 16) : localIso);
       setRemarks(vehicle.remarks || "");
+      setDocumentsUrl(vehicle.documentsUrl || "");
     }
   }, [open, vehicle]);
 
@@ -89,6 +93,7 @@ export function DispatchVehicleDialog({
       destination,
       dispatchDateTime,
       remarks,
+      documentsUrl,
     });
   };
 
@@ -253,6 +258,16 @@ export function DispatchVehicleDialog({
               value={dispatchDateTime}
               onChange={(e) => setDispatchDateTime(e.target.value)}
               className="h-9 text-xs"
+            />
+          </div>
+
+          {/* Documents Upload */}
+          <div className="space-y-1.5">
+            <DocumentUploadWithCamera
+              label="Dispatch Documents Upload (Challan / Invoice / Photo)"
+              value={documentsUrl}
+              onChange={(file, fileName) => setDocumentsUrl(fileName || "")}
+              compact={true}
             />
           </div>
 

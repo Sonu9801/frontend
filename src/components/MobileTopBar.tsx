@@ -41,6 +41,7 @@ const navGroups = [
     items: [
       { label: "Workers", href: "/workers", icon: Users },
       { label: "Attendance", href: "/attendance", icon: Clock },
+      { label: "Components", href: "/components", icon: Boxes },
       { label: "Payroll", href: "/payroll", icon: Banknote },
     ]
   },

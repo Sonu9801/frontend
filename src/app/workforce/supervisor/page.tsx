@@ -14,24 +14,25 @@ export default function SupervisorPage() {
   useEffect(() => {
     initialize();
     
-    // Slight delay to allow Zustand to rehydrate from localStorage
     const timer = setTimeout(() => {
       const currentAuth = useAuthStore.getState();
-      if (!currentAuth.isAuthenticated) {
-        router.push("/login");
+      const rawToken = localStorage.getItem("token") || currentAuth.token;
+      const isValidToken = rawToken && rawToken !== "null" && rawToken !== "undefined" && rawToken.trim().length > 5;
+      
+      if (!isValidToken || !currentAuth.isAuthenticated) {
+        useAuthStore.getState().logout();
+        router.replace("/login");
         return;
       }
 
-      if (currentAuth.role?.toLowerCase() !== "supervisor") {
-        if (currentAuth.role?.toLowerCase() === "worker") {
-          router.push("/workforce");
-        } else {
-          router.push("/");
-        }
+      const userRole = (currentAuth.role || localStorage.getItem("role") || "").toLowerCase().trim();
+      if (userRole === "worker") {
+        router.replace("/workforce");
         return;
       }
+
       setLoading(false);
-    }, 100);
+    }, 50);
 
     return () => clearTimeout(timer);
   }, [initialize, router]);

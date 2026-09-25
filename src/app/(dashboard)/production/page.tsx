@@ -733,15 +733,105 @@ export default function ProductionPage() {
   }, [workers]);
 
   const allOemOptions = useMemo(() => {
-    const oemsInVehicles = vehicles.map((v: Vehicle) => v.oemName).filter(Boolean) as string[];
-    const set = new Set(["All OEMs", ...oemsInVehicles]);
-    return Array.from(set);
+    let customOems: string[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("custom_oem_names");
+        if (saved) customOems = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const defaultOems = [
+      "EULER MOTORS",
+      "MONTRA ELECTRIC",
+      "BAJAJ AUTO",
+      "PIAGGIO",
+      "JUPITER ELECTRIC MOBILITY",
+      "TVS MOTORS",
+      "E NEXT MOBILITY",
+      "TATA MOTORS",
+      "MAHINDRA",
+    ];
+
+    const map = new Map<string, string>();
+
+    // 1. Add default OEMs
+    defaultOems.forEach((oem) => {
+      const trimmed = oem.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+
+    // 2. Add custom OEMs saved in localStorage
+    customOems.forEach((oem) => {
+      const trimmed = oem.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+
+    // 3. Add OEMs from loaded vehicles (automatic inclusion when new ones are added)
+    vehicles.forEach((v: Vehicle) => {
+      const trimmed = (v.oemName || "").trim();
+      if (trimmed && trimmed.toLowerCase() !== "all oems") {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+
+    return ["All OEMs", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [vehicles]);
 
   const allDealerOptions = useMemo(() => {
-    const dealersInVehicles = vehicles.map((v: Vehicle) => v.dealerName).filter(Boolean) as string[];
-    const set = new Set(["All Dealers", ...dealersInVehicles]);
-    return Array.from(set);
+    let customDealers: string[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("custom_dealer_names");
+        if (saved) customDealers = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const defaultDealers = [
+      "Tech UP",
+      "Eco Edge",
+      "Smart Solution",
+      "Sincere Marketing",
+      "Bhutani Auto Cap",
+      "KK Auto mobile",
+      "SHREE BALAJI MOTORS",
+      "RAJAN AUTOTECH LLP",
+      "EULER MOTORS",
+    ];
+
+    const map = new Map<string, string>();
+
+    // 1. Add default Dealers
+    defaultDealers.forEach((dealer) => {
+      const trimmed = dealer.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+
+    // 2. Add custom Dealers saved in localStorage
+    customDealers.forEach((dealer) => {
+      const trimmed = dealer.trim();
+      if (trimmed) {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
+    });
+
+    // 3. Add Dealers from loaded vehicles (automatic inclusion when new ones are added)
+    vehicles.forEach((v: Vehicle) => {
+      const trimmed = (v.dealerName || "").trim();
+      if (trimmed && trimmed.toLowerCase() !== "all dealers") {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
+    });
+
+    return ["All Dealers", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [vehicles]);
 
   const filtered = useMemo(() => {

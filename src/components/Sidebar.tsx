@@ -43,49 +43,50 @@ const navGroups = [
   {
     title: "Overview",
     items: [
-      { label: "Dashboard", href: "/", icon: LayoutDashboard },
-      { label: "Analytics", href: "/analytics", icon: BarChart3 },
+      { label: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["admin", "manager", "owner"] },
+      { label: "Supervisor Dashboard", href: "/workforce/supervisor", icon: LayoutDashboard, roles: ["admin", "manager", "owner", "supervisor"] },
+      { label: "Analytics", href: "/analytics", icon: BarChart3, roles: ["admin", "manager", "owner"] },
     ]
   },
   {
     title: "Production",
     items: [
-      { label: "All Vehicles", href: "/production?category=All+Categories", icon: Factory },
-      { label: "Cargo Box", href: "/production?category=Cargo+Box", icon: Package },
-      { label: "Cargo Box / Air Cutter / Battery Box", href: "/production?category=Cargo+Box+%2F+Air+Cutter+%2F+Battery+Box", icon: Package },
-      { label: "Cargo Box / Air Cutter", href: "/production?category=Cargo+Box+%2F+Air+Cutter", icon: Package },
-      { label: "Cargo Box / Battery Box", href: "/production?category=Cargo+Box+%2F+Battery+Box", icon: Package },
-      { label: "Garbage Body", href: "/production?category=Garbage+Body", icon: Trash2 },
-      { label: "Grocery Cart", href: "/production?category=Grocery+Cart", icon: Package },
-      { label: "Food Cart", href: "/production?category=Food+Cart", icon: Package },
+      { label: "All Vehicles", href: "/production?category=All+Categories", icon: Factory, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Cargo Box", href: "/production?category=Cargo+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Cargo Box / Air Cutter / Battery Box", href: "/production?category=Cargo+Box+%2F+Air+Cutter+%2F+Battery+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Cargo Box / Air Cutter", href: "/production?category=Cargo+Box+%2F+Air+Cutter", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Cargo Box / Battery Box", href: "/production?category=Cargo+Box+%2F+Battery+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Garbage Body", href: "/production?category=Garbage+Body", icon: Trash2, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Grocery Cart", href: "/production?category=Grocery+Cart", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Food Cart", href: "/production?category=Food+Cart", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
     ]
   },
   {
     title: "Workforce",
     items: [
-      { label: "Workers", href: "/workers", icon: Users },
-      { label: "Attendance", href: "/attendance", icon: Clock },
-      { label: "Performance", href: "/performance", icon: FileBarChart },
-      { label: "Payroll", href: "/payroll", icon: Banknote, roles: ["admin", "manager", "hr"] },
+      { label: "Workers", href: "/workers", icon: Users, roles: ["admin", "manager", "owner", "supervisor"] },
+      { label: "Attendance", href: "/attendance", icon: Clock, roles: ["admin", "manager", "owner", "supervisor", "attendance", "attendance_only"] },
+      { label: "Components", href: "/components", icon: Boxes, roles: ["admin", "manager", "owner", "supervisor"] },
+      { label: "Payroll", href: "/payroll", icon: Banknote, roles: ["admin", "manager", "owner", "hr"] },
     ]
   },
   {
     title: "Quality & Delivery",
     items: [
-      { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
-      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Sales Invoices", href: "/revenue", icon: Banknote, roles: ["admin", "manager", "finance"] },
-      { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "finance"] },
+      { label: "Quality Control", href: "/quality-control", icon: CheckCircle2, roles: ["admin", "manager", "owner", "supervisor"] },
+      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Sales Invoices", href: "/revenue", icon: Banknote, roles: ["admin", "manager", "owner", "finance"] },
+      { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "owner", "finance"] },
     ]
   },
   {
     title: "System",
     items: [
-      { label: "Reports", href: "/reports", icon: FileBarChart },
-      { label: "Activity Logs", href: "/activity-logs", icon: Activity, roles: ["admin"] },
-      { label: "Notifications", href: "/notifications", icon: Bell },
-      { label: "OEM Portal", href: "/oem-portal", icon: Building2, roles: ["admin", "oem"] },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Reports", href: "/reports", icon: FileBarChart, roles: ["admin", "manager", "owner", "supervisor"] },
+      { label: "Activity Logs", href: "/activity-logs", icon: Activity, roles: ["admin", "manager", "owner"] },
+      { label: "Notifications", href: "/notifications", icon: Bell, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "OEM Portal", href: "/oem-portal", icon: Building2, roles: ["admin", "manager", "owner", "oem"] },
+      { label: "Settings", href: "/settings", icon: Settings, roles: ["admin", "manager", "owner"] },
     ]
   }
 ];
@@ -155,12 +156,12 @@ export function Sidebar() {
 
         <nav className="flex-1 overflow-y-auto px-2 py-4 space-y-4 scrollbar-thin">
           {navGroups.map((group) => {
+            const userRole = role?.toLowerCase() || "";
             const filteredItems = group.items.filter(item => {
-              if (role?.toLowerCase() === "oem") {
-                return item.roles?.includes("oem");
-              }
-              if (!item.roles) return true;
-              return item.roles.includes(role?.toLowerCase() || "");
+              if (userRole === "admin" || userRole === "manager" || userRole === "owner") return true;
+              if (userRole === "oem") return item.roles?.includes("oem");
+              if (!item.roles) return false;
+              return item.roles.includes(userRole);
             });
             
             if (filteredItems.length === 0) return null;

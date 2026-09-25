@@ -2,12 +2,13 @@ import React, { useState } from "react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { vehiclesApi } from "@/lib/api";
-import { CarFront, Clock, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Users, Settings2, Search, Plus, UserPlus } from "lucide-react";
+import { CarFront, Clock, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Users, Settings2, Search, Plus, UserPlus, Truck } from "lucide-react";
 import { motion } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { AssignJobDialog } from "@/components/vehicles/AssignJobDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
@@ -19,6 +20,8 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "progress" | "completed">("progress");
   const [searchQuery, setSearchQuery] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showSelectDispatchModal, setShowSelectDispatchModal] = useState(false);
+  const [dispatchSearchQuery, setDispatchSearchQuery] = useState("");
   const [assignJobState, setAssignJobState] = useState<{ isOpen: boolean; vehicle: any | null }>({
     isOpen: false,
     vehicle: null,
@@ -33,7 +36,13 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
   const verifyVehicleMutation = useVerifyVehicle();
   const updateStageMutation = useUpdateVehicleStage();
   const updateVehicleMutation = useUpdateVehicle();
-  const { data: workers = [] } = useWorkers();
+  const { data: workersData } = useWorkers();
+  const workers = React.useMemo(() => {
+    if (Array.isArray(workersData)) return workersData;
+    if (workersData && Array.isArray((workersData as any).items)) return (workersData as any).items;
+    if (workersData && Array.isArray((workersData as any).data)) return (workersData as any).data;
+    return [];
+  }, [workersData]);
 
   const handleFinalDispatchSubmit = (values: DispatchFormValues) => {
     if (!pendingDispatchVehicle) return;
@@ -76,21 +85,45 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
     refetchInterval: 30000,
   });
 
-  const getFilteredPlatforms = () => {
-    let filtered = platforms;
+  const platformsList = React.useMemo(() => {
+    if (Array.isArray(platforms)) return platforms;
+    if (platforms && Array.isArray((platforms as any).items)) return (platforms as any).items;
+    if (platforms && Array.isArray((platforms as any).data)) return (platforms as any).data;
+    return [];
+  }, [platforms]);
+
+  const filteredPlatforms = React.useMemo(() => {
+    let filtered = platformsList;
 
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((p: any) => 
-        (p.platformNumber || p.trackingId)?.toLowerCase().includes(q) ||
-        p.vehicleNumber?.toLowerCase().includes(q) ||
-        p.oemName?.toLowerCase().includes(q)
+        (p.platformNumber || p.trackingId || "").toLowerCase().includes(q) ||
+        (p.vehicleNumber || p.vehicleModel || "").toLowerCase().includes(q) ||
+        (p.oemName || "").toLowerCase().includes(q)
       );
     }
     return filtered;
-  };
+  }, [platformsList, searchQuery]);
 
-  const filteredPlatforms = getFilteredPlatforms();
+  const dispatchCandidateVehicles = React.useMemo(() => {
+    let list = platformsList.filter((v: any) => v.currentStage?.toLowerCase() !== "delivered");
+    if (dispatchSearchQuery) {
+      const q = dispatchSearchQuery.toLowerCase().trim();
+      list = list.filter((v: any) =>
+        (v.platformNumber || v.trackingId || "").toLowerCase().includes(q) ||
+        (v.vehicleNumber || v.vehicleModel || "").toLowerCase().includes(q) ||
+        (v.oemName || "").toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a: any, b: any) => {
+      const aRtd = ["rtd", "readytodispatch"].includes(a.currentStage?.toLowerCase() || "");
+      const bRtd = ["rtd", "readytodispatch"].includes(b.currentStage?.toLowerCase() || "");
+      if (aRtd && !bRtd) return -1;
+      if (!aRtd && bRtd) return 1;
+      return 0;
+    });
+  }, [platformsList, dispatchSearchQuery]);
 
   const columns = [
     { id: "oem", title: "OEM", stages: ["oem"], color: "border-gray-200 bg-gray-50/50 dark:bg-zinc-900/50 dark:border-zinc-800/80" },
@@ -107,18 +140,27 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
 
   return (
     <div className="p-4 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
-          <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white mb-2">Production</h2>
+          <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white mb-1">Production</h2>
           <p className="text-sm text-gray-500 font-medium">Track vehicle assembly stages</p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors"
-        >
-          <Plus size={16} />
-          Receive New
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-colors"
+          >
+            <Plus size={16} />
+            Receive New
+          </button>
+          <button
+            onClick={() => setShowSelectDispatchModal(true)}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-colors"
+          >
+            <Truck size={16} />
+            Dispatch Vehicle
+          </button>
+        </div>
       </div>
 
       <div className="relative mb-6">
@@ -217,57 +259,68 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
                           )}
                           
                           {(!isCompleted && !["oem", "incoming_verification", "supervisor_verification", "rejected"].includes(stage)) && (
-                            <div className="w-full flex gap-2">
-                              <button
-                                onClick={() => setAssignJobState({ isOpen: true, vehicle: pf })}
-                                className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-indigo-200 dark:border-indigo-500/30"
-                              >
-                                <UserPlus size={14} />
-                                Assign Job
-                              </button>
-                              
-                              <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <button 
-                                    className="flex items-center justify-center gap-1 bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-gray-200 dark:border-zinc-700"
-                                  >
-                                    Stage <ChevronDown size={14} />
-                                  </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                  {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch", "Delivered"].map(stageLabel => {
-                                    const stageMap: Record<string, string> = {
-                                      "Received": "received",
-                                      "Fabrication": "fabrication",
-                                      "Paint": "paint",
-                                      "Ready-to-Dispatch": "rtd",
-                                      "Dispatch": "dispatch",
-                                      "Delivered": "delivered"
-                                    };
-                                    return (
-                                      <DropdownMenuItem 
-                                        key={stageLabel}
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const targetStage = stageMap[stageLabel];
-                                          if (targetStage === "dispatch" || targetStage === "delivered") {
-                                            setPendingDispatchVehicle(pf);
-                                            return;
-                                          }
-                                          let progress = 0;
-                                          if (targetStage === "received") progress = 0;
-                                          else if (targetStage === "fabrication") progress = 30;
-                                          else if (targetStage === "paint") progress = 60;
-                                          else if (targetStage === "rtd") progress = 90;
-                                          updateStageMutation.mutate({ id: pf.id, stage: targetStage, progress });
-                                        }}
-                                      >
-                                        {stageLabel}
-                                      </DropdownMenuItem>
-                                    );
-                                  })}
-                                </DropdownMenuContent>
-                              </DropdownMenu>
+                            <div className="w-full space-y-2">
+                              {(stage === "rtd" || stage === "readytodispatch") && (
+                                <button
+                                  onClick={() => setPendingDispatchVehicle(pf)}
+                                  className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors"
+                                >
+                                  <Truck size={14} />
+                                  Dispatch Vehicle
+                                </button>
+                              )}
+                              <div className="w-full flex gap-2">
+                                <button
+                                  onClick={() => setAssignJobState({ isOpen: true, vehicle: pf })}
+                                  className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-indigo-200 dark:border-indigo-500/30"
+                                >
+                                  <UserPlus size={14} />
+                                  Assign Job
+                                </button>
+                                
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <button 
+                                      className="flex items-center justify-center gap-1 bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-gray-200 dark:border-zinc-700"
+                                    >
+                                      Stage <ChevronDown size={14} />
+                                    </button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent>
+                                    {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch", "Delivered"].map(stageLabel => {
+                                      const stageMap: Record<string, string> = {
+                                        "Received": "received",
+                                        "Fabrication": "fabrication",
+                                        "Paint": "paint",
+                                        "Ready-to-Dispatch": "rtd",
+                                        "Dispatch": "dispatch",
+                                        "Delivered": "delivered"
+                                      };
+                                      return (
+                                        <DropdownMenuItem 
+                                          key={stageLabel}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            const targetStage = stageMap[stageLabel];
+                                            if (targetStage === "dispatch" || targetStage === "delivered") {
+                                              setPendingDispatchVehicle(pf);
+                                              return;
+                                            }
+                                            let progress = 0;
+                                            if (targetStage === "received") progress = 0;
+                                            else if (targetStage === "fabrication") progress = 30;
+                                            else if (targetStage === "paint") progress = 60;
+                                            else if (targetStage === "rtd") progress = 90;
+                                            updateStageMutation.mutate({ id: pf.id, stage: targetStage, progress });
+                                          }}
+                                        >
+                                          {stageLabel}
+                                        </DropdownMenuItem>
+                                      );
+                                    })}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              </div>
                             </div>
                           )}
                         </div>
@@ -312,6 +365,88 @@ export function ProductionTab({ activeUser }: { activeUser: any }) {
         onSubmit={handleFinalDispatchSubmit}
         isSubmitting={updateVehicleMutation.isPending}
       />
+
+      {/* Select Vehicle For Dispatch Modal */}
+      <Dialog open={showSelectDispatchModal} onOpenChange={setShowSelectDispatchModal}>
+        <DialogContent className="max-w-md w-[95vw] rounded-2xl p-6">
+          <DialogHeader className="mb-4">
+            <DialogTitle className="text-xl font-extrabold flex items-center gap-2 text-emerald-700 dark:text-emerald-400">
+              <Truck size={22} />
+              Dispatch Vehicle
+            </DialogTitle>
+            <p className="text-xs text-gray-500 font-medium mt-1">
+              Select a vehicle from production to complete dispatch details.
+            </p>
+          </DialogHeader>
+
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+            <Input
+              placeholder="Search vehicle number or ID..."
+              value={dispatchSearchQuery}
+              onChange={(e) => setDispatchSearchQuery(e.target.value)}
+              className="pl-9 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 text-xs"
+            />
+          </div>
+
+          <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1 hide-scrollbar">
+            {dispatchCandidateVehicles.length === 0 ? (
+              <div className="text-center py-8 text-gray-400">
+                <CarFront size={32} className="mx-auto mb-2 opacity-30" />
+                <p className="text-xs font-semibold">No active vehicles available for dispatch</p>
+              </div>
+            ) : (
+              dispatchCandidateVehicles.map((vehicle: any) => {
+                const stage = vehicle.currentStage?.toLowerCase() || "";
+                const isRtd = stage === "rtd" || stage === "readytodispatch";
+                return (
+                  <div
+                    key={vehicle.id}
+                    className={`p-3 rounded-xl border flex justify-between items-center transition-all ${
+                      isRtd
+                        ? "bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/40"
+                        : "bg-white border-gray-100 dark:bg-zinc-900 dark:border-zinc-800"
+                    }`}
+                  >
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-extrabold text-sm text-gray-900 dark:text-white">
+                          {vehicle.platformNumber || vehicle.trackingId}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[9px] uppercase font-bold px-1.5 py-0.2 ${
+                            isRtd
+                              ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                              : "bg-gray-100 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {isRtd ? "Ready to Dispatch" : vehicle.currentStage || "In Production"}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-gray-700 dark:text-gray-300 font-semibold">
+                        {vehicle.vehicleNumber || vehicle.vehicleModel}
+                      </p>
+                      <p className="text-[11px] text-gray-400">{vehicle.oemName}</p>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setShowSelectDispatchModal(false);
+                        setPendingDispatchVehicle(vehicle);
+                      }}
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm"
+                    >
+                      <Truck size={13} />
+                      Dispatch
+                    </button>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

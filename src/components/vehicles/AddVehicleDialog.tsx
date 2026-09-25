@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronDown, X, Upload, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import { useVehicles } from "@/hooks/useQueries";
 import { toast } from "sonner";
 import type { Priority, Stage, Vehicle } from "@/types";
@@ -97,7 +98,7 @@ const DEFAULT_DEALER_OPTIONS = [
   "Tech UP",
   "Eco Edge",
   "Smart Solution",
-  "Sincear Marketing",
+  "Sincere Marketing",
   "Bhutani Auto Cap",
   "KK Auto mobile",
   "SHREE BALAJI MOTORS",
@@ -165,15 +166,49 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
   const [newDealerInput, setNewDealerInput] = useState("");
 
   const oemOptions = React.useMemo(() => {
-    const vehicleOems = vehiclesList.map((v) => v.oemName).filter(Boolean) as string[];
-    const combined = Array.from(new Set([...DEFAULT_OEM_OPTIONS, ...customOems, ...vehicleOems]));
-    return combined.sort((a, b) => a.localeCompare(b));
+    const map = new Map<string, string>();
+    DEFAULT_OEM_OPTIONS.forEach((o) => {
+      const trimmed = o.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    customOems.forEach((o) => {
+      const trimmed = o.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    vehiclesList.forEach((v) => {
+      const trimmed = (v.oemName || "").trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [customOems, vehiclesList]);
 
   const dealerOptions = React.useMemo(() => {
-    const vehicleDealers = vehiclesList.map((v) => v.dealerName).filter(Boolean) as string[];
-    const combined = Array.from(new Set([...DEFAULT_DEALER_OPTIONS, ...customDealers, ...vehicleDealers]));
-    return combined.sort((a, b) => a.localeCompare(b));
+    const map = new Map<string, string>();
+    DEFAULT_DEALER_OPTIONS.forEach((d) => {
+      const trimmed = d.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    customDealers.forEach((d) => {
+      const trimmed = d.trim();
+      if (trimmed) {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
+    });
+    vehiclesList.forEach((v) => {
+      const trimmed = (v.dealerName || "").trim();
+      if (trimmed) {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [customDealers, vehiclesList]);
 
   const handleAddOem = (nameToAdd?: string) => {
@@ -730,23 +765,13 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>Documents Upload</label>
-                    <label className={cn(inputCls, "flex items-center justify-center gap-2 cursor-pointer bg-muted/30 hover:bg-muted/50 border-dashed border-2")}>
-                      <Upload size={14} className="text-muted-foreground" />
-                      <span className="text-muted-foreground">Upload Files</span>
-                      <input
-                        type="file"
-                        className="hidden"
-                        onChange={(e) => {
-                          if (e.target.files && e.target.files.length > 0) {
-                            setForm((f) => ({ ...f, documentsUrl: e.target.files![0].name }))
-                          }
-                        }}
-                      />
-                    </label>
-                    {form.documentsUrl && (
-                      <p className="text-[10px] text-muted-foreground mt-1 truncate">Selected: {form.documentsUrl}</p>
-                    )}
+                    <DocumentUploadWithCamera
+                      label="Documents Upload"
+                      value={form.documentsUrl}
+                      onChange={(file, fileName) => {
+                        setForm((f) => ({ ...f, documentsUrl: fileName || "" }));
+                      }}
+                    />
                   </div>
                 </div>
               </div>

@@ -46,7 +46,7 @@ export function MobileBottomNav() {
     ];
   } else if (currentRole === 'supervisor') {
     navItems = [
-      { label: "Home", href: "/", icon: LayoutDashboard },
+      { label: "Home", href: "/workforce/supervisor", icon: LayoutDashboard },
       { label: "Production", href: "/production?category=All+Categories", icon: Factory },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
       { label: "Workers", href: "/workers", icon: Users },

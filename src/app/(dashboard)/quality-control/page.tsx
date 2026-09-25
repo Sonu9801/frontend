@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef } from "react";
 import type { ColumnDef } from "@/components/ui/DataTable";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
+import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import {
   Dialog,
   DialogContent,
@@ -232,13 +233,20 @@ function QCDetailsDrawer({
           </TabsContent>
           
           <TabsContent value="photos" className="space-y-4">
-            <div className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border rounded-lg bg-muted/10">
-              <Camera className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground mb-4">Upload photo evidence of inspection or defects</p>
-              <input type="file" className="hidden" ref={fileInputRef} onChange={handlePhotoUpload} accept="image/*" />
-              <Button size="sm" onClick={() => fileInputRef.current?.click()} disabled={uploadMutation.isPending}>
-                {uploadMutation.isPending ? "Uploading..." : "Select File"}
-              </Button>
+            <div className="p-4 border border-dashed border-border rounded-lg bg-card">
+              <DocumentUploadWithCamera
+                label="Upload Inspection / Defect Evidence"
+                placeholder="Upload File or Take Photo with Camera"
+                accept="image/*"
+                disabled={uploadMutation.isPending}
+                onChange={(file) => {
+                  if (file && record) {
+                    uploadMutation.mutate({ id: record.id, file }, {
+                      onSuccess: () => toast.success("Photo uploaded successfully")
+                    });
+                  }
+                }}
+              />
             </div>
             
             <div className="grid grid-cols-2 gap-3 mt-4">

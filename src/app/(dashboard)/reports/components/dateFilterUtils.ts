@@ -1,6 +1,6 @@
 export const isDateInFilterRange = (dateRaw?: string | Date | number | null, dateRange: string = "All Time"): boolean => {
   if (!dateRange || dateRange === "All Time") return true;
-  if (!dateRaw) return false;
+  if (!dateRaw) return true;
 
   let compDate: Date | null = null;
   if (dateRaw instanceof Date) {
@@ -9,6 +9,7 @@ export const isDateInFilterRange = (dateRaw?: string | Date | number | null, dat
     compDate = new Date(dateRaw);
   } else {
     let str = String(dateRaw).trim();
+    str = str.replace(/^(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/, "$1T$2");
     if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
       const [y, m, d] = str.split("-").map(Number);
       compDate = new Date(y, m - 1, d);

@@ -24,27 +24,56 @@ export default function DashboardLayout({
   useEffect(() => {
     initialize();
     
-    const token = localStorage.getItem("token");
-    if (!token) {
-      window.location.href = "/login";
+    const rawToken = localStorage.getItem("token") || useAuthStore.getState().token;
+    const isValidToken = rawToken && rawToken !== "null" && rawToken !== "undefined" && rawToken.trim().length > 5;
+
+    if (!isValidToken) {
+      useAuthStore.getState().logout();
+      router.replace("/login");
     } else {
-      const role = localStorage.getItem("role")?.toLowerCase();
-      if ((role === 'attendance' || role === 'attendance_only') && window.location.pathname === '/') {
-        window.location.href = "/attendance";
+      const role = localStorage.getItem("role")?.toLowerCase() || useAuthStore.getState().role?.toLowerCase() || "";
+      const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
+
+      if ((role === 'attendance' || role === 'attendance_only') && currentPath === '/') {
+        router.replace("/attendance");
         return;
       }
-      if ((role === 'dispatcher' || role === 'dispatch') && window.location.pathname === '/') {
-        window.location.href = "/production";
+      if (role === 'supervisor' && currentPath === '/') {
+        router.replace("/workforce/supervisor");
         return;
       }
-      if (role === 'worker' && window.location.pathname === '/') {
-        window.location.href = "/workforce";
+      if ((role === 'dispatcher' || role === 'dispatch') && currentPath === '/') {
+        router.replace("/production");
         return;
       }
-      if (role === 'oem' && window.location.pathname === '/') {
-        window.location.href = "/oem-portal";
+      if (role === 'worker' && currentPath === '/') {
+        router.replace("/workforce");
         return;
       }
+      if (role === 'oem' && currentPath === '/') {
+        router.replace("/oem-portal");
+        return;
+      }
+
+      // Route Protection: Prevent non-admin roles from accessing admin-only pages
+      const adminOnlyPaths = ["/analytics", "/payroll", "/revenue", "/invoices", "/settings", "/activity-logs"];
+      if (adminOnlyPaths.some(p => currentPath.startsWith(p)) && !['admin', 'manager', 'owner', 'hr', 'finance'].includes(role)) {
+        if (role === 'supervisor') {
+          router.replace("/workforce/supervisor");
+          return;
+        }
+        if (role === 'dispatcher' || role === 'dispatch') {
+          router.replace("/production");
+          return;
+        }
+        if (role === 'worker') {
+          router.replace("/workforce");
+          return;
+        }
+        router.replace("/");
+        return;
+      }
+
       setLoading(false);
     }
   }, [initialize, router]);

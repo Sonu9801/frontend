@@ -3,6 +3,7 @@
 import React, { useState, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import { useUploadInvoice, useCreateInvoice } from "@/hooks/useQueries";
 import { UploadCloud, Camera, Image as ImageIcon, FileText, ChevronLeft, Loader2, CheckCircle2, RotateCw } from "lucide-react";
 import { toast } from "sonner";
@@ -297,22 +298,16 @@ export default function InvoiceUploadPage() {
                   onChange={handleFileChange}
                 />
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-sm">
-                  <Button variant="outline" className="h-12 w-full" onClick={() => fileInputRef.current?.click()}>
-                    <ImageIcon size={18} className="mr-2 text-primary" /> Gallery / Files
-                  </Button>
-                  <Button variant="outline" className="h-12 w-full" onClick={() => {
-                     // For mobile camera direct opening, we use accept="image/*" and capture="environment"
-                     const input = document.createElement("input");
-                     input.type = "file";
-                     input.accept = "image/*";
-                     input.capture = "environment";
-                     input.onchange = (e: any) => handleFileChange(e);
-                     input.click();
-                  }}>
-                    <Camera size={18} className="mr-2 text-primary" /> Camera
-                  </Button>
-                </div>
+                <DocumentUploadWithCamera
+                  accept=".pdf,image/*"
+                  value={selectedFile}
+                  onChange={(file) => {
+                    if (file) {
+                      const fakeEvent = { target: { files: [file] } } as any;
+                      handleFileChange(fakeEvent);
+                    }
+                  }}
+                />
               </div>
             )}
           </div>

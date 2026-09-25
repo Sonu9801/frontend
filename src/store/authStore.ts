@@ -57,11 +57,23 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   initialize: () => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token") || localStorage.getItem("worker_token");
-      const refreshToken = localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken");
+      let token = localStorage.getItem("token") || localStorage.getItem("worker_token");
+      let refreshToken = localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken");
       let email = localStorage.getItem("email");
       let name = localStorage.getItem("name");
       let role = localStorage.getItem("role");
+
+      if (token === "null" || token === "undefined" || token === "" || (token && token.trim().length < 5)) {
+        token = null;
+      }
+      if (refreshToken === "null" || refreshToken === "undefined" || refreshToken === "") {
+        refreshToken = null;
+      }
+
+      if (!token) {
+        set({ token: null, refreshToken: null, email: null, name: null, role: null, isAuthenticated: false });
+        return;
+      }
 
       if (!email || !role) {
         const workerInfoStr = localStorage.getItem("worker_info");
@@ -75,9 +87,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
       }
 
-      if (token) {
-        set({ token, refreshToken, email: email || "worker@foxflow.internal", name: name || "Worker", role: role || "worker", isAuthenticated: true });
-      }
+      set({ token, refreshToken, email: email || "worker@foxflow.internal", name: name || "Worker", role: role || "worker", isAuthenticated: true });
     }
   },
 }));

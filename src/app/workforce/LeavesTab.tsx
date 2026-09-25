@@ -12,36 +12,49 @@ export function LeavesTab({ activeUser }: { activeUser: any }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
 
-  const { data: leaves = [], isLoading } = useQuery({
+  const { data: leavesData, isLoading } = useQuery({
     queryKey: ["leaves"],
     queryFn: () => leaveApi.getAll(),
     refetchInterval: 60000,
   });
 
-  const { data: workers = [] } = useQuery({
+  const leavesList = React.useMemo(() => {
+    if (Array.isArray(leavesData)) return leavesData;
+    if (leavesData && Array.isArray((leavesData as any).items)) return (leavesData as any).items;
+    if (leavesData && Array.isArray((leavesData as any).data)) return (leavesData as any).data;
+    return [];
+  }, [leavesData]);
+
+  const { data: workersData } = useQuery({
     queryKey: ["workers"],
     queryFn: () => workersApi.getAll(),
     staleTime: Infinity,
   });
 
-  // Map worker IDs to names
-  const workerMap = workers.reduce((acc: any, w: any) => {
-    acc[w.id || w.worker_id] = w.name;
-    return acc;
-  }, {});
+  const workersList = React.useMemo(() => {
+    if (Array.isArray(workersData)) return workersData;
+    if (workersData && Array.isArray((workersData as any).items)) return (workersData as any).items;
+    if (workersData && Array.isArray((workersData as any).data)) return (workersData as any).data;
+    return [];
+  }, [workersData]);
 
-  const getFilteredLeaves = () => {
-    let filtered = leaves;
-    
-    // Filter out leaves not relevant to this supervisor (if department filtering is needed)
-    // For now, show all since PWA is a demo/prototype
+  // Map worker IDs to names
+  const workerMap = React.useMemo(() => {
+    return workersList.reduce((acc: any, w: any) => {
+      acc[w.id || w.worker_id] = w.name;
+      return acc;
+    }, {});
+  }, [workersList]);
+
+  const filteredLeaves = React.useMemo(() => {
+    let filtered = leavesList;
     
     // Search by worker name
     if (searchQuery) {
-      const q = searchQuery.toLowerCase();
+      const q = searchQuery.toLowerCase().trim();
       filtered = filtered.filter((l: any) => {
         const wName = (workerMap[l.worker_id] || "Unknown").toLowerCase();
-        return wName.includes(q) || l.leave_type?.toLowerCase().includes(q);
+        return wName.includes(q) || (l.leave_type || "").toLowerCase().includes(q);
       });
     }
     
@@ -50,10 +63,8 @@ export function LeavesTab({ activeUser }: { activeUser: any }) {
       filtered = filtered.filter((l: any) => (l.status || "Pending").toLowerCase() === activeFilter);
     }
     
-    return filtered.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-  };
-
-  const filteredLeaves = getFilteredLeaves();
+    return [...filtered].sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }, [leavesList, workerMap, searchQuery, activeFilter]);
 
   return (
     <div className="p-4 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -64,15 +75,15 @@ export function LeavesTab({ activeUser }: { activeUser: any }) {
 
       <div className="grid grid-cols-3 gap-2 mb-6">
         <div className="bg-orange-50 dark:bg-orange-900/20 p-3 rounded-2xl border border-orange-100 dark:border-orange-900/30 text-center shadow-sm">
-          <p className="text-xl font-black text-orange-600">{leaves.filter((l:any) => l.status === "Pending").length}</p>
+          <p className="text-xl font-black text-orange-600">{leavesList.filter((l:any) => l.status === "Pending").length}</p>
           <p className="text-[9px] font-bold text-orange-700 uppercase mt-1">Pending</p>
         </div>
         <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-2xl border border-green-100 dark:border-green-900/30 text-center shadow-sm">
-          <p className="text-xl font-black text-green-600">{leaves.filter((l:any) => l.status === "Approved").length}</p>
+          <p className="text-xl font-black text-green-600">{leavesList.filter((l:any) => l.status === "Approved").length}</p>
           <p className="text-[9px] font-bold text-green-700 uppercase mt-1">Approved</p>
         </div>
         <div className="bg-gray-50 dark:bg-zinc-800 p-3 rounded-2xl border border-gray-100 dark:border-zinc-700 text-center shadow-sm">
-          <p className="text-xl font-black text-gray-600">{leaves.length}</p>
+          <p className="text-xl font-black text-gray-600">{leavesList.length}</p>
           <p className="text-[9px] font-bold text-gray-500 uppercase mt-1">Total</p>
         </div>
       </div>

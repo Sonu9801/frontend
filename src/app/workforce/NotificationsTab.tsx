@@ -16,10 +16,17 @@ export function NotificationsTab({ activeUser, setActiveTab }: { activeUser: any
     queryFn: () => notificationsApi.getAll() 
   });
 
+  const notificationsList = React.useMemo(() => {
+    if (Array.isArray(notifications)) return notifications;
+    if (notifications && Array.isArray((notifications as any).items)) return (notifications as any).items;
+    if (notifications && Array.isArray((notifications as any).data)) return (notifications as any).data;
+    return [];
+  }, [notifications]);
+
   // Filter notifications for current supervisor if required
-  const userNotifications = (notifications as any[]).filter((n: any) => 
+  const userNotifications = notificationsList.filter((n: any) => 
     !n.reference_id || n.reference_id === activeUser?.id?.toString() || n.module === "all" || n.module === "workforce"
-  ).sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  ).sort((a: any, b: any) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
 
   const unreadCount = userNotifications.filter((n: any) => !n.is_read).length;
 

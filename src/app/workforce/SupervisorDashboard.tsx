@@ -149,15 +149,52 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
   const totalApprovals = (pendingApprovals?.pending_leaves || 0) + (pendingApprovals?.pending_corrections || 0);
 
+  // Safely extract notifications array
+  const notificationsList = React.useMemo(() => {
+    if (Array.isArray(notifications)) return notifications;
+    if (notifications && Array.isArray((notifications as any).items)) return (notifications as any).items;
+    if (notifications && Array.isArray((notifications as any).data)) return (notifications as any).data;
+    return [];
+  }, [notifications]);
+
+  // Safely extract platforms array (handles paginated object or flat array response)
+  const platformsList = React.useMemo(() => {
+    if (Array.isArray(platforms)) return platforms;
+    if (platforms && Array.isArray((platforms as any).items)) return (platforms as any).items;
+    if (platforms && Array.isArray((platforms as any).data)) return (platforms as any).data;
+    return [];
+  }, [platforms]);
+
+  // Safely extract workers array
+  const workersList = React.useMemo(() => {
+    if (Array.isArray(allWorkers)) return allWorkers;
+    if (allWorkers && Array.isArray((allWorkers as any).items)) return (allWorkers as any).items;
+    if (allWorkers && Array.isArray((allWorkers as any).data)) return (allWorkers as any).data;
+    return [];
+  }, [allWorkers]);
+
   // --- Production Summary Computed Metrics ---
-  const completedVehicles = platforms.filter((v: any) => v.current_stage === "dispatch" || v.current_stage === "rtd").length;
-  const delayedVehicles = platforms.filter((v: any) => new Date(v.estimated_delivery) < new Date() && v.current_stage !== "dispatch").length;
-  const runningPlatforms = platforms.filter((v: any) => v.current_stage !== "oem" && v.current_stage !== "dispatch" && v.current_stage !== "rtd").length;
+  const completedVehicles = platformsList.filter((v: any) => {
+    const stage = (v.current_stage || v.currentStage || "").toLowerCase();
+    return stage === "dispatch" || stage === "rtd" || stage === "delivered";
+  }).length;
+
+  const delayedVehicles = platformsList.filter((v: any) => {
+    const est = v.estimated_delivery || v.estimatedDelivery;
+    const stage = (v.current_stage || v.currentStage || "").toLowerCase();
+    return est && new Date(est) < new Date() && stage !== "dispatch" && stage !== "delivered";
+  }).length;
+
+  const runningPlatforms = platformsList.filter((v: any) => {
+    const stage = (v.current_stage || v.currentStage || "").toLowerCase();
+    return stage !== "oem" && stage !== "dispatch" && stage !== "rtd" && stage !== "delivered";
+  }).length;
   
   // --- Assigned Platforms Calculation ---
-  // In a real app with proper platform-to-supervisor mapping, we'd filter by supervisor_id.
-  // For now, we display all active (non-completed) platforms as "assigned" platforms for the supervisor.
-  const assignedPlatforms = platforms.filter((p: any) => p.current_stage !== "dispatch" && p.current_stage !== "rtd");
+  const assignedPlatforms = platformsList.filter((p: any) => {
+    const stage = (p.current_stage || p.currentStage || "").toLowerCase();
+    return stage !== "dispatch" && stage !== "rtd" && stage !== "delivered";
+  });
 
   const handleLogoutAction = async () => {
     try {
@@ -209,9 +246,9 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <button onClick={() => setActiveTab("notifications")} className="relative p-1.5 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center">
             <Bell size={22} strokeWidth={2} />
-            {notifications?.filter((n: any) => !n.is_read).length > 0 && (
+            {notificationsList.filter((n: any) => !n.is_read).length > 0 && (
               <span className="absolute top-1 right-1.5 bg-red-600 text-white text-[9px] font-bold w-3.5 h-3.5 flex items-center justify-center rounded-full border border-white dark:border-zinc-900 box-content">
-                {notifications?.filter((n: any) => !n.is_read).length > 99 ? '99+' : notifications?.filter((n: any) => !n.is_read).length}
+                {notificationsList.filter((n: any) => !n.is_read).length > 99 ? '99+' : notificationsList.filter((n: any) => !n.is_read).length}
               </span>
             )}
           </button>
@@ -344,7 +381,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center"><CarFront size={16} /></div>
                     <span className="text-xs font-bold text-gray-600">Total</span>
                   </div>
-                  <span className="text-lg font-black">{platforms.length}</span>
+                  <span className="text-lg font-black">{platformsList.length}</span>
                 </div>
               </div>
             </div>
