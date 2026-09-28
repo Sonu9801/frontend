@@ -162,7 +162,12 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const refreshToken = typeof window !== "undefined" ? (localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken")) : null;
+        const isWorker = typeof window !== "undefined" && Boolean(localStorage.getItem("worker_token"));
+        const refreshToken = typeof window !== "undefined" 
+          ? (isWorker 
+              ? (localStorage.getItem("worker_refreshToken") || localStorage.getItem("refreshToken")) 
+              : (localStorage.getItem("refreshToken") || localStorage.getItem("worker_refreshToken"))) 
+          : null;
         
         const response = await axios.post(
           `${API_URL}/auth/refresh`,
@@ -272,6 +277,14 @@ export const authApi = {
   },
   me: async () => {
     const response = await api.get("/auth/me");
+    return response.data;
+  },
+  verifyUserForReset: async (identity: string) => {
+    const response = await api.post("/auth/forgot-password/verify-user", { identity });
+    return response.data;
+  },
+  resetForgotPassword: async (identity: string, new_password: string) => {
+    const response = await api.post("/auth/forgot-password/reset", { identity, new_password });
     return response.data;
   },
 };
@@ -543,6 +556,10 @@ export const attendanceApi = {
   },
   getAnalytics: async () => {
     const response = await api.get("/attendance/analytics");
+    return response.data;
+  },
+  getTodayRecords: async () => {
+    const response = await api.get("/attendance/today-records");
     return response.data;
   },
   getLogs: async (params?: { page?: number; pageSize?: number; search?: string; status?: string; department?: string; date_from?: string; date_to?: string }) => {

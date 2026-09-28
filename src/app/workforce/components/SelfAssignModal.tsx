@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,9 +25,13 @@ export function SelfAssignModal({
   const [loading, setLoading] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: workersData } = useWorkers({ page: 1, pageSize: 1000, status: "Active" });
+  const { data: workersData } = useWorkers({ page: 1, pageSize: 1000 });
   const workersList = workersData?.items || workersData || [];
-  const availablePartners = workersList.filter((w: any) => w.id !== workerId);
+  const availablePartners = useMemo(() => {
+    return (Array.isArray(workersList) ? workersList : [])
+      .filter((w: any) => w.id !== workerId)
+      .sort((a: any, b: any) => (a.name || "").localeCompare(b.name || ""));
+  }, [workersList, workerId]);
 
   if (!isOpen) return null;
 

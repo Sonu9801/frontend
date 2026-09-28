@@ -6,10 +6,10 @@ import { authApi } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Loader2, ArrowRight, Mail, ShieldCheck, UserPlus, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowRight, Mail, ShieldCheck, UserPlus, ArrowLeft, KeyRound } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
-type AuthStep = "login" | "register" | "accept-invite";
+type AuthStep = "login" | "register" | "accept-invite" | "forgot-password";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -24,6 +24,13 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
   const [setupRequired, setSetupRequired] = useState(false);
+
+  // Forgot Password state
+  const [forgotIdentity, setForgotIdentity] = useState("");
+  const [forgotSubStep, setForgotSubStep] = useState<"verify" | "reset">("verify");
+  const [verifiedUser, setVerifiedUser] = useState<{ name: string; email: string; masked_email: string; masked_mobile: string } | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   const router = useRouter();
   const { login: loginStore, initialize } = useAuthStore();
@@ -150,6 +157,64 @@ export default function LoginPage() {
     }
   };
 
+  const handleVerifyUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotIdentity.trim()) {
+      toast.error("Please enter your Email, Mobile Number, or Employee ID");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await authApi.verifyUserForReset(forgotIdentity.trim());
+      setVerifiedUser(res);
+      setForgotSubStep("reset");
+      toast.success("Account verified! Set your new password.");
+    } catch (err: any) {
+      console.error(err);
+      const detail = err.response?.data?.detail || "Account not found. Only registered users can reset password.";
+      toast.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || !confirmPassword) {
+      toast.error("Please enter and confirm your new password");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error("Password must be at least 6 characters long");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await authApi.resetForgotPassword(forgotIdentity.trim(), newPassword);
+      toast.success("Password reset successful! Please sign in with your new password.");
+      setEmail(verifiedUser?.email || forgotIdentity);
+      setPassword(newPassword);
+      setStep("login");
+      setForgotIdentity("");
+      setForgotSubStep("verify");
+      setVerifiedUser(null);
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err: any) {
+      console.error(err);
+      const detail = err.response?.data?.detail || "Failed to reset password";
+      toast.error(detail);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleGoogleLogin = () => {
     // Must be absolute URL to backend (not proxied), since this is a browser redirect.
     // NEXT_PUBLIC_API_URL is the backend host (e.g. http://localhost:8000)
@@ -267,6 +332,18 @@ export default function LoginPage() {
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Password</label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setForgotIdentity(email);
+                            setForgotSubStep("verify");
+                            setStep("forgot-password");
+                          }}
+                          className="text-xs text-primary hover:underline font-medium transition-colors"
+                          suppressHydrationWarning
+                        >
+                          Forgot password?
+                        </button>
                       </div>
                       <input
                         type="password"
@@ -450,6 +527,144 @@ export default function LoginPage() {
                       </Button>
                     </div>
                   </form>
+                </motion.div>
+              )}
+
+              {/* ─── STEP 3: FORGOT PASSWORD ─── */}
+              {step === "forgot-password" && (
+                <motion.div
+                  key="forgot-password-step"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.25 }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep("login");
+                      setForgotSubStep("verify");
+                    }}
+                    className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-5"
+                    suppressHydrationWarning
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Sign In
+                  </button>
+
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                      <KeyRound className="w-5 h-5 text-amber-500" />
+                    </div>
+                    <div>
+                      <h2 className="text-2xl font-display font-bold">Forgot Password</h2>
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground text-sm mb-6">
+                    {forgotSubStep === "verify"
+                      ? "Enter your registered Email, Mobile, or Employee ID."
+                      : "Set a new secure password for your account."}
+                  </p>
+
+                  {forgotSubStep === "verify" ? (
+                    <form onSubmit={handleVerifyUser} className="space-y-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Email, Mobile or Employee ID</label>
+                        <input
+                          type="text"
+                          value={forgotIdentity}
+                          onChange={(e) => setForgotIdentity(e.target.value)}
+                          placeholder="you@company.com or 9876543210"
+                          className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                          autoFocus
+                          required
+                          suppressHydrationWarning
+                        />
+                      </div>
+
+                      <div className="pt-2">
+                        <Button
+                          type="submit"
+                          className="w-full h-12 rounded-xl text-base font-semibold group transition-all duration-300 hover:shadow-lg hover:shadow-primary/25"
+                          disabled={loading}
+                          suppressHydrationWarning
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Verifying Account...
+                            </>
+                          ) : (
+                            <>
+                              Verify Account
+                              <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  ) : (
+                    <form onSubmit={handleResetPassword} className="space-y-4">
+                      {verifiedUser && (
+                        <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl text-xs space-y-1 mb-2">
+                          <div className="font-semibold text-foreground text-sm flex items-center gap-1.5">
+                            <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                            Account Verified
+                          </div>
+                          <div className="text-muted-foreground">Name: <span className="text-foreground font-medium">{verifiedUser.name}</span></div>
+                          <div className="text-muted-foreground">ID / Email: <span className="text-foreground font-medium">{verifiedUser.masked_email || verifiedUser.masked_mobile}</span></div>
+                        </div>
+                      )}
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">New Password</label>
+                        <input
+                          type="password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Min. 6 characters"
+                          className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                          required
+                          autoFocus
+                          suppressHydrationWarning
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Confirm New Password</label>
+                        <input
+                          type="password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Re-enter new password"
+                          className="w-full bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary transition-smooth"
+                          required
+                          suppressHydrationWarning
+                        />
+                      </div>
+
+                      <div className="pt-2">
+                        <Button
+                          type="submit"
+                          className="w-full h-12 rounded-xl text-base font-semibold group transition-all duration-300 hover:shadow-lg hover:shadow-primary/25"
+                          disabled={loading}
+                          suppressHydrationWarning
+                        >
+                          {loading ? (
+                            <>
+                              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                              Updating Password...
+                            </>
+                          ) : (
+                            <>
+                              Set New Password
+                              <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

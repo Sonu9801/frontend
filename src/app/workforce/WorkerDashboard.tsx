@@ -790,11 +790,11 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                     </div>
                     <div className="flex justify-between items-center py-2 border-b border-gray-50 dark:border-zinc-800">
                       <div className="flex items-center gap-2.5"><div className="w-2 h-2 rounded-full bg-[#4F6BFF]"></div><span className="text-[12px] font-[500] text-[#4B5563] dark:text-gray-400">OT Hours</span></div>
-                      <span className="text-[13px] font-[700] text-[#111827] dark:text-white tabular-nums">{monthlySummary?.total_ot_hours || 0}</span>
+                      <span className="text-[13px] font-[700] text-[#111827] dark:text-white tabular-nums">{monthlySummary?.total_ot_hours !== undefined ? monthlySummary.total_ot_hours : (monthlySummary?.ot_hours || 0)}</span>
                     </div>
                     <div className="flex justify-between items-center pt-2">
-                      <div className="flex items-center gap-2.5"><div className="w-2 h-2 rounded-full bg-[#9C27B0]"></div><span className="text-[11px] font-[500] text-[#4B5563] dark:text-gray-400">Sundays</span></div>
-                      <span className="text-[12px] font-[700] text-[#111827] dark:text-white tabular-nums">{monthlySummary?.sunday_worked || 0}</span>
+                      <div className="flex items-center gap-2.5"><div className="w-2 h-2 rounded-full bg-[#9C27B0]"></div><span className="text-[11px] font-[500] text-[#4B5563] dark:text-gray-400">Sundays & Festivals</span></div>
+                      <span className="text-[12px] font-[700] text-[#111827] dark:text-white tabular-nums">{monthlySummary?.sunday_worked !== undefined ? monthlySummary.sunday_worked : (monthlySummary?.sunday_work || 0)}</span>
                     </div>
                   </div>
                 )}
@@ -840,7 +840,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
         {/* Jobs Tab */}
         {activeTab === "jobs" && (
            <motion.div initial={{opacity:0, y:10}} animate={{opacity:1,y:0}}>
-             <WorkerJobs workerId={worker.worker_id} />
+             <WorkerJobs workerId={String(worker?.worker_id || worker?.id || worker?.workerId || "")} />
            </motion.div>
         )}
         

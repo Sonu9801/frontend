@@ -6,8 +6,10 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { 
   AlertCircle, Clock, PauseCircle, PlayCircle, Camera, 
-  Briefcase, RefreshCw, AlertTriangle, Trash2, Upload, Calendar as CalendarIcon, CheckCircle2, Edit3
+  Briefcase, RefreshCw, AlertTriangle, Trash2, Upload, Calendar as CalendarIcon, CheckCircle2, Edit3,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
+import { format, subMonths, addMonths } from "date-fns";
 import Webcam from "react-webcam";
 import { toast } from "sonner";
 import { jobsApi, componentsApi } from "@/lib/api";
@@ -40,42 +42,57 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
   const [editingTask, setEditingTask] = useState<any>(null);
 
   // 1. React Query for fetching jobs
-  const { data: jobs, isLoading, isError, refetch, isRefetching } = useQuery({
+  const { data: jobs, isLoading: isJobsLoading, isError, refetch: refetchJobs, isRefetching } = useQuery({
     queryKey: ["workerJobs", workerId],
     queryFn: async () => {
       const data = await jobsApi.getWorkerJobs(workerId);
       return data as ProductionJob[];
     },
+    enabled: !!workerId,
     refetchInterval: 10000,
   });
 
   // Today's jobs (includes completed) - used for overview stats only
-  const { data: todayJobs } = useQuery({
+  const { data: todayJobs, refetch: refetchTodayJobs } = useQuery({
     queryKey: ["workerTodayJobs", workerId],
     queryFn: async () => {
       const data = await jobsApi.getWorkerTodayJobs(workerId);
       return data as ProductionJob[];
     },
+    enabled: !!workerId,
     refetchInterval: 30000,
   });
 
-  const { data: componentTasks } = useQuery({
+  const { data: componentTasks, isLoading: isCompLoading, refetch: refetchComponentTasks } = useQuery({
     queryKey: ["workerComponents", workerId],
     queryFn: async () => {
-      const data = await componentsApi.getWorkerTasks(parseInt(workerId));
+      const wId = parseInt(workerId);
+      if (isNaN(wId)) return [];
+      const data = await componentsApi.getWorkerTasks(wId);
       return data;
     },
+    enabled: !!workerId && !isNaN(parseInt(workerId)),
     refetchInterval: 10000,
   });
 
-  const { data: jobHistory } = useQuery({
+  const { data: jobHistory, refetch: refetchJobHistory } = useQuery({
     queryKey: ["workerJobHistory", workerId],
     queryFn: async () => {
       const data = await jobsApi.getWorkerJobHistory(workerId);
       return data as ProductionJob[];
     },
+    enabled: !!workerId,
     refetchInterval: 30000,
   });
+
+  const handleRefreshAll = () => {
+    refetchJobs();
+    refetchTodayJobs();
+    refetchComponentTasks();
+    refetchJobHistory();
+  };
+
+  const isLoading = isJobsLoading || isCompLoading;
 
   // 2. React Query for mutations
   const updateStatusMutation = useMutation({
@@ -184,30 +201,26 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
         </div>
         <h2 className="text-xl font-bold text-gray-900 mb-2">Connection Error</h2>
         <p className="text-muted-foreground text-sm mb-6 max-w-xs">Unable to load your jobs. Please check your network.</p>
-        <Button onClick={() => refetch()} className="px-6 rounded-full" disabled={isRefetching}>
+        <Button onClick={() => handleRefreshAll()} className="px-6 rounded-full" disabled={isRefetching}>
           <RefreshCw className={`w-4 h-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} /> Retry
         </Button>
       </div>
     );
   }
 
-  // Calculate today's stats from todayJobs (includes completed)
-  const statsSource = todayJobs ?? jobs;
-  const pendingCount = statsSource?.filter(j => j.status === 'assigned' || j.status === 'not_started').length || 0;
-  const runningCount = statsSource?.filter(j => j.status === 'in_progress' || j.status === 'paused').length || 0;
-  const completedCount = statsSource?.filter(j => j.status === 'completed').length || 0;
-  
-  const highPriorityCount = statsSource?.filter(j => (j as any).priority?.toLowerCase() === 'high' || (j as any).priority?.toLowerCase() === 'urgent').length || 0;
+  // Calculate stats combining vehicle production jobs and component tasks
+  const prodJobs = todayJobs ?? jobs ?? [];
+  const compTasks = componentTasks ?? [];
 
-  // Filter jobs by tab (excluding Completed tab which has its own logic)
-  const filteredJobs = jobs?.filter(job => {
-    if (activeTab === "All") return true;
-    if (activeTab === "Pending") return job.status === "assigned" || job.status === "not_started";
-    if (activeTab === "In_Progress") return job.status === "in_progress" || job.status === "paused";
-    return false; // Completed tab handled separately
-  });
+  const pendingProd = prodJobs.filter(j => ['assigned', 'not_started', 'pending'].includes(j.status)).length;
+  const pendingComp = compTasks.filter((t: any) => ['pending', 'assigned', 'not_started'].includes(t.status)).length;
+  const pendingCount = pendingProd + pendingComp;
 
-  // Filter completed items for Done tab
+  const runningProd = prodJobs.filter(j => ['in_progress', 'paused', 'running'].includes(j.status)).length;
+  const runningComp = compTasks.filter((t: any) => ['in_progress', 'running', 'paused'].includes(t.status)).length;
+  const runningCount = runningProd + runningComp;
+
+  // Filter completed items for Done tab & Hero Summary Card (month-wise)
   const completedJobs = jobHistory?.filter(j => {
     if (!j.end_time) return false;
     return j.end_time.startsWith(doneMonth);
@@ -218,7 +231,32 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
     return t.end_time.startsWith(doneMonth);
   }) || [];
 
+  const completedCount = completedJobs.length + completedComponentTasks.length;
+
+  const priorityProd = prodJobs.filter(j => {
+    const p = ((j as any).priority || '').toLowerCase();
+    return p === 'high' || p === 'urgent';
+  }).length;
+  const priorityComp = compTasks.filter((t: any) => {
+    const p = (t.priority || '').toLowerCase();
+    const type = (t.component_type || '').toLowerCase();
+    return p === 'high' || p === 'urgent' || type === 'platform';
+  }).length;
+  const highPriorityCount = priorityProd + priorityComp;
+
+  // Filter jobs by tab (excluding Completed tab which has its own logic)
+  const filteredJobs = jobs?.filter(job => {
+    if (activeTab === "All") return true;
+    if (activeTab === "Pending") return job.status === "assigned" || job.status === "not_started";
+    if (activeTab === "In_Progress") return job.status === "in_progress" || job.status === "paused";
+    return false; // Completed tab handled separately
+  });
+
   const activeComponentTasks = componentTasks?.filter((t: any) => t.status !== "completed") || [];
+
+  // Month date calculation for display
+  const [doneYearNum, doneMonthNum] = doneMonth.split("-").map(Number);
+  const selectedMonthDate = new Date(doneYearNum || new Date().getFullYear(), (doneMonthNum || 1) - 1, 1);
 
   return (
     <div className="flex flex-col gap-5 px-1 py-4 max-w-xl mx-auto">
@@ -226,45 +264,106 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">My Work</h2>
         <div className="flex gap-2">
-          <Button variant="default" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-700" onClick={() => setShowSelfAssign(true)}>
+          <Button variant="default" size="sm" className="rounded-full bg-blue-600 hover:bg-blue-700 shadow-sm" onClick={() => setShowSelfAssign(true)}>
             + Start Work
           </Button>
-          <Button variant="ghost" size="icon" className="rounded-full bg-white dark:bg-zinc-800 shadow-sm" onClick={() => refetch()} disabled={isRefetching}>
+          <Button variant="ghost" size="icon" className="rounded-full bg-white dark:bg-zinc-800 shadow-sm" onClick={handleRefreshAll} disabled={isRefetching}>
             <RefreshCw className={`w-4 h-4 text-gray-600 dark:text-gray-300 ${isRefetching ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
       {/* Hero Summary Card */}
-      <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-600 to-blue-700 text-white overflow-hidden rounded-2xl">
+      <Card className="border-0 shadow-md bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-700 text-white overflow-hidden rounded-2xl">
         <CardContent className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-blue-50">Today's Overview</h3>
-            <Briefcase className="w-5 h-5 text-indigo-200 opacity-80" />
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Briefcase className="w-5 h-5 text-indigo-200 opacity-80" />
+              <h3 className="font-bold text-white text-base">
+                {format(selectedMonthDate, "MMMM yyyy")} Overview
+              </h3>
+            </div>
+            
+            {/* Month Filter Selector inside Hero Card */}
+            <div className="flex items-center gap-1 bg-white/15 backdrop-blur-md px-2 py-1 rounded-xl border border-white/20 shadow-inner">
+              <button 
+                type="button"
+                onClick={() => {
+                  const prev = subMonths(selectedMonthDate, 1);
+                  setDoneMonth(format(prev, "yyyy-MM"));
+                }}
+                className="p-1 rounded-lg hover:bg-white/20 text-blue-100 transition-all active:scale-95"
+                title="Previous Month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <select 
+                value={doneMonth}
+                onChange={(e) => setDoneMonth(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white outline-none cursor-pointer text-center"
+              >
+                {Array.from({ length: 12 }).map((_, i) => {
+                  const d = subMonths(new Date(), i);
+                  const val = format(d, "yyyy-MM");
+                  const label = format(d, "MMM yyyy");
+                  return <option key={val} value={val} className="bg-zinc-900 text-white font-medium">{label}</option>;
+                })}
+              </select>
+
+              <button 
+                type="button"
+                onClick={() => {
+                  const next = addMonths(selectedMonthDate, 1);
+                  setDoneMonth(format(next, "yyyy-MM"));
+                }}
+                className="p-1 rounded-lg hover:bg-white/20 text-blue-100 transition-all active:scale-95"
+                title="Next Month"
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
           </div>
+
           <div className="grid grid-cols-4 gap-2 divide-x divide-indigo-400/30">
-            <div className="text-center">
-              <p className="text-2xl font-bold">{isLoading ? '-' : pendingCount}</p>
-              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide">Pending</p>
+            <div 
+              className="text-center cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all active:scale-95" 
+              onClick={() => setActiveTab("Pending")}
+              title="Click to view Pending tasks"
+            >
+              <p className="text-2xl font-bold">{isJobsLoading ? '-' : pendingCount}</p>
+              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide font-medium">Pending</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-blue-100">{isLoading ? '-' : runningCount}</p>
-              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide">Running</p>
+            <div 
+              className="text-center cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all active:scale-95" 
+              onClick={() => setActiveTab("In_Progress")}
+              title="Click to view Running tasks"
+            >
+              <p className="text-2xl font-bold text-blue-100">{isJobsLoading ? '-' : runningCount}</p>
+              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide font-medium">Running</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-green-300">{isLoading ? '-' : completedCount}</p>
-              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide">Done</p>
+            <div 
+              className="text-center cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all active:scale-95" 
+              onClick={() => setActiveTab("Completed")}
+              title="Click to view Completed tasks for this month"
+            >
+              <p className="text-2xl font-bold text-green-300">{isJobsLoading ? '-' : completedCount}</p>
+              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide font-medium">Done</p>
             </div>
-            <div className="text-center">
-              <p className="text-2xl font-bold text-orange-300">{isLoading ? '-' : highPriorityCount}</p>
-              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide">Priority</p>
+            <div 
+              className="text-center cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all active:scale-95" 
+              onClick={() => setActiveTab("All")}
+              title="Click to view All tasks"
+            >
+              <p className="text-2xl font-bold text-orange-300">{isJobsLoading ? '-' : highPriorityCount}</p>
+              <p className="text-[10px] text-indigo-200 mt-1 uppercase tracking-wide font-medium">Priority</p>
             </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Tabs */}
-      <Tabs defaultValue="All" onValueChange={setActiveTab} className="w-full mt-2">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full mt-2">
         <TabsList className="w-full grid grid-cols-4 bg-gray-200/50 dark:bg-zinc-800 p-1 rounded-xl">
           <TabsTrigger value="All" className="text-xs rounded-lg">All</TabsTrigger>
           <TabsTrigger value="Pending" className="text-xs rounded-lg">Pending</TabsTrigger>
@@ -282,14 +381,49 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
             <div className="space-y-4">
               <div className="flex justify-between items-center bg-white dark:bg-zinc-900 rounded-2xl p-3 shadow-sm border border-gray-100 dark:border-zinc-800">
                 <span className="font-semibold text-gray-700 dark:text-gray-300 text-sm pl-2">Filter Month:</span>
-                <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-3 py-1.5 rounded-xl">
-                  <CalendarIcon size={14} className="text-gray-500" />
-                  <input 
-                    type="month"
-                    value={doneMonth}
-                    onChange={(e) => setDoneMonth(e.target.value)}
-                    className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none"
-                  />
+                
+                <div className="flex items-center gap-2">
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const [y, m] = doneMonth.split("-").map(Number);
+                      const prev = subMonths(new Date(y, m - 1, 1), 1);
+                      setDoneMonth(format(prev, "yyyy-MM"));
+                    }}
+                    className="w-8 h-8 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 active:scale-95 transition-all"
+                    title="Previous Month"
+                  >
+                    <ChevronLeft size={16} />
+                  </button>
+
+                  <div className="relative flex items-center gap-1.5 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-3 py-1.5 rounded-xl cursor-pointer hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+                    <CalendarIcon size={14} className="text-blue-600 dark:text-blue-400 shrink-0" />
+                    <select 
+                      value={doneMonth}
+                      onChange={(e) => setDoneMonth(e.target.value)}
+                      className="bg-transparent text-sm font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer pr-1"
+                    >
+                      {Array.from({ length: 12 }).map((_, i) => {
+                        const d = subMonths(new Date(), i);
+                        const val = format(d, "yyyy-MM");
+                        const label = format(d, "MMMM, yyyy");
+                        return <option key={val} value={val} className="bg-white dark:bg-zinc-900 text-gray-900 dark:text-gray-100 font-bold">{label}</option>;
+                      })}
+                    </select>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const [y, m] = doneMonth.split("-").map(Number);
+                      const next = addMonths(new Date(y, m - 1, 1), 1);
+                      setDoneMonth(format(next, "yyyy-MM"));
+                    }}
+                    className="w-8 h-8 rounded-full bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-zinc-700 active:scale-95 transition-all"
+                    title="Next Month"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
                 </div>
               </div>
 
@@ -458,7 +592,7 @@ export function WorkerJobs({ workerId }: { workerId: string }) {
                   <p className="text-sm text-gray-500 dark:text-gray-400 mb-8 max-w-[250px] leading-relaxed">
                     Your supervisor hasn't assigned any work to you yet. Assigned jobs will automatically appear here.
                   </p>
-                  <Button onClick={() => refetch()} className="px-8 h-12 rounded-full bg-gray-900 hover:bg-gray-800 text-white shadow-md font-semibold transition-transform active:scale-95">
+                  <Button onClick={() => handleRefreshAll()} className="px-8 h-12 rounded-full bg-gray-900 hover:bg-gray-800 text-white shadow-md font-semibold transition-transform active:scale-95">
                     <RefreshCw className={`w-4 h-4 mr-2 ${isRefetching ? 'animate-spin' : ''}`} /> Check for updates
                   </Button>
                 </motion.div>

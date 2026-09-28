@@ -340,9 +340,9 @@ export default function EmployeeMonthlyAttendanceModal({
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* Monthly KPI Summary Cards */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
             <div className="bg-card border border-border p-3 rounded-xl shadow-xs">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Present Days</p>
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Present / Worked</p>
               <p className="text-xl font-extrabold text-emerald-600 mt-0.5">
                 {isLoadingSummary ? "..." : monthSummary?.present_days || 0}
               </p>
@@ -356,9 +356,16 @@ export default function EmployeeMonthlyAttendanceModal({
             </div>
 
             <div className="bg-card border border-border p-3 rounded-xl shadow-xs">
-              <p className="text-[10px] uppercase font-bold text-muted-foreground">Half Days / Leaves</p>
-              <p className="text-xl font-extrabold text-warning mt-0.5">
-                {isLoadingSummary ? "..." : (monthSummary?.half_days || 0) + (monthSummary?.leave_days || 0)}
+              <p className="text-[10px] uppercase font-bold text-muted-foreground">Paid Holidays / Off</p>
+              <p className="text-xl font-extrabold text-amber-500 mt-0.5">
+                {isLoadingSummary ? "..." : (monthSummary?.paid_holidays || 0) + (monthSummary?.leave_days || 0)}
+              </p>
+            </div>
+
+            <div className="bg-card border border-border p-3 rounded-xl shadow-xs bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
+              <p className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400">Total Paid Days</p>
+              <p className="text-xl font-extrabold text-blue-700 dark:text-blue-300 mt-0.5">
+                {isLoadingSummary ? "..." : monthSummary?.total_paid_days || monthSummary?.present_days || 0}
               </p>
             </div>
 
@@ -371,8 +378,8 @@ export default function EmployeeMonthlyAttendanceModal({
 
             <div className="bg-card border border-border p-3 rounded-xl shadow-xs">
               <p className="text-[10px] uppercase font-bold text-muted-foreground">Sunday / Festival Work</p>
-              <p className="text-xl font-extrabold text-blue-600 mt-0.5">
-                {isLoadingSummary ? "..." : `${monthSummary?.sunday_work || 0} day(s)`}
+              <p className="text-xl font-extrabold text-indigo-600 mt-0.5">
+                {isLoadingSummary ? "..." : `${monthSummary?.sunday_worked !== undefined ? monthSummary.sunday_worked : (monthSummary?.sunday_work || 0)} day(s)`}
               </p>
             </div>
 

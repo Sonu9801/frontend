@@ -6,7 +6,8 @@ import {
   Menu, Bell, CheckCircle2, XCircle, AlertCircle, 
   Users, Activity, Clock, ShieldCheck, FileText, FileSignature, 
   CarFront, Zap, ChevronRight, BarChart3, Star, LogOut, Plus, Search, Calendar,
-  Factory, Receipt, UserCircle, Grid, MessageSquare, Home, ClipboardList, ChevronLeft
+  Factory, Receipt, UserCircle, Grid, MessageSquare, Home, ClipboardList, ChevronLeft,
+  Inbox, Truck, Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,9 @@ const fallbackNotifications = [
 
 export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogout?: () => void }) {
   const [activeTab, setActiveTab] = useState<"home" | "platforms" | "approvals" | "reports" | "profile" | "notifications" | "performance" | "settings" | "support" | "attendance" | "leaves" | "production" | "invoice">("home");
+  const [prodStage, setProdStage] = useState<string>("all");
+  const [prodView, setProdView] = useState<"kanban" | "table">("kanban");
+  const [attFilter, setAttFilter] = useState<"all" | "present" | "absent" | "late" | "half_day">("all");
   const [showSidebar, setShowSidebar] = useState(false);
   const [langIndex, setLangIndex] = useState(0);
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
@@ -273,9 +277,12 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
           >
             {/* 2. HERO CARD (Gradient Premium) - Team Attendance */}
             <motion.div 
-              className="bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 rounded-[28px] p-5 shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden cursor-pointer active:scale-95 transition-transform"
+              className="bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 rounded-[28px] p-5 shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
               whileTap={{ scale: 0.98 }}
-              onClick={() => setActiveTab('reports')}
+              onClick={() => {
+                setAttFilter("all");
+                setActiveTab("attendance");
+              }}
             >
               {/* Glass Decor */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
@@ -295,31 +302,76 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
 
               <div className="grid grid-cols-4 gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 relative z-10">
-                <div className="text-center">
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttFilter("present");
+                    setActiveTab("attendance");
+                  }}
+                  className="text-center hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
+                >
                   <p className="text-2xl font-black text-white">{attendanceAnalytics?.present || 0}</p>
                   <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Present</p>
                 </div>
-                <div className="text-center border-l border-white/10">
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttFilter("absent");
+                    setActiveTab("attendance");
+                  }}
+                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
+                >
                   <p className="text-2xl font-black text-red-200">{attendanceAnalytics?.absent || 0}</p>
                   <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Absent</p>
                 </div>
-                <div className="text-center border-l border-white/10">
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttFilter("late");
+                    setActiveTab("attendance");
+                  }}
+                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
+                >
                   <p className="text-2xl font-black text-orange-200">{attendanceAnalytics?.late || 0}</p>
                   <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Late</p>
                 </div>
-                <div className="text-center border-l border-white/10">
+                <div 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setAttFilter("half_day");
+                    setActiveTab("attendance");
+                  }}
+                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
+                >
                   <p className="text-2xl font-black text-yellow-200">{attendanceAnalytics?.half_day || 0}</p>
                   <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Half Day</p>
                 </div>
               </div>
             </motion.div>
 
-            {/* 3. QUICK ACTIONS (8-Grid) */}
+            {/* 3. QUICK ACTIONS (4-per-row Grid) */}
             <div>
               <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-3 px-1">Quick Actions</h2>
               <div className="grid grid-cols-4 gap-x-2 gap-y-4">
                 {[
-                  { icon: Factory, label: "Production", color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", onClick: () => setActiveTab('production') },
+                  { 
+                    icon: Factory, 
+                    label: "Production", 
+                    color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", 
+                    onClick: () => { setProdStage("all"); setProdView("kanban"); setActiveTab("production"); } 
+                  },
+                  { 
+                    icon: Inbox, 
+                    label: "Received", 
+                    color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", 
+                    onClick: () => { setProdStage("received"); setProdView("table"); setActiveTab("production"); } 
+                  },
+                  { 
+                    icon: Truck, 
+                    label: "Dispatch", 
+                    color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", 
+                    onClick: () => { setProdStage("dispatch"); setProdView("table"); setActiveTab("production"); } 
+                  },
                   { icon: Users, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => setActiveTab('attendance') },
                   { icon: Activity, label: "Performance", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", onClick: () => setActiveTab('performance') },
                   { icon: ShieldCheck, label: "Approvals", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", onClick: () => setActiveTab('approvals') },
@@ -575,7 +627,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
       {/* Attendance Tab */}
       {activeTab === "attendance" && (
-        <AttendanceTab activeUser={activeUser} />
+        <AttendanceTab activeUser={activeUser} initialFilter={attFilter} />
       )}
 
       {/* Leaves Tab */}
@@ -585,7 +637,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
       {/* Production Dashboard Tab */}
       {activeTab === "production" && (
-        <ProductionTab activeUser={activeUser} />
+        <ProductionTab activeUser={activeUser} initialStage={prodStage} initialViewMode={prodView} />
       )}
 
       {/* Invoice Tab */}
@@ -617,7 +669,10 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
             </div>
 
             <div className="space-y-3">
-              <button className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group">
+              <button 
+                onClick={() => setActiveTab("settings")}
+                className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group"
+              >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 text-gray-600 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
                     <ShieldCheck size={20} />
@@ -630,7 +685,10 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                 <ChevronRight size={18} className="text-gray-400" />
               </button>
               
-              <button className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group">
+              <button 
+                onClick={() => setActiveTab("notifications")}
+                className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group"
+              >
                 <div className="flex items-center gap-4">
                   <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 text-gray-600 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
                     <Bell size={20} />

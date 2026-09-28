@@ -76,15 +76,28 @@ export function WorkerAttendanceTab({ history, workerId }: { history: any[]; wor
           {daysInMonth.map(day => {
              const record = getRecordForDay(day);
              const isCurrentDay = isSameDay(day, today);
+             const isSunday = day.getDay() === 0;
              
              let statusColor = 'bg-gray-50 dark:bg-zinc-800/50 text-gray-500 dark:text-gray-400 font-medium';
              if (record) {
-                if (record.status === 'Present') statusColor = 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold';
-                else if (record.status === 'Absent') statusColor = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-bold';
-                else if (record.status === 'Festival Work' || record.status === 'Holiday Work') statusColor = 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 font-bold';
-                else statusColor = 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-bold';
+                const st = (record.status || '').toLowerCase();
+                if (st.includes('festival') || st.includes('holiday')) {
+                   statusColor = 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 font-bold';
+                } else if (isSunday || st.includes('sunday')) {
+                   statusColor = st.includes('absent')
+                     ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-bold'
+                     : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400 font-bold';
+                } else if (st === 'present') {
+                   statusColor = 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold';
+                } else if (st === 'absent') {
+                   statusColor = 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400 font-bold';
+                } else {
+                   statusColor = 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400 font-bold';
+                }
              } else if (isCurrentDay) {
                 statusColor = 'bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-800';
+             } else if (isSunday) {
+                statusColor = 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 font-medium';
              }
 
              return (
@@ -120,7 +133,7 @@ export function WorkerAttendanceTab({ history, workerId }: { history: any[]; wor
                 <div className={`px-2.5 py-1 rounded text-[10px] font-bold uppercase ${
                   record.status === 'Present' ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400' : 
                   record.status === 'Absent' ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-400' : 
-                  record.status === 'Festival Work' || record.status === 'Holiday Work' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400' :
+                  record.status === 'Sunday Work' || record.status === 'Festival Work' || record.status === 'Holiday Work' ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-400' :
                   'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-400'
                 }`}>
                   {record.status}
