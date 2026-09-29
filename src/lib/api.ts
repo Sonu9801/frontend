@@ -28,7 +28,11 @@ declare global {
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const token = localStorage.getItem("token") || localStorage.getItem("worker_token");
+      const isWorkforce = window.location.pathname.startsWith("/workforce");
+      const token = isWorkforce
+        ? (localStorage.getItem("worker_token") || localStorage.getItem("token"))
+        : (localStorage.getItem("token") || localStorage.getItem("worker_token"));
+
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -291,7 +295,7 @@ export const authApi = {
 
 export const vehiclesApi = {
   getAll: async (params?: { page?: number; pageSize?: number; search?: string }) => {
-    const response = await api.get("/vehicles", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search } });
+    const response = await api.get("/vehicles", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 1000, search: params?.search } });
     return response.data;
   },
   getOne: async (id: number | string) => {

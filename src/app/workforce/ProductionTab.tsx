@@ -108,7 +108,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
 
   const { data: platforms = [], isLoading } = useQuery({
     queryKey: ["vehicles"],
-    queryFn: () => vehiclesApi.getAll(),
+    queryFn: () => vehiclesApi.getAll({ pageSize: 1000 }),
     refetchInterval: 30000,
   });
 
@@ -116,13 +116,15 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     if (Array.isArray(platforms)) return platforms;
     if (platforms && Array.isArray((platforms as any).items)) return (platforms as any).items;
     if (platforms && Array.isArray((platforms as any).data)) return (platforms as any).data;
+    if (platforms && (platforms as any).data && Array.isArray((platforms as any).data.items)) return (platforms as any).data.items;
     return [];
   }, [platforms]);
 
   const oemList = useMemo(() => {
     const set = new Set<string>();
     platformsList.forEach((p: any) => {
-      if (p.oemName) set.add(p.oemName);
+      const oem = p.oemName || p.oem_name;
+      if (oem) set.add(oem);
     });
     return ["All OEMs", ...Array.from(set)];
   }, [platformsList]);
@@ -135,11 +137,11 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     if (searchQuery) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter((p: any) => 
-        (p.platformNumber || p.trackingId || "").toLowerCase().includes(q) ||
-        (p.vehicleNumber || p.vehicleModel || "").toLowerCase().includes(q) ||
-        (p.oemName || "").toLowerCase().includes(q) ||
-        (p.productCategory || "").toLowerCase().includes(q) ||
-        (p.currentStage || "").toLowerCase().includes(q)
+        (p.platformNumber || p.trackingId || p.tracking_id || "").toLowerCase().includes(q) ||
+        (p.vehicleNumber || p.vehicle_number || p.vehicleModel || "").toLowerCase().includes(q) ||
+        (p.oemName || p.oem_name || "").toLowerCase().includes(q) ||
+        (p.productCategory || p.product_category || "").toLowerCase().includes(q) ||
+        (p.currentStage || p.current_stage || p.stage || "").toLowerCase().includes(q)
       );
     }
 
@@ -147,10 +149,10 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     if (stageFilter && stageFilter !== "all") {
       const sf = stageFilter.toLowerCase();
       list = list.filter((p: any) => {
-        const curr = (p.currentStage || "").toLowerCase();
-        if (sf === "received") return curr === "received" || curr === "incoming_verification" || curr === "supervisor_verification";
+        const curr = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
+        if (sf === "received") return curr === "received" || curr === "oem" || curr === "incoming_verification" || curr === "supervisor_verification";
         if (sf === "dispatch" || sf === "rtd") return curr === "dispatch" || curr === "rtd" || curr === "readytodispatch" || curr === "delivered";
-        if (sf === "in_assembly") return ["fabrication", "paint", "quality"].includes(curr);
+        if (sf === "in_assembly") return ["fabrication", "paint", "quality", "assembly", "chassis assembly", "battery installation"].includes(curr);
         return curr === sf;
       });
     }
@@ -163,13 +165,13 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
 
     // OEM filter
     if (oemFilter && oemFilter !== "All OEMs") {
-      list = list.filter((p: any) => (p.oemName || "").toLowerCase() === oemFilter.toLowerCase());
+      list = list.filter((p: any) => (p.oemName || p.oem_name || "").toLowerCase() === oemFilter.toLowerCase());
     }
 
     // Date range filter
     if (dateRange && dateRange !== "All Time") {
       list = list.filter((p: any) => {
-        const dt = p.createdAt || p.receivedAt || p.date;
+        const dt = p.createdAt || p.created_at || p.receivedAt || p.received_at || p.date;
         return dt ? isDateInFilterRange(dt, dateRange) : true;
       });
     }

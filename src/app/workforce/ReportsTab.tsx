@@ -13,9 +13,9 @@ export function ReportsTab({ activeUser }: { activeUser: any }) {
   const [isExporting, setIsExporting] = useState(false);
 
   const { data: vehiclesData } = useQuery({ queryKey: ["vehicles", 1, 1000], queryFn: () => vehiclesApi.getAll({ page: 1, pageSize: 1000 }) });
-  const vehicles = vehiclesData?.items ?? [];
+  const vehicles = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
   const { data: workersData } = useQuery({ queryKey: ["workers", 1, 1000], queryFn: () => workersApi.getAll({ page: 1, pageSize: 1000 }) });
-  const workers = workersData?.items ?? [];
+  const workers = Array.isArray(workersData) ? workersData : (workersData?.items ?? []);
   const { data: leaves = [] } = useQuery({ queryKey: ["leaves"], queryFn: leaveApi.getAll });
   
   // Need raw attendance logs for detailed reports, but we can mock with workers list for now or fetch analytics

@@ -14,7 +14,7 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
     queryFn: () => invoicesApi.getAll({ page: 1, pageSize: 1000 }),
     refetchInterval: 60000,
   });
-  const invoices = invoicesData?.items ?? [];
+  const invoices = Array.isArray(invoicesData) ? invoicesData : (invoicesData?.items ?? []);
 
   const { data: stats } = useInvoiceDashboardStats();
 

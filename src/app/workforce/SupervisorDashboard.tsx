@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { format } from "date-fns";
+import Webcam from "react-webcam";
 import { 
   Menu, Bell, CheckCircle2, XCircle, AlertCircle, 
   Users, Activity, Clock, ShieldCheck, FileText, FileSignature, 
   CarFront, Zap, ChevronRight, BarChart3, Star, LogOut, Plus, Search, Calendar,
   Factory, Receipt, UserCircle, Grid, MessageSquare, Home, ClipboardList, ChevronLeft,
-  Inbox, Truck, Send
+  Inbox, Truck, Send, MapPin, Camera, LogIn, RotateCcw, Loader2,
+  Sun, CalendarCheck, Megaphone, HelpCircle, Briefcase
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -17,21 +19,33 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { attendanceApi, vehiclesApi, notificationsApi, jobsApi, workersApi, authApi } from "@/lib/api";
+import { useWorkerSummary, useAttendanceSettings, useWorkerHistory, useLeaveHistory, useNotifications } from "@/hooks/useQueries";
+import { compressImage, dataURLtoBlob, getDistanceInMeters } from "./utils/attendanceUtils";
 import { useWebSocket } from "@/hooks/useWebSocket";
 import { useAuthStore } from "@/store/authStore";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ApprovalsTab } from "./ApprovalsTab";
 import { ReportsTab } from "./ReportsTab";
 import { NotificationsTab } from "./NotificationsTab";
 import { PerformanceTab } from "./PerformanceTab";
 import { WorkerSettingsTab } from "./components/WorkerSettingsTab";
 import { WorkerSupportTab } from "./components/WorkerSupportTab";
+import { WorkerAttendanceTab } from "./components/WorkerAttendanceTab";
+import { WorkerLeaveTab } from "./components/WorkerLeaveTab";
+import { WorkerNoticeTab } from "./components/WorkerNoticeTab";
+import { WorkerOTTab } from "./components/WorkerOTTab";
+import { WorkerSundayTab } from "./components/WorkerSundayTab";
+import { ApplyLeaveModal } from "./components/ApplyLeaveModal";
+import { WorkerProfileTab } from "./components/WorkerProfileTab";
 import { getTranslation } from "./i18n";
 import { ProductionTab } from "./ProductionTab";
 import { InvoiceTab } from "./InvoiceTab";
-import { AttendanceTab } from "./AttendanceTab";
-import { LeavesTab } from "./LeavesTab";
+
+// Geofence constants
+const COMPANY_LAT = 28.475117;
+const COMPANY_LNG = 77.297224;
+const RADIUS_METERS = 10000;
+const COMPANY_ADDRESS = "Fox Enterprises, Faridabad, Haryana";
 
 // MOCK DATA FALLBACKS (Used if API data is empty for design consistency while developing)
 const fallbackPlatforms = [
@@ -50,7 +64,8 @@ const fallbackNotifications = [
 ];
 
 export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogout?: () => void }) {
-  const [activeTab, setActiveTab] = useState<"home" | "platforms" | "approvals" | "reports" | "profile" | "notifications" | "performance" | "settings" | "support" | "attendance" | "leaves" | "production" | "invoice">("home");
+  const [activeTab, setActiveTab] = useState<"home" | "platforms" | "reports" | "profile" | "notifications" | "performance" | "settings" | "support" | "production" | "invoice" | "my_attendance" | "my_leaves" | "ot" | "sunday" | "notice">("home");
+  const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [prodStage, setProdStage] = useState<string>("all");
   const [prodView, setProdView] = useState<"kanban" | "table">("kanban");
   const [attFilter, setAttFilter] = useState<"all" | "present" | "absent" | "late" | "half_day">("all");
@@ -63,21 +78,149 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  // Personal Punch In / Out state
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [location, setLocation] = useState<{lat: number, lng: number, accuracy: number} | null>(null);
+  const [distance, setDistance] = useState<number | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [punchAction, setPunchAction] = useState<"Punch In" | "Punch Out">("Punch In");
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const webcamRef = useRef<Webcam>(null);
+
   // Initialize WebSocket for real-time updates across the dashboard
   useWebSocket();
 
-  // Fetch full user profile
+  // Fetch full user profile (only if worker prop is not provided)
   const { data: userProfile } = useQuery({
     queryKey: ["userProfile"],
     queryFn: () => authApi.me(),
     staleTime: Infinity,
+    enabled: !worker,
   });
 
-  // Use fetched profile if available, otherwise fallback to worker prop or empty
-  const activeUser = userProfile || worker || {};
+  // Use worker prop from workforce login session if available, fallback to fetched profile
+  const activeUser = worker || userProfile || {};
 
-  const isValidId = (id: any) => id && id !== "undefined" && id !== "null";
-  const managerId = isValidId(activeUser.id) ? activeUser.id : (isValidId(activeUser.worker_id) ? activeUser.worker_id : 1);
+  const isValidId = (id: any) => id !== undefined && id !== null && id !== "undefined" && id !== "null" && id !== "";
+  const managerId = isValidId(worker?.worker_id) 
+    ? worker.worker_id 
+    : (isValidId(worker?.id) 
+      ? worker.id 
+      : (isValidId(userProfile?.worker_id) 
+        ? userProfile.worker_id 
+        : (isValidId(userProfile?.id) 
+          ? userProfile.id 
+          : 1)));
+
+  const { data: summary, refetch: refetchSummary } = useWorkerSummary(managerId);
+  const { data: attendanceSettings } = useAttendanceSettings();
+  const { data: history = [] } = useWorkerHistory(managerId);
+  const { data: leaveHistory = [], isLoading: isLeavesLoading } = useLeaveHistory(managerId);
+
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const isPunchedIn = summary?.status === "Punched In" || summary?.status === "Present" || summary?.status === "Late" || Boolean(summary?.punch_in && !summary?.punch_out);
+
+  const requestLocationAsync = (): Promise<{lat: number, lng: number, accuracy: number, distance: number}> => {
+    return new Promise((resolve, reject) => {
+      setLocating(true);
+      if (!navigator.geolocation) {
+        setLocating(false);
+        reject(new Error("Geolocation not supported"));
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          setLocation({ lat: latitude, lng: longitude, accuracy });
+          const dist = getDistanceInMeters(latitude, longitude, COMPANY_LAT, COMPANY_LNG);
+          setDistance(dist);
+          setLocating(false);
+          resolve({ lat: latitude, lng: longitude, accuracy, distance: dist });
+        },
+        (error) => {
+          setLocating(false);
+          reject(new Error(error.message || "GPS Denied"));
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      );
+    });
+  };
+
+  const handlePunchClick = async (action: "Punch In" | "Punch Out") => {
+    try {
+      const pos = await requestLocationAsync();
+      if (pos.accuracy > 50) {
+        toast.error(`GPS accuracy too low (${Math.round(pos.accuracy)}m). Please step outside or try again.`);
+        return;
+      }
+      if (pos.distance > RADIUS_METERS) {
+        toast.error("You are outside the allowed office location. Please move closer to mark attendance.");
+        return;
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Could not retrieve GPS location.");
+      return;
+    }
+    setPunchAction(action);
+    setPreviewImage(null);
+    setShowCameraModal(true);
+  };
+
+  const handleCapture = async () => {
+    const imageSrc = webcamRef.current?.getScreenshot();
+    if (!imageSrc) return toast.error("Failed to capture photo");
+    setPreviewImage(await compressImage(imageSrc));
+  };
+
+  const submitPunch = async () => {
+    if (!previewImage) return;
+    setUploading(true);
+    const token = localStorage.getItem("worker_token") || localStorage.getItem("token");
+    try {
+      const formData = new FormData();
+      formData.append("worker_id", String(managerId));
+      formData.append("action", punchAction);
+      formData.append("latitude", String(location?.lat || 0));
+      formData.append("longitude", String(location?.lng || 0));
+      formData.append("accuracy", String(location?.accuracy || 0));
+      formData.append("photo", dataURLtoBlob(previewImage), `punch_${Date.now()}.jpg`);
+      
+      const res = await fetch("/api/attendance/punch", { 
+        method: "POST", 
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}, 
+        body: formData 
+      });
+      
+      if (!res.ok) {
+        let errorMsg = "Failed to record attendance";
+        try {
+          const errData = await res.json();
+          if (typeof errData.detail === "string") errorMsg = errData.detail;
+          else if (errData.message) errorMsg = errData.message;
+        } catch {
+          if (res.status === 401) errorMsg = "Session expired. Please log in again.";
+        }
+        throw new Error(errorMsg);
+      }
+      
+      toast.success(`${punchAction} successful!`);
+      setShowCameraModal(false);
+      refetchSummary();
+      queryClient.invalidateQueries({ queryKey: ["workerSummary"] });
+      queryClient.invalidateQueries({ queryKey: ["attendanceAnalytics"] });
+    } catch (err: any) {
+      toast.error(err.message || "Error submitting punch.");
+    } finally { 
+      setUploading(false); 
+    }
+  };
 
   const { data: attendanceAnalytics } = useQuery({
     queryKey: ["attendanceAnalytics", managerId],
@@ -275,79 +418,77 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
             animate={{ opacity: 1, y: 0 }}
             className="p-4 space-y-6 max-w-xl mx-auto"
           >
-            {/* 2. HERO CARD (Gradient Premium) - Team Attendance */}
-            <motion.div 
-              className="bg-gradient-to-br from-indigo-600 via-blue-600 to-indigo-800 rounded-[28px] p-5 shadow-xl shadow-indigo-600/20 text-white relative overflow-hidden cursor-pointer active:scale-95 transition-transform group"
-              whileTap={{ scale: 0.98 }}
-              onClick={() => {
-                setAttFilter("all");
-                setActiveTab("attendance");
-              }}
-            >
-              {/* Glass Decor */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
-              
-              <div className="flex justify-between items-start mb-5 relative z-10">
-                <div>
-                  <p className="text-indigo-100 text-xs font-semibold uppercase tracking-wider mb-1">Team Attendance</p>
-                  <p className="text-xl font-bold">{activeUser?.department || "General"} Shift</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-indigo-100 text-xs font-semibold uppercase tracking-wider mb-1">{format(new Date(), "MMM dd, yyyy")}</p>
-                  <p className="text-xl font-bold flex items-center justify-end gap-1.5">
-                    <Clock size={16} className="text-indigo-200" /> 
-                    {attendanceAnalytics?.today_punch_count || 0} Punches
-                  </p>
-                </div>
-              </div>
+            {/* 1. PERSONAL ATTENDANCE PUNCH IN / OUT CARD */}
+            <div className="bg-gradient-to-br from-[#4F6BFF] to-[#5A43F2] rounded-[28px] p-5 shadow-xl shadow-blue-600/20 text-white w-full min-h-[180px] flex flex-col justify-between border border-white/10 relative overflow-hidden">
+              <Clock size={140} strokeWidth={0.5} className="absolute -right-8 top-1/2 -translate-y-1/2 text-white opacity-[0.12] pointer-events-none" />
+              <div className="relative z-10 flex flex-col h-full justify-between">
+                <div className="flex w-full mb-3 mt-0.5">
+                  <div className="flex-1 flex flex-col items-start pr-4 border-r border-white/10">
+                    <div className={`px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-3 ${isPunchedIn ? 'bg-[#4ADE80]/20 text-white' : 'bg-white/20 text-white'}`}>
+                      <div className={`w-1.5 h-1.5 rounded-full ${isPunchedIn ? 'bg-[#86efac]' : 'bg-white/50'}`}></div>
+                      {isPunchedIn ? "Present (Punched In)" : "Off Duty"}
+                    </div>
+                    <h2 className="text-[32px] sm:text-[36px] font-black tracking-tight leading-none drop-shadow-sm mb-1">
+                      {format(currentTime, "hh:mm")} <span className="text-[16px] sm:text-[18px] font-bold text-white/90">{format(currentTime, "a")}</span>
+                    </h2>
+                    <p className="text-white/80 text-[12px] font-medium tracking-wide mb-3">
+                      {format(currentTime, "EEEE, d MMMM yyyy")}
+                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <div className={`flex items-center gap-1.5 ${isPunchedIn ? 'opacity-100' : 'opacity-60'}`}>
+                        <MapPin size={12} className="text-white/80" />
+                        <span className="text-[10px] font-medium text-white/90">Location {isPunchedIn ? 'Verified' : 'Pending'}</span>
+                        {isPunchedIn ? <CheckCircle2 size={14} className="fill-[#4ADE80] text-[#4F6BFF]" /> : <div className="w-3.5 h-3.5 rounded-full border border-white/50" />}
+                      </div>
+                      <div className={`flex items-center gap-1.5 ${isPunchedIn ? 'opacity-100' : 'opacity-60'}`}>
+                        <Camera size={12} className="text-white/80" />
+                        <span className="text-[10px] font-medium text-white/90">Selfie {isPunchedIn ? 'Verified' : 'Pending'}</span>
+                        {isPunchedIn ? <CheckCircle2 size={14} className="fill-[#4ADE80] text-[#4F6BFF]" /> : <div className="w-3.5 h-3.5 rounded-full border border-white/50" />}
+                      </div>
+                    </div>
+                  </div>
 
-              <div className="grid grid-cols-4 gap-3 bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10 relative z-10">
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttFilter("present");
-                    setActiveTab("attendance");
-                  }}
-                  className="text-center hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
-                >
-                  <p className="text-2xl font-black text-white">{attendanceAnalytics?.present || 0}</p>
-                  <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Present</p>
+                  <div className="pl-4 flex flex-col justify-start">
+                    <div className="mb-4 mt-2">
+                      <p className="text-[10px] text-white/70 font-medium mb-1.5 tracking-wide">Shift Time</p>
+                      <p className="text-[11px] font-bold text-white tracking-wide leading-tight">
+                        {activeUser?.shift_start && activeUser?.shift_end ? `${activeUser.shift_start} - ${activeUser.shift_end}` : "09:00 AM - 06:00 PM"}
+                      </p>
+                    </div>
+                    <div className="h-[1px] w-3/4 bg-white/10 mb-4"></div>
+                    <div>
+                      <p className="text-[10px] text-white/70 font-medium mb-1.5 tracking-wide">Working Time</p>
+                      <p className="text-[16px] font-bold text-white leading-none tracking-wide">
+                        {summary?.net_working_hours ? `${Math.floor(summary.net_working_hours).toString().padStart(2, '0')}h ${Math.round((summary.net_working_hours % 1) * 60).toString().padStart(2, '0')}m` : "00h 00m"}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttFilter("absent");
-                    setActiveTab("attendance");
-                  }}
-                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
-                >
-                  <p className="text-2xl font-black text-red-200">{attendanceAnalytics?.absent || 0}</p>
-                  <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Absent</p>
-                </div>
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttFilter("late");
-                    setActiveTab("attendance");
-                  }}
-                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
-                >
-                  <p className="text-2xl font-black text-orange-200">{attendanceAnalytics?.late || 0}</p>
-                  <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Late</p>
-                </div>
-                <div 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setAttFilter("half_day");
-                    setActiveTab("attendance");
-                  }}
-                  className="text-center border-l border-white/10 hover:bg-white/10 p-1.5 rounded-xl transition-colors cursor-pointer"
-                >
-                  <p className="text-2xl font-black text-yellow-200">{attendanceAnalytics?.half_day || 0}</p>
-                  <p className="text-[9px] text-indigo-100 uppercase font-bold mt-1">Half Day</p>
+
+                <div>
+                  <motion.button 
+                    whileTap={{ scale: 0.96 }}
+                    onClick={() => handlePunchClick(isPunchedIn ? "Punch Out" : "Punch In")} 
+                    disabled={uploading || locating}
+                    className={`w-full bg-white rounded-[16px] h-[52px] font-black text-[16px] shadow-[0_4px_12px_rgba(0,0,0,0.1)] flex justify-center items-center gap-2 overflow-hidden transition-colors disabled:opacity-80 disabled:cursor-not-allowed ${isPunchedIn ? 'text-red-500' : 'text-[#4F6BFF]'}`}
+                  >
+                    {uploading || locating ? (
+                      <Loader2 size={24} className="animate-spin text-current" />
+                    ) : isPunchedIn ? (
+                      <>
+                        <LogOut size={22} strokeWidth={2.5} /> 
+                        <span className="tracking-wide uppercase mt-0.5">Punch Out</span>
+                      </>
+                    ) : (
+                      <>
+                        <LogIn size={22} strokeWidth={2.5} /> 
+                        <span className="tracking-wide uppercase mt-0.5">Punch In</span>
+                      </>
+                    )}
+                  </motion.button>
                 </div>
               </div>
-            </motion.div>
+            </div>
 
             {/* 3. QUICK ACTIONS (4-per-row Grid) */}
             <div>
@@ -372,12 +513,14 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", 
                     onClick: () => { setProdStage("dispatch"); setProdView("table"); setActiveTab("production"); } 
                   },
-                  { icon: Users, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => setActiveTab('attendance') },
-                  { icon: Activity, label: "Performance", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", onClick: () => setActiveTab('performance') },
-                  { icon: ShieldCheck, label: "Approvals", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", onClick: () => setActiveTab('approvals') },
-                  { icon: FileSignature, label: "Leaves", color: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", onClick: () => setActiveTab('leaves') },
+                  { icon: Receipt, label: "Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => setActiveTab('invoice') },
+                  { icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => setActiveTab('my_attendance') },
+                  { icon: Briefcase, label: "Leaves", color: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", onClick: () => setActiveTab('my_leaves') },
+                  { icon: Clock, label: "Overtime", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", onClick: () => setActiveTab('ot') },
+                  { icon: Sun, label: "Sunday / Festival", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", onClick: () => setActiveTab('sunday') },
+                  { icon: Megaphone, label: "Notices", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", onClick: () => setActiveTab('notice') },
+                  { icon: HelpCircle, label: "Support", color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", onClick: () => setActiveTab('support') },
                   { icon: BarChart3, label: "Reports", color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400", onClick: () => setActiveTab('reports') },
-                  { icon: Receipt, label: "Purchase Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => setActiveTab('invoice') },
                   { icon: Menu, label: "More", color: "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400", onClick: () => setShowSidebar(true) }
                 ].map((item, i) => (
                   <motion.button 
@@ -519,64 +662,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
             </div>
 
-            {/* 6. PENDING APPROVALS */}
-            <div className="bg-white dark:bg-zinc-900 rounded-[28px] p-5 shadow-sm border border-gray-100 dark:border-zinc-800">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold flex items-center gap-2">
-                  <ShieldCheck size={18} className="text-orange-500" /> Pending Approvals
-                </h2>
-                <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">{totalApprovals} Pending</Badge>
-              </div>
-              <div className="space-y-3">
-                {totalApprovals > 0 ? (
-                  <>
-                    {pendingApprovals?.pending_leaves > 0 && (
-                      <button className="w-full text-left p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
-                            <AlertCircle size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Leave Requests</p>
-                            <p className="text-xs text-gray-500">{pendingApprovals.pending_leaves} pending approval</p>
-                          </div>
-                        </div>
-                        <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      </button>
-                    )}
-                    {pendingApprovals?.pending_corrections > 0 && (
-                      <button className="w-full text-left p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
-                            <AlertCircle size={18} />
-                          </div>
-                          <div>
-                            <p className="text-sm font-bold text-gray-900 dark:text-gray-100">Attendance Corrections</p>
-                            <p className="text-xs text-gray-500">{pendingApprovals.pending_corrections} pending approval</p>
-                          </div>
-                        </div>
-                        <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  fallbackApprovals.map((app) => (
-                    <button key={app.id} className="w-full text-left p-3 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors flex items-center justify-between group opacity-50 grayscale">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center">
-                          <AlertCircle size={18} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{app.type}</p>
-                          <p className="text-xs text-gray-500">{app.detail}</p>
-                        </div>
-                      </div>
-                      <ChevronRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
-                    </button>
-                  ))
-                )}
-              </div>
-            </div>
+
 
             {/* 7. TEAM PERFORMANCE */}
             <div>
@@ -605,11 +691,6 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
         </AnimatePresence>
       )}
 
-      {/* Approvals Tab */}
-      {activeTab === "approvals" && (
-        <ApprovalsTab activeUser={activeUser} />
-      )}
-
       {/* Reports Tab */}
       {activeTab === "reports" && (
         <ReportsTab activeUser={activeUser} />
@@ -625,14 +706,29 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
         <PerformanceTab activeUser={activeUser} />
       )}
 
-      {/* Attendance Tab */}
-      {activeTab === "attendance" && (
-        <AttendanceTab activeUser={activeUser} initialFilter={attFilter} />
+      {/* My Personal Attendance Tab */}
+      {activeTab === "my_attendance" && (
+        <WorkerAttendanceTab history={history} workerId={managerId} />
       )}
 
-      {/* Leaves Tab */}
-      {activeTab === "leaves" && (
-        <LeavesTab activeUser={activeUser} />
+      {/* My Personal Leaves Tab */}
+      {activeTab === "my_leaves" && (
+        <WorkerLeaveTab leaveHistory={leaveHistory} isLoading={isLeavesLoading} onApplyLeave={() => setShowLeaveModal(true)} />
+      )}
+
+      {/* Overtime Tab */}
+      {activeTab === "ot" && (
+        <WorkerOTTab history={history} workerId={managerId} />
+      )}
+
+      {/* Sunday Work Tab */}
+      {activeTab === "sunday" && (
+        <WorkerSundayTab history={history} workerId={managerId} />
+      )}
+
+      {/* Notice Board Tab */}
+      {activeTab === "notice" && (
+        <WorkerNoticeTab notifications={notifications.filter((n: any) => n.type === 'general' || n.module === 'notice')} title="Notice Board" emptyText="No new notices" icon="megaphone" />
       )}
 
       {/* Production Dashboard Tab */}
@@ -647,70 +743,13 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
       {/* Profile Tab */}
       {activeTab === "profile" && (
-          <div className="p-5 animate-in fade-in slide-in-from-bottom-4 duration-500 max-w-xl mx-auto">
-            <h2 className="text-2xl font-extrabold mb-6">Profile Settings</h2>
-            
-            <div className="bg-white dark:bg-zinc-900 rounded-[32px] p-6 shadow-sm border border-gray-100 dark:border-zinc-800 text-center mb-6 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-br from-indigo-500 to-purple-600 opacity-10"></div>
-              
-              <div className="w-24 h-24 mx-auto bg-gradient-to-br from-indigo-100 to-purple-100 dark:from-indigo-900/40 dark:to-purple-900/40 rounded-[28px] flex items-center justify-center mb-4 relative z-10 shadow-inner border-4 border-white dark:border-zinc-900 rotate-3">
-                <span className="text-3xl font-black text-indigo-600 dark:text-indigo-400 -rotate-3">{activeUser?.name?.charAt(0) || 'S'}</span>
-              </div>
-              
-              <h3 className="text-xl font-extrabold">{activeUser?.name || 'Supervisor'}</h3>
-              <p className="text-sm font-medium text-indigo-600 mt-1">{activeUser?.designation || 'Floor Manager'}</p>
-              
-              <div className="flex gap-2 justify-center mt-4">
-                <Badge variant="outline" className="bg-gray-50 border-gray-200 text-xs py-1">ID: {activeUser?.employee_id || 'SUP-104'}</Badge>
-                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 text-xs py-1 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Active Session
-                </Badge>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <button 
-                onClick={() => setActiveTab("settings")}
-                className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 text-gray-600 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                    <ShieldCheck size={20} />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-sm">Account Security</p>
-                    <p className="text-xs text-gray-500">Password, 2FA, Sessions</p>
-                  </div>
-                </div>
-                <ChevronRight size={18} className="text-gray-400" />
-              </button>
-              
-              <button 
-                onClick={() => setActiveTab("notifications")}
-                className="w-full bg-white dark:bg-zinc-900 p-4 rounded-2xl flex items-center justify-between border border-gray-100 dark:border-zinc-800 hover:border-indigo-200 hover:shadow-md transition-all group"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 text-gray-600 flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
-                    <Bell size={20} />
-                  </div>
-                  <div className="text-left">
-                    <p className="font-bold text-sm">Notifications</p>
-                    <p className="text-xs text-gray-500">Push, Email, SMS preferences</p>
-                  </div>
-                </div>
-                <ChevronRight size={18} className="text-gray-400" />
-              </button>
-            </div>
-
-            <Button 
-              variant="destructive" 
-              className="w-full mt-8 rounded-2xl py-6 font-bold shadow-lg shadow-red-500/20 active:scale-95 transition-all"
-              onClick={handleLogoutAction}
-            >
-              Secure Logout
-            </Button>
-          </div>
-        )}
+        <WorkerProfileTab 
+          worker={activeUser} 
+          onLogout={handleLogoutAction} 
+          getTranslation={getTranslation}
+          langIndex={langIndex}
+        />
+      )}
 
       {/* Settings Tab */}
       {activeTab === "settings" && (
@@ -772,28 +811,44 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                   <UserCircle size={22} className="text-blue-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "My Profile")}</span>
                 </button>
+                <button onClick={() => { setShowSidebar(false); setActiveTab("my_attendance"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                  <CalendarCheck size={22} className="text-emerald-500" />
+                  <span className="font-semibold">My Attendance</span>
+                </button>
+                <button onClick={() => { setShowSidebar(false); setActiveTab("my_leaves"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                  <Briefcase size={22} className="text-pink-500" />
+                  <span className="font-semibold">My Leaves</span>
+                </button>
+                <button onClick={() => { setShowSidebar(false); setActiveTab("ot"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                  <Clock size={22} className="text-orange-500" />
+                  <span className="font-semibold">Overtime</span>
+                </button>
+                <button onClick={() => { setShowSidebar(false); setActiveTab("sunday"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                  <Sun size={22} className="text-yellow-500" />
+                  <span className="font-semibold">Sunday / Festival</span>
+                </button>
+                <button onClick={() => { setShowSidebar(false); setActiveTab("notice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                  <Megaphone size={22} className="text-purple-500" />
+                  <span className="font-semibold">Notices</span>
+                </button>
                 <button onClick={() => { setShowSidebar(false); setActiveTab("production"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
-                  <Factory size={22} className="text-purple-500" />
+                  <Factory size={22} className="text-indigo-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Production")}</span>
                 </button>
                 <button onClick={() => { setShowSidebar(false); setActiveTab("invoice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Receipt size={22} className="text-blue-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Purchase Invoices")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("approvals"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
-                  <ShieldCheck size={22} className="text-green-500" />
-                  <span className="font-semibold">{getTranslation(langIndex, "Approvals")}</span>
-                </button>
                 <button onClick={() => { setShowSidebar(false); setActiveTab("reports"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
-                  <BarChart3 size={22} className="text-orange-500" />
+                  <BarChart3 size={22} className="text-cyan-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Reports")}</span>
                 </button>
                 <button onClick={() => { setShowSidebar(false); setActiveTab("settings"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
-                  <Grid size={22} className="text-indigo-500" />
+                  <Grid size={22} className="text-gray-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "App Settings")}</span>
                 </button>
                 <button onClick={() => { setShowSidebar(false); setActiveTab("support"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
-                  <MessageSquare size={22} className="text-teal-500" />
+                  <HelpCircle size={22} className="text-teal-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Help & Support")}</span>
                 </button>
               </div>
@@ -806,6 +861,62 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
             </motion.div>
           </>
+        )}
+      </AnimatePresence>
+
+      <ApplyLeaveModal isOpen={showLeaveModal} onClose={() => setShowLeaveModal(false)} workerId={managerId} />
+
+      {/* Selfie Camera Modal for Supervisor / Dispatch Personal Punch */}
+      <AnimatePresence>
+        {showCameraModal && (
+          <Dialog open={showCameraModal} onOpenChange={setShowCameraModal}>
+            <DialogContent className="max-w-sm rounded-3xl p-6 text-center">
+              <DialogHeader>
+                <DialogTitle className="text-xl font-extrabold flex items-center justify-center gap-2">
+                  <Camera size={22} className="text-indigo-600" />
+                  {punchAction} Selfie
+                </DialogTitle>
+              </DialogHeader>
+
+              <div className="space-y-4 my-2">
+                {!previewImage ? (
+                  <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden bg-black flex items-center justify-center">
+                    <Webcam
+                      audio={false}
+                      ref={webcamRef}
+                      screenshotFormat="image/jpeg"
+                      videoConstraints={{ facingMode: "user", width: { ideal: 720 }, height: { ideal: 960 } }}
+                      playsInline
+                      muted
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-4 border-2 border-dashed border-white/50 rounded-2xl pointer-events-none"></div>
+                  </div>
+                ) : (
+                  <div className="relative aspect-[3/4] w-full rounded-2xl overflow-hidden border border-gray-200">
+                    <img src={previewImage} alt="Selfie Preview" className="w-full h-full object-cover" />
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  {!previewImage ? (
+                    <Button onClick={handleCapture} className="w-full h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold">
+                      <Camera size={18} className="mr-2" /> Take Selfie
+                    </Button>
+                  ) : (
+                    <>
+                      <Button variant="outline" onClick={() => setPreviewImage(null)} className="flex-1 h-12 rounded-2xl font-bold">
+                        <RotateCcw size={16} className="mr-1" /> Re-take
+                      </Button>
+                      <Button onClick={submitPunch} disabled={uploading} className="flex-1 h-12 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                        {uploading ? <Loader2 size={18} className="animate-spin" /> : "Submit Punch"}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
         )}
       </AnimatePresence>
 
