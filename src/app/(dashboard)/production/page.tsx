@@ -834,6 +834,76 @@ export default function ProductionPage() {
     return ["All Dealers", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [vehicles]);
 
+  const allModelOptions = useMemo(() => {
+    const defaultModels = [
+      "HILOAD",
+      "STROM",
+      "DV-120",
+      "DV-170",
+      "DV- 220 City",
+      "DV- 220 MAXX",
+      "DV- 260 Strom",
+      "DV-330",
+      "HD-120",
+      "HD-170",
+      "HD- 220 City",
+      "HD- 220 MAXX",
+      "HD- 260 Strom",
+      "HD-330",
+      "PV-120",
+      "PV-170",
+      "PV- 220 City",
+      "PV- 220 MAXX",
+      "PV- 260 Strom",
+      "PV-330",
+      "PIAGGIO",
+      "Montra Electric",
+      "TATA MOTORS",
+      "MAHINDRA",
+    ];
+
+    const map = new Map<string, string>();
+    defaultModels.forEach((m) => {
+      const trimmed = m.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+
+    vehicles.forEach((v: Vehicle) => {
+      const trimmed = (v.vehicleModel || (v as any).modelName || (v as any).model_name || "").trim();
+      if (trimmed) {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [vehicles]);
+
+  const oemDropdownList = useMemo(() => {
+    const list = allOemOptions.filter((o) => o !== "All OEMs");
+    const curOem = editRecord?.oemName;
+    if (curOem && !list.some((o) => o.toLowerCase() === curOem.toLowerCase())) {
+      return [curOem, ...list];
+    }
+    return list;
+  }, [allOemOptions, editRecord]);
+
+  const dealerDropdownList = useMemo(() => {
+    const list = allDealerOptions.filter((d) => d !== "All Dealers");
+    const curDealer = editRecord?.dealerName;
+    if (curDealer && !list.some((d) => d.toLowerCase() === curDealer.toLowerCase())) {
+      return [curDealer, ...list];
+    }
+    return list;
+  }, [allDealerOptions, editRecord]);
+
+  const modelDropdownList = useMemo(() => {
+    const curModel = editRecord?.vehicleModel || (editRecord as any)?.modelName || (editRecord as any)?.model_name;
+    if (curModel && !allModelOptions.some((m) => m.toLowerCase() === curModel.toLowerCase())) {
+      return [curModel, ...allModelOptions];
+    }
+    return allModelOptions;
+  }, [allModelOptions, editRecord]);
+
   const filtered = useMemo(() => {
     return vehicles.filter((v: Vehicle) => {
       const q = search.toLowerCase();
@@ -1739,14 +1809,54 @@ export default function ProductionPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              onClick={() => router.push(`/vehicle/${v.id}`)}
-                              className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
-                              title="View Details"
-                            >
-                              <ExternalLink size={14} />
-                            </button>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={() => setEditRecord(v)}
+                                className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
+                                title="Edit Vehicle"
+                              >
+                                <Edit size={14} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => router.push(`/vehicle/${v.id}`)}
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors"
+                                title="View Details"
+                              >
+                                <ExternalLink size={14} />
+                              </button>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button
+                                    type="button"
+                                    className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+                                    title="More Actions"
+                                  >
+                                    <ChevronDown size={14} />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Vehicle Actions</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => setEditRecord(v)}>
+                                    <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Vehicle
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => router.push(`/vehicle/${v.id}`)}>
+                                    <Search className="mr-2 h-4 w-4" /> View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => setAssignJobState({ vehicle: v, stage: (v.currentStage === "readytodispatch" ? "rtd" : v.currentStage) as Stage })}>
+                                    <UserPlus className="mr-2 h-4 w-4" /> Reassign Job
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setHoldRecord(v)}>
+                                    <XCircle className="mr-2 h-4 w-4 text-destructive" /> {v.currentStage === "hold" ? "Resume Vehicle" : "Hold Vehicle"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => setHistoryRecord(v)}>
+                                    <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1802,28 +1912,64 @@ export default function ProductionPage() {
       <EditRecordDialog
         open={!!editRecord}
         onOpenChange={(open) => !open && setEditRecord(null)}
-        title={`Edit Vehicle: ${editRecord?.vehicleNumber}`}
+        title={`Edit Vehicle: ${editRecord?.trackingId || editRecord?.vehicleNumber}`}
         fields={[
-          { name: "priority", label: "Priority", type: "select", defaultValue: editRecord?.priority, options: ["Normal", "High", "Urgent"] },
-          { name: "stage", label: "Stage", type: "select", defaultValue: editRecord?.currentStage, options: ["oem", "received", "fabrication", "paint", "quality", "rtd", "dispatch"] },
+          { name: "chassisNumber", label: "Chassis / VIN", type: "text", defaultValue: editRecord?.chassisNumber || editRecord?.vin || "" },
+          { name: "oemName", label: "OEM Name", type: "select", defaultValue: editRecord?.oemName || "", options: oemDropdownList },
+          { name: "vehicleModel", label: "Model Name", type: "select", defaultValue: editRecord?.vehicleModel || (editRecord as any)?.modelName || (editRecord as any)?.model_name || "", options: modelDropdownList },
+          { name: "dealerName", label: "Dealer Name", type: "select", defaultValue: editRecord?.dealerName || "", options: dealerDropdownList },
+          { name: "productCategory", label: "Category", type: "select", defaultValue: editRecord?.productCategory || "Cargo Box", options: PRODUCT_CATEGORIES.filter(c => c !== "All Categories") },
+          { name: "priority", label: "Priority", type: "select", defaultValue: editRecord?.priority || "Normal", options: ["Normal", "High", "Urgent"] },
+          { name: "stage", label: "Stage", type: "select", defaultValue: (editRecord?.currentStage === "readytodispatch" ? "rtd" : editRecord?.currentStage) || "received", options: [
+            { label: "Supervisor Verification", value: "supervisor_verification" },
+            { label: "Received", value: "received" },
+            { label: "Fabrication", value: "fabrication" },
+            { label: "Paint", value: "paint" },
+            { label: "Quality", value: "quality" },
+            { label: "Ready to Dispatch", value: "rtd" },
+            { label: "Dispatch", value: "dispatch" },
+          ] },
         ]}
-        onSubmit={(data) => {
+        onSubmit={(data, reason) => {
           if (!editRecord) return;
           if (data.stage === "dispatch" || data.stage === "delivered") {
             setPendingDispatchVehicle(editRecord);
             setEditRecord(null);
             return;
           }
-          updateStageMutation.mutate({ 
+
+          let progress = editRecord.progressPercent ?? 0;
+          if (data.stage === "received") progress = 0;
+          else if (data.stage === "fabrication") progress = 30;
+          else if (data.stage === "paint") progress = 60;
+          else if (data.stage === "rtd") progress = 90;
+          else if (data.stage === "dispatch") progress = 100;
+
+          updateVehicleMutation.mutate({ 
             id: editRecord.id, 
-            stage: data.stage,
-            priority: data.priority,
-            reason: data.reason
+            data: {
+              chassis_number: data.chassisNumber,
+              vin: data.chassisNumber,
+              oem_name: data.oemName,
+              vehicle_model: data.vehicleModel,
+              dealer_name: data.dealerName,
+              product_category: data.productCategory,
+              priority: data.priority,
+              current_stage: data.stage,
+              progress_percent: progress,
+              reason: reason
+            }
           }, {
-            onSuccess: () => setEditRecord(null)
+            onSuccess: () => {
+              toast.success(`Vehicle ${editRecord.trackingId} updated successfully`);
+              setEditRecord(null);
+            },
+            onError: (err: any) => {
+              toast.error(err?.response?.data?.detail || "Failed to update vehicle");
+            }
           });
         }}
-        isSubmitting={updateStageMutation.isPending}
+        isSubmitting={updateVehicleMutation.isPending}
       />
 
       <ReasonPromptDialog

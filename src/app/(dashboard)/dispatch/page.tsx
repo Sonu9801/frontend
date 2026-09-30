@@ -1044,8 +1044,9 @@ export default function DispatchPage() {
                 {
                   name: "oemName",
                   label: "OEM Name",
-                  type: "text",
+                  type: "select",
                   defaultValue: editRecord.oemName || (editRecord as any).oem_name || vehicleMap[String(editRecord.vehicleId)]?.oemName || "",
+                  options: ["EULER MOTORS", "MONTRA ELECTRIC", "BAJAJ AUTO", "PIAGGIO", "JUPITER ELECTRIC MOBILITY", "TVS MOTORS", "E NEXT MOBILITY", "TATA MOTORS", "MAHINDRA"],
                 },
                 {
                   name: "dispatchChallanNumber",
