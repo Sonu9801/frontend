@@ -28,9 +28,10 @@ interface ProductionTabProps {
   activeUser: any;
   initialStage?: string;
   initialViewMode?: "kanban" | "table";
+  autoOpenForm?: "received" | "dispatch" | null;
 }
 
-export function ProductionTab({ activeUser, initialStage = "all", initialViewMode = "kanban" }: ProductionTabProps) {
+export function ProductionTab({ activeUser, initialStage = "all", initialViewMode = "kanban", autoOpenForm }: ProductionTabProps) {
   const [viewMode, setViewMode] = useState<"kanban" | "table">(initialViewMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<string>(initialStage);
@@ -52,17 +53,23 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
   });
   const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<any | null>(null);
 
-  // Sync props when initialStage or initialViewMode changes from Quick Actions
+  // Sync props when initialStage, initialViewMode or autoOpenForm changes from Quick Actions
   useEffect(() => {
     if (initialStage) setStageFilter(initialStage);
     if (initialViewMode) setViewMode(initialViewMode);
-  }, [initialStage, initialViewMode]);
+    if (autoOpenForm === "received") {
+      setAddModalMode("received");
+      setShowAddModal(true);
+    } else if (autoOpenForm === "dispatch") {
+      setShowSelectDispatchModal(true);
+    }
+  }, [initialStage, initialViewMode, autoOpenForm]);
 
   const createVehicleMutation = useCreateVehicle();
   const verifyVehicleMutation = useVerifyVehicle();
   const updateStageMutation = useUpdateVehicleStage();
   const updateVehicleMutation = useUpdateVehicle();
-  const { data: workersData } = useWorkers();
+  const { data: workersData } = useWorkers({ pageSize: 1000 });
 
   const workers = useMemo(() => {
     if (Array.isArray(workersData)) return workersData;

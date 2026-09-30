@@ -40,6 +40,7 @@ import { WorkerProfileTab } from "./components/WorkerProfileTab";
 import { getTranslation } from "./i18n";
 import { ProductionTab } from "./ProductionTab";
 import { InvoiceTab } from "./InvoiceTab";
+import { cn } from "@/lib/utils";
 
 // Geofence constants
 const COMPANY_LAT = 28.475117;
@@ -68,6 +69,39 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   const [showLeaveModal, setShowLeaveModal] = useState(false);
   const [prodStage, setProdStage] = useState<string>("all");
   const [prodView, setProdView] = useState<"kanban" | "table">("kanban");
+  const [prodAutoForm, setProdAutoForm] = useState<"received" | "dispatch" | null>(null);
+  const [attSubTab, setAttSubTab] = useState<"team" | "my">("team");
+
+  // Sync activeTab with browser history to intercept back button
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (!window.history.state || !window.history.state.tab)) {
+      window.history.replaceState({ tab: activeTab }, "");
+    }
+
+    const onPopState = (e: PopStateEvent) => {
+      if (e.state && e.state.tab) {
+        setActiveTab(e.state.tab);
+      } else {
+        setActiveTab("home");
+      }
+      setProdAutoForm(null);
+    };
+
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const handleTabChange = (tab: any, stage: string = "all", view: "kanban" | "table" = "kanban", autoForm: "received" | "dispatch" | null = null) => {
+    setProdStage(stage);
+    setProdView(view);
+    setProdAutoForm(autoForm);
+    if (tab !== activeTab) {
+      if (typeof window !== 'undefined') {
+        window.history.pushState({ tab }, "");
+      }
+      setActiveTab(tab);
+    }
+  };
   const [attFilter, setAttFilter] = useState<"all" | "present" | "absent" | "late" | "half_day">("all");
   const [showSidebar, setShowSidebar] = useState(false);
   const [langIndex, setLangIndex] = useState(0);
@@ -229,6 +263,12 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
     enabled: !!managerId,
   });
 
+  const { data: todayAttendanceRecords = [] } = useQuery({
+    queryKey: ["todayAttendanceRecords"],
+    queryFn: () => attendanceApi.getTodayRecords(),
+    refetchInterval: 30000,
+  });
+
   const { data: pendingApprovals } = useQuery({
     queryKey: ["pendingRequests", managerId],
     queryFn: () => attendanceApi.getPendingRequests(managerId),
@@ -249,8 +289,8 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   });
 
   const { data: allWorkers = [] } = useQuery({
-    queryKey: ["workers"],
-    queryFn: () => workersApi.getAll(),
+    queryKey: ["workers", 1, 1000],
+    queryFn: () => workersApi.getAll({ page: 1, pageSize: 1000 }),
     refetchInterval: 60000,
   });
 
@@ -320,6 +360,30 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
     return [];
   }, [allWorkers]);
 
+  // Extract today's attendance records list or fallback to workersList
+  const teamAttendanceList = React.useMemo(() => {
+    const list = Array.isArray(todayAttendanceRecords) 
+      ? todayAttendanceRecords 
+      : (todayAttendanceRecords as any)?.data || [];
+    if (list.length > 0) return list;
+    return workersList;
+  }, [todayAttendanceRecords, workersList]);
+
+  // Live attendance metrics (uses attendanceAnalytics backend data or computes from teamAttendanceList)
+  const presentCount = attendanceAnalytics?.present ?? (
+    teamAttendanceList.filter((w: any) => {
+      const st = (w.status || "").toLowerCase();
+      return ["present", "late", "half day", "half_day", "punched in", "active", "online"].includes(st) || !!w.punch_in;
+    }).length
+  );
+  
+  const absentCount = attendanceAnalytics?.absent ?? (
+    teamAttendanceList.filter((w: any) => {
+      const st = (w.status || "").toLowerCase();
+      return st === "absent" || st === "off duty" || (!w.punch_in && st !== "present" && st !== "late" && st !== "half day");
+    }).length
+  );
+
   // --- Production Summary Computed Metrics ---
   const completedVehicles = platformsList.filter((v: any) => {
     const stage = (v.current_stage || v.currentStage || "").toLowerCase();
@@ -373,7 +437,16 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                <Menu size={22} strokeWidth={2} />
             </button>
           ) : (
-            <button onClick={() => setActiveTab("home")} className="p-1.5 -ml-1.5 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center">
+            <button 
+              onClick={() => {
+                if (typeof window !== 'undefined' && window.history.state?.tab && window.history.state.tab !== "home") {
+                  window.history.back();
+                } else {
+                  handleTabChange("home");
+                }
+              }} 
+              className="p-1.5 -ml-1.5 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center"
+            >
                <ChevronLeft size={22} strokeWidth={2} />
             </button>
           )}
@@ -391,7 +464,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
         {/* RIGHT SECTION: Notifications & Profile */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button onClick={() => setActiveTab("notifications")} className="relative p-1.5 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center">
+          <button onClick={() => handleTabChange("notifications")} className="relative p-1.5 rounded-full text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors flex items-center justify-center">
             <Bell size={22} strokeWidth={2} />
             {notificationsList.filter((n: any) => !n.is_read).length > 0 && (
               <span className="absolute top-1 right-1.5 bg-red-600 text-white text-[9px] font-bold w-3.5 h-3.5 flex items-center justify-center rounded-full border border-white dark:border-zinc-900 box-content">
@@ -400,7 +473,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
             )}
           </button>
           
-          <button className="relative ml-1 flex items-center justify-center" onClick={() => setActiveTab("profile")}>
+          <button className="relative ml-1 flex items-center justify-center" onClick={() => handleTabChange("profile")}>
             <div className="w-9 h-9 rounded-full bg-gray-100 dark:bg-zinc-800 overflow-hidden flex items-center justify-center shrink-0 border border-gray-200 dark:border-zinc-700">
               {activeUser?.profile_photo_url ? <img src={activeUser.profile_photo_url} className="w-full h-full object-cover" /> : <span className="font-bold text-gray-500 dark:text-gray-400 text-sm">{activeUser?.name?.charAt(0) || "S"}</span>}
             </div>
@@ -499,28 +572,28 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     icon: Factory, 
                     label: "Production", 
                     color: "bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400", 
-                    onClick: () => { setProdStage("all"); setProdView("kanban"); setActiveTab("production"); } 
+                    onClick: () => handleTabChange("production", "all", "kanban", null) 
                   },
                   { 
                     icon: Inbox, 
                     label: "Received", 
                     color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", 
-                    onClick: () => { setProdStage("received"); setProdView("table"); setActiveTab("production"); } 
+                    onClick: () => handleTabChange("production", "received", "table", "received") 
                   },
                   { 
                     icon: Truck, 
                     label: "Dispatch", 
                     color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", 
-                    onClick: () => { setProdStage("dispatch"); setProdView("table"); setActiveTab("production"); } 
+                    onClick: () => handleTabChange("production", "dispatch", "table", "dispatch") 
                   },
-                  { icon: Receipt, label: "Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => setActiveTab('invoice') },
-                  { icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => setActiveTab('my_attendance') },
-                  { icon: Briefcase, label: "Leaves", color: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", onClick: () => setActiveTab('my_leaves') },
-                  { icon: Clock, label: "Overtime", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", onClick: () => setActiveTab('ot') },
-                  { icon: Sun, label: "Sunday / Festival", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", onClick: () => setActiveTab('sunday') },
-                  { icon: Megaphone, label: "Notices", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", onClick: () => setActiveTab('notice') },
-                  { icon: HelpCircle, label: "Support", color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", onClick: () => setActiveTab('support') },
-                  { icon: BarChart3, label: "Reports", color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400", onClick: () => setActiveTab('reports') },
+                  { icon: Receipt, label: "Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => handleTabChange('invoice') },
+                  { icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => handleTabChange('my_attendance') },
+                  { icon: Briefcase, label: "Leaves", color: "bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400", onClick: () => handleTabChange('my_leaves') },
+                  { icon: Clock, label: "Overtime", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", onClick: () => handleTabChange('ot') },
+                  { icon: Sun, label: "Sunday / Festival", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", onClick: () => handleTabChange('sunday') },
+                  { icon: Megaphone, label: "Notices", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", onClick: () => handleTabChange('notice') },
+                  { icon: HelpCircle, label: "Support", color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", onClick: () => handleTabChange('support') },
+                  { icon: BarChart3, label: "Reports", color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400", onClick: () => handleTabChange('reports') },
                   { icon: Menu, label: "More", color: "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400", onClick: () => setShowSidebar(true) }
                 ].map((item, i) => (
                   <motion.button 
@@ -543,7 +616,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
             {/* 4. PRODUCTION SUMMARY */}
             <div 
               className="bg-white dark:bg-zinc-900 rounded-[28px] p-5 shadow-sm border border-gray-100 dark:border-zinc-800 cursor-pointer hover:border-indigo-200 transition-colors"
-              onClick={() => setActiveTab('production')}
+              onClick={() => handleTabChange('production')}
             >
               <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-4 flex items-center justify-between">
                 Production Summary
@@ -581,86 +654,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
             </div>
 
-            {/* 5. ASSIGNED PLATFORMS */}
-            <div>
-              <div className="flex items-center justify-between mb-3 px-1">
-                <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200">Active Platforms</h2>
-                <button 
-                  className="text-xs font-bold text-indigo-600 dark:text-indigo-400"
-                  onClick={() => setActiveTab('production')}
-                >
-                  View All
-                </button>
-              </div>
-              <div className="space-y-3">
-                {assignedPlatforms.length === 0 ? (
-                  <div className="bg-white dark:bg-zinc-900 rounded-[24px] p-8 text-center shadow-sm border border-gray-100 dark:border-zinc-800">
-                    <CarFront className="mx-auto text-gray-300 mb-2" size={32} />
-                    <p className="text-sm font-bold text-gray-500">No active platforms assigned</p>
-                  </div>
-                ) : (
-                  assignedPlatforms.slice(0, 5).map((pf: any) => {
-                    const workerCount = pf.assignedWorkerIds?.length || pf.workers?.length || 0;
-                    const isFull = workerCount >= 2;
-                    
-                    return (
-                      <div 
-                        key={pf.id} 
-                        className="bg-white dark:bg-zinc-900 rounded-[24px] p-5 shadow-sm border border-gray-100 dark:border-zinc-800 hover:border-indigo-100 transition-colors"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <Badge variant="outline" className="mb-2 bg-indigo-50 text-indigo-700 border-indigo-200 text-[9px] uppercase font-bold">
-                              {pf.currentStage || "Pending"}
-                            </Badge>
-                            <h3 className="font-extrabold text-lg">{pf.platformNumber || pf.trackingId} • {pf.vehicleNumber || pf.vehicleModel}</h3>
-                            <p className="text-xs text-gray-500 font-medium mt-0.5">{pf.oemName}</p>
-                          </div>
-                          <Badge variant="secondary" className={`text-[10px] uppercase font-bold ${
-                            pf.currentStage !== 'oem' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
-                          }`}>
-                            {(pf.currentStage !== 'oem' ? "In Progress" : "Pending")}
-                          </Badge>
-                        </div>
-                        
-                        <div className="mt-4 pt-4 border-t border-gray-100 dark:border-zinc-800">
-                          <div className="flex justify-between items-center text-xs font-bold mb-2">
-                            <span className="text-gray-600 flex items-center gap-1">
-                              <Users size={14} /> 
-                              {workerCount}/2 Workers 
-                              {isFull && <span className="text-[9px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-md ml-1">FULL</span>}
-                            </span>
-                            <span className="text-indigo-600">{pf.progressPercent || 0}%</span>
-                          </div>
-                          {workerCount > 0 && (
-                            <div className="flex gap-1 mb-3">
-                              {pf.workers?.map((w: any) => (
-                                <span key={w.id} className="text-[10px] bg-gray-100 dark:bg-zinc-800 px-2 py-1 rounded-md text-gray-600 font-medium">
-                                  {w.name}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          <div className="w-full bg-gray-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
-                            <div 
-                              className={`h-full rounded-full ${pf.currentStage !== 'oem' ? 'bg-indigo-500' : 'bg-gray-400'}`} 
-                              style={{ width: `${pf.progressPercent || 0}%` }}
-                            />
-                          </div>
-                        </div>
-                        <Button 
-                          variant="outline" 
-                          className="w-full mt-4 rounded-xl text-sm font-bold h-10 border-gray-200"
-                          onClick={() => setActiveTab('production')}
-                        >
-                          View Details
-                        </Button>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
+
 
 
 
@@ -668,7 +662,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
             <div>
               <div className="flex items-center justify-between mb-3 px-1">
                 <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200">Performance Analytics</h2>
-                <button onClick={() => setActiveTab("performance")} className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Detailed View</button>
+                <button onClick={() => handleTabChange("performance")} className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Detailed View</button>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="bg-white dark:bg-zinc-900 p-4 rounded-[24px] shadow-sm border border-gray-100 dark:border-zinc-800 flex flex-col justify-center items-center text-center">
@@ -706,9 +700,123 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
         <PerformanceTab activeUser={activeUser} />
       )}
 
-      {/* My Personal Attendance Tab */}
+      {/* Attendance Tab (Personal & Team Attendance) */}
       {activeTab === "my_attendance" && (
-        <WorkerAttendanceTab history={history} workerId={managerId} />
+        <div className="p-4 space-y-4 max-w-xl mx-auto pb-24">
+          <div className="flex bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl border border-gray-200 dark:border-zinc-700">
+            <button
+              type="button"
+              onClick={() => setAttSubTab("team")}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
+                attSubTab === "team"
+                  ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              Team Attendance ({teamAttendanceList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setAttSubTab("my")}
+              className={cn(
+                "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
+                attSubTab === "my"
+                  ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              My Attendance Log
+            </button>
+          </div>
+
+          {attSubTab === "my" ? (
+            <WorkerAttendanceTab history={history} workerId={managerId} />
+          ) : (
+            <div className="space-y-4">
+              {/* Team Attendance Analytics Summary */}
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 p-3 rounded-2xl border border-emerald-200 dark:border-emerald-800/40">
+                  <p className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400">
+                    {presentCount}
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">Present Today</p>
+                </div>
+                <div className="bg-red-50 dark:bg-red-950/40 p-3 rounded-2xl border border-red-200 dark:border-red-800/40">
+                  <p className="text-xl font-extrabold text-red-600 dark:text-red-400">
+                    {absentCount}
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">Absent Today</p>
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-950/40 p-3 rounded-2xl border border-amber-200 dark:border-amber-800/40">
+                  <p className="text-xl font-extrabold text-amber-600 dark:text-amber-400">
+                    {totalApprovals}
+                  </p>
+                  <p className="text-[10px] font-bold text-gray-500 uppercase mt-0.5">Pending Req</p>
+                </div>
+              </div>
+
+              {/* Workers List */}
+              <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-100 dark:border-zinc-800 p-4 space-y-3">
+                <h3 className="text-sm font-bold text-gray-800 dark:text-gray-200 flex items-center justify-between">
+                  Team Members Status
+                  <span className="text-xs font-normal text-gray-500">{teamAttendanceList.length} workers</span>
+                </h3>
+
+                <div className="space-y-2">
+                  {teamAttendanceList.length === 0 ? (
+                    <p className="text-xs text-gray-500 text-center py-4">No team workers found</p>
+                  ) : (
+                    teamAttendanceList.map((w: any) => {
+                      const statusLower = (w.status || "").toLowerCase();
+                      const isPresent = ["present", "punched in", "active", "online"].includes(statusLower);
+                      const isLate = statusLower === "late" || w.is_late;
+                      const isHalfDay = statusLower === "half day" || statusLower === "half_day";
+                      
+                      let statusText = "Off Duty / Absent";
+                      let badgeStyle = "bg-gray-100 text-gray-600 border-gray-200 dark:bg-zinc-800 dark:text-gray-400 dark:border-zinc-700";
+                      
+                      if (isLate) {
+                        statusText = "Late";
+                        badgeStyle = "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/40";
+                      } else if (isHalfDay) {
+                        statusText = "Half Day";
+                        badgeStyle = "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/40";
+                      } else if (isPresent || w.punch_in) {
+                        statusText = "Active / Present";
+                        badgeStyle = "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/40";
+                      }
+
+                      return (
+                        <div key={w.id || w.employee_id} className="flex items-center justify-between p-2.5 bg-gray-50 dark:bg-zinc-800/50 rounded-xl border border-gray-100 dark:border-zinc-800">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400 flex items-center justify-center font-bold text-xs shrink-0 overflow-hidden">
+                              {w.profile_photo_url ? (
+                                <img src={w.profile_photo_url} alt={w.name} className="w-full h-full object-cover" />
+                              ) : (
+                                w.name?.charAt(0) || "W"
+                              )}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-gray-900 dark:text-white">{w.name}</p>
+                              <p className="text-[10px] text-gray-500">
+                                {w.designation || w.role || w.department || "Worker"}
+                                {w.punch_in && <span className="ml-2 font-semibold text-emerald-600 dark:text-emerald-400">In: {w.punch_in}</span>}
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className={cn("text-[10px] font-bold uppercase", badgeStyle)}>
+                            {statusText}
+                          </Badge>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {/* My Personal Leaves Tab */}
@@ -733,7 +841,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
       {/* Production Dashboard Tab */}
       {activeTab === "production" && (
-        <ProductionTab activeUser={activeUser} initialStage={prodStage} initialViewMode={prodView} />
+        <ProductionTab activeUser={activeUser} initialStage={prodStage} initialViewMode={prodView} autoOpenForm={prodAutoForm} />
       )}
 
       {/* Invoice Tab */}
@@ -767,7 +875,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
       <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none flex justify-center">
         <div className="bg-white dark:bg-zinc-900 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-zinc-800 p-2 flex items-center pointer-events-auto">
           <button 
-            onClick={() => setActiveTab("home")} 
+            onClick={() => handleTabChange("home")} 
             className={`flex items-center gap-2 px-6 py-3 rounded-full transition-colors ${activeTab === 'home' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800'}`}
           >
             <Home size={22} strokeWidth={2.5} />
@@ -807,47 +915,47 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
-                <button onClick={() => { setShowSidebar(false); setActiveTab("profile"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("profile"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <UserCircle size={22} className="text-blue-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "My Profile")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("my_attendance"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("my_attendance"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <CalendarCheck size={22} className="text-emerald-500" />
                   <span className="font-semibold">My Attendance</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("my_leaves"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("my_leaves"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Briefcase size={22} className="text-pink-500" />
                   <span className="font-semibold">My Leaves</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("ot"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("ot"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Clock size={22} className="text-orange-500" />
                   <span className="font-semibold">Overtime</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("sunday"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("sunday"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Sun size={22} className="text-yellow-500" />
                   <span className="font-semibold">Sunday / Festival</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("notice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("notice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Megaphone size={22} className="text-purple-500" />
                   <span className="font-semibold">Notices</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("production"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("production"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Factory size={22} className="text-indigo-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Production")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("invoice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("invoice"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Receipt size={22} className="text-blue-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Purchase Invoices")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("reports"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("reports"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <BarChart3 size={22} className="text-cyan-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Reports")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("settings"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("settings"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <Grid size={22} className="text-gray-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "App Settings")}</span>
                 </button>
-                <button onClick={() => { setShowSidebar(false); setActiveTab("support"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
+                <button onClick={() => { setShowSidebar(false); handleTabChange("support"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <HelpCircle size={22} className="text-teal-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "Help & Support")}</span>
                 </button>

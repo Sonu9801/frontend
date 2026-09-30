@@ -337,7 +337,7 @@ export const vehiclesApi = {
 
 export const workersApi = {
   getAll: async (params?: { page?: number; pageSize?: number; search?: string; department?: string; status?: string }) => {
-    const response = await api.get("/workers", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, search: params?.search, department: params?.department, status: params?.status } });
+    const response = await api.get("/workers", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 1000, search: params?.search, department: params?.department, status: params?.status } });
     return response.data;
   },
   getOne: async (id: number | string) => {

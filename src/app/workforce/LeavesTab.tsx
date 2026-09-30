@@ -26,8 +26,8 @@ export function LeavesTab({ activeUser }: { activeUser: any }) {
   }, [leavesData]);
 
   const { data: workersData } = useQuery({
-    queryKey: ["workers"],
-    queryFn: () => workersApi.getAll(),
+    queryKey: ["workers", 1, 1000],
+    queryFn: () => workersApi.getAll({ page: 1, pageSize: 1000 }),
     staleTime: Infinity,
   });
 
