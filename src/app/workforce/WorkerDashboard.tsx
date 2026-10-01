@@ -15,7 +15,7 @@ import {
   AlertCircle, CheckCircle2, LogOut, LogIn, RotateCcw, CloudUpload, History, FileText,
   MessageSquareWarning, MessageSquare, X, Plus, UserCircle, Bell,
   File, Settings, Phone, Building, Briefcase, Download, QrCode,
-  ChevronRight, ArrowRight, Activity, Loader2,
+  ChevronRight, ChevronLeft, ArrowRight, Activity, Loader2,
   Wifi, WifiOff, Camera, MapPinOff, UserCheck, ShieldCheck, Grid, CalendarCheck, HelpCircle, Menu,
   Sun, Clipboard, Megaphone, Coffee, Home, ClipboardList
 } from "lucide-react";
@@ -89,9 +89,10 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
   
   // Data State - React Query
   const currentMonth = format(new Date(), "yyyy-MM");
+  const [overviewMonth, setOverviewMonth] = useState(currentMonth);
   const { data: summary, refetch: refetchSummary } = useWorkerSummary(worker?.worker_id);
   const { data: history = [], refetch: refetchHistory } = useWorkerHistory(worker?.worker_id);
-  const { data: monthlySummary, refetch: refetchMonthlySummary } = useWorkerMonthlySummary(worker?.worker_id, currentMonth);
+  const { data: monthlySummary, isLoading: isMonthlySummaryLoading, refetch: refetchMonthlySummary } = useWorkerMonthlySummary(worker?.worker_id, overviewMonth);
   const { data: activeJobs = [], refetch: refetchJobs } = useWorkerJobs(worker?.worker_id);
   const { data: notificationsData, refetch: refetchNotifications } = useNotifications();
   const { data: leaveHistory = [], isLoading: isLeavesLoading, refetch: refetchLeaves } = useLeaveHistory(worker?.worker_id);
@@ -763,16 +764,57 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                  )}
               </div>
 
-              {/* THIS MONTH OVERVIEW */}
+              {/* MONTHLY OVERVIEW */}
               <div className="bg-white dark:bg-zinc-900 rounded-[22px] border border-gray-100 dark:border-zinc-800 shadow-[0_2px_12px_rgba(0,0,0,0.03)] p-4 sm:p-5 flex flex-col transition-colors">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="text-[14px] sm:text-[16px] font-[700] text-[#111827] dark:text-white tracking-tight truncate pr-1">This Month Overview</h3>
-                  <button className="text-[12px] font-[600] text-[#4F6BFF] shrink-0">View All</button>
+                <div className="flex justify-between items-center mb-3 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <h3 className="text-[14px] sm:text-[16px] font-[700] text-[#111827] dark:text-white tracking-tight truncate">Monthly Overview</h3>
+                    <button onClick={() => handleTabChange("attendance")} className="text-[11px] font-[600] text-[#4F6BFF] hover:underline shrink-0">View All</button>
+                  </div>
+                  
+                  {/* Month Selector Controls */}
+                  <div className="flex items-center gap-0.5 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 px-1.5 py-1 rounded-xl shadow-sm relative shrink-0">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const [y, m] = overviewMonth.split("-").map(Number);
+                        const prev = new Date(y, m - 2, 1);
+                        setOverviewMonth(format(prev, "yyyy-MM"));
+                      }} 
+                      className="p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors z-10"
+                      title="Previous Month"
+                    >
+                      <ChevronLeft size={14} />
+                    </button>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-zinc-700 dark:text-zinc-300 pointer-events-none px-0.5">
+                      <CalendarIcon size={12} className="text-zinc-400" />
+                      <span>{format(parseISO(`${overviewMonth}-01`), "MMM, yyyy")}</span>
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const [y, m] = overviewMonth.split("-").map(Number);
+                        const next = new Date(y, m, 1);
+                        setOverviewMonth(format(next, "yyyy-MM"));
+                      }} 
+                      className="p-0.5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 transition-colors z-10"
+                      title="Next Month"
+                    >
+                      <ChevronRight size={14} />
+                    </button>
+                    <input 
+                      type="month"
+                      value={overviewMonth}
+                      onChange={(e) => { if (e.target.value) setOverviewMonth(e.target.value); }}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-0"
+                      title="Select Month"
+                    />
+                  </div>
                 </div>
                 
                 <div className="w-full h-[1px] bg-gray-50 dark:bg-zinc-800 mb-4"></div>
                 
-                {isDataLoading ? (
+                {isDataLoading || isMonthlySummaryLoading ? (
                   <Skeleton className="w-full h-[130px] rounded-[16px] bg-gray-50 dark:bg-zinc-800" />
                 ) : (
                   <div className="w-full flex flex-col">

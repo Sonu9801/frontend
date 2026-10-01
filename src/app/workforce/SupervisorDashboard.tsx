@@ -872,7 +872,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
       </div>
 
       {/* BOTTOM NAVIGATION (Simplified to Home Button only) */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 z-50 pointer-events-none flex justify-center">
+      <div className="fixed bottom-0 left-0 right-0 p-4 z-30 pointer-events-none flex justify-center">
         <div className="bg-white dark:bg-zinc-900 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-zinc-800 p-2 flex items-center pointer-events-auto">
           <button 
             onClick={() => handleTabChange("home")} 
