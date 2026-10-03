@@ -813,6 +813,8 @@ export default function ProductionPage() {
       if (trimmed) {
         if (trimmed.toLowerCase() === "sincear marketing") {
           map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
         } else {
           map.set(trimmed.toLowerCase(), trimmed);
         }
@@ -825,6 +827,8 @@ export default function ProductionPage() {
       if (trimmed && trimmed.toLowerCase() !== "all dealers") {
         if (trimmed.toLowerCase() === "sincear marketing") {
           map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
         } else {
           map.set(trimmed.toLowerCase(), trimmed);
         }
@@ -905,7 +909,7 @@ export default function ProductionPage() {
   }, [allModelOptions, editRecord]);
 
   const filtered = useMemo(() => {
-    return vehicles.filter((v: Vehicle) => {
+    const list = vehicles.filter((v: Vehicle) => {
       const q = search.toLowerCase();
       const trackingIdStr = v.trackingId || "";
       const vehicleNumStr = v.vehicleNumber || "";
@@ -943,6 +947,28 @@ export default function ProductionPage() {
       const matchesDate = isDateInFilterRange(vDateRaw, dateRange);
 
       return matchesSearch && matchesPriority && matchesCategory && matchesOem && matchesDealer && matchesStatus && matchesDate;
+    });
+
+    return [...list].sort((a: Vehicle, b: Vehicle) => {
+      const stageA = (a.currentStage || (a as any).current_stage || "received").toLowerCase().trim();
+      const stageB = (b.currentStage || (b as any).current_stage || "received").toLowerCase().trim();
+
+      const isDispatchedA = stageA === "dispatch" || stageA === "dispatched" || stageA === "delivered";
+      const isDispatchedB = stageB === "dispatch" || stageB === "dispatched" || stageB === "delivered";
+
+      // 1. Non-dispatched (received/active) vehicles at TOP, dispatched vehicles at BOTTOM
+      if (!isDispatchedA && isDispatchedB) return -1;
+      if (isDispatchedA && !isDispatchedB) return 1;
+
+      // 2. Sort by received / created date descending (newest received vehicles on top)
+      const dateA_raw = (a as any).receivedAt || (a as any).arrivalTime || (a as any).submittedAt || (a as any).createdAt || (a as any).created_at;
+      const dateB_raw = (b as any).receivedAt || (b as any).arrivalTime || (b as any).submittedAt || (b as any).createdAt || (b as any).created_at;
+
+      const timeA = dateA_raw ? new Date(dateA_raw).getTime() : 0;
+      const timeB = dateB_raw ? new Date(dateB_raw).getTime() : 0;
+
+      if (timeA !== timeB) return timeB - timeA;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
     });
   }, [vehicles, search, priorityFilter, categoryFilter, oemFilter, dealerFilter, statusFilter, dateRange]);
 
@@ -1749,6 +1775,7 @@ export default function ProductionPage() {
                     <th className="px-4 py-3.5">#</th>
                     <th className="px-4 py-3.5">Tracking ID</th>
                     <th className="px-4 py-3.5">Chassis / VIN</th>
+                    <th className="px-4 py-3.5">Date</th>
                     <th className="px-4 py-3.5">OEM Name</th>
                     <th className="px-4 py-3.5">Model Name</th>
                     <th className="px-4 py-3.5">Dealer</th>
@@ -1762,7 +1789,7 @@ export default function ProductionPage() {
                 <tbody className="divide-y divide-border/60">
                   {filtered.length === 0 ? (
                     <tr>
-                      <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                      <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
                         No vehicles found matching your criteria.
                       </td>
                     </tr>
@@ -1770,6 +1797,8 @@ export default function ProductionPage() {
                     filtered.map((v: Vehicle, idx: number) => {
                       const vStage = (v.currentStage || (v as any).current_stage || "received").toLowerCase();
                       const vModel = v.vehicleModel || (v as any).modelName || (v as any).model_name || "-";
+                      const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt || (v as any).created_at;
+                      const vDateFormatted = vDateRaw ? new Date(vDateRaw).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "-";
                       return (
                         <tr key={v.id} className="hover:bg-muted/30 transition-colors">
                           <td className="px-4 py-3 font-mono text-muted-foreground">{idx + 1}</td>
@@ -1784,6 +1813,9 @@ export default function ProductionPage() {
                           </td>
                           <td className="px-4 py-3 font-mono text-muted-foreground">
                             {v.chassisNumber || v.vin || "-"}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground whitespace-nowrap font-medium">
+                            {vDateFormatted}
                           </td>
                           <td className="px-4 py-3 font-medium text-foreground">{v.oemName}</td>
                           <td className="px-4 py-3 font-semibold text-foreground">{vModel}</td>

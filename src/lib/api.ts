@@ -434,8 +434,8 @@ export const dispatchApi = {
 };
 
 export const invoicesApi = {
-  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string }) => {
-    const response = await api.get("/invoices", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string; sort_by?: string; sort_order?: string }) => {
+    const response = await api.get("/invoices", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 20, sort_by: params?.sort_by ?? "vendor_name", sort_order: params?.sort_order ?? "asc", ...params } });
     return response.data;
   },
   getOne: async (id: number | string) => {
@@ -473,8 +473,8 @@ export const invoicesApi = {
 };
 
 export const revenueApi = {
-  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string }) => {
-    const response = await api.get("/revenue", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 10, ...params } });
+  getAll: async (params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string; sort_by?: string; sort_order?: string }) => {
+    const response = await api.get("/revenue", { params: { page: params?.page ?? 1, page_size: params?.pageSize ?? 20, sort_by: params?.sort_by ?? "customer_name", sort_order: params?.sort_order ?? "asc", ...params } });
     return response.data;
   },
   getOne: async (id: number | string) => {

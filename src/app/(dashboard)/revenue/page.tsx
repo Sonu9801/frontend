@@ -25,7 +25,9 @@ import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 export default function RevenueDashboardPage() {
   const router = useRouter();
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(20);
+  const [sortBy, setSortBy] = useState("customer_name");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
   const [statusFilter, setStatusFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [dateFilter, setDateFilter] = useState("All");
@@ -81,6 +83,21 @@ export default function RevenueDashboardPage() {
       };
     }
 
+    if (dateFilter === "Last Quarter") {
+      const yyyy = now.getFullYear();
+      const currentQ = Math.floor(now.getMonth() / 3);
+      const lastQ = currentQ === 0 ? 3 : currentQ - 1;
+      const lastQYear = currentQ === 0 ? yyyy - 1 : yyyy;
+      const startMonth = String(lastQ * 3 + 1).padStart(2, "0");
+      const endMonthNum = lastQ * 3 + 3;
+      const lastDay = new Date(lastQYear, endMonthNum, 0).getDate();
+      const endMonth = String(endMonthNum).padStart(2, "0");
+      return {
+        start_date: `${lastQYear}-${startMonth}-01`,
+        end_date: `${lastQYear}-${endMonth}-${String(lastDay).padStart(2, "0")}`
+      };
+    }
+
     if (dateFilter === "This Year") {
       const yyyy = now.getFullYear();
       return { start_date: `${yyyy}-01-01`, end_date: `${yyyy}-12-31` };
@@ -109,21 +126,25 @@ export default function RevenueDashboardPage() {
     return {};
   }, [dateFilter, customMonth, customStartDate, customEndDate]);
 
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editRecord, setEditRecord] = useState<any>(null);
+
   const { data: invoicesData, isLoading: isLoadingInvoices } = useRevenue({
     page,
     pageSize,
+    search: searchQuery || undefined,
     approval_status: statusFilter !== "All" ? statusFilter : undefined,
     payment_status: paymentFilter !== "All" ? paymentFilter : undefined,
     oem: oemFilter !== "All" ? oemFilter : undefined,
     customer: customerFilter !== "All" ? customerFilter : undefined,
+    sort_by: sortBy,
+    sort_order: sortOrder,
     ...dateRangeParams,
   });
   const { data: stats, isLoading: isLoadingStats } = useRevenueDashboardStats(dateRangeParams);
   const { data: analyticsData } = useRevenueAnalytics(dateRangeParams);
   const updateInvoice = useUpdateSalesInvoice();
-
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [editRecord, setEditRecord] = useState<any>(null);
 
   const role = useAuthStore((state: any) => state.role);
   const canUpload = ["admin", "owner", "finance_manager"].includes(role);
@@ -405,7 +426,7 @@ export default function RevenueDashboardPage() {
     }
   ], [router, role, deleteInvoice, updateInvoice]);
 
-  if (isLoadingInvoices || isLoadingStats) {
+  if ((isLoadingInvoices && !invoicesData) || (isLoadingStats && !stats)) {
     return (
       <div className="p-6 space-y-4 animate-pulse">
         <div className="h-10 w-48 bg-muted rounded-lg" />
@@ -531,6 +552,26 @@ export default function RevenueDashboardPage() {
           
           <div className="flex items-center gap-3 w-full md:w-auto">
             <select
+              value={`${sortBy}_${sortOrder}`}
+              onChange={(e) => {
+                const [sb, so] = e.target.value.split("_");
+                setSortBy(sb);
+                setSortOrder(so as "asc" | "desc");
+                setPage(1);
+              }}
+              className="flex-1 md:w-44 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+            >
+              <option value="customer_name_asc">Sort: Customer (A-Z)</option>
+              <option value="customer_name_desc">Sort: Customer (Z-A)</option>
+              <option value="invoice_number_asc">Sort: Invoice # (Asc)</option>
+              <option value="invoice_number_desc">Sort: Invoice # (Desc)</option>
+              <option value="invoice_date_desc">Sort: Date (Newest)</option>
+              <option value="invoice_date_asc">Sort: Date (Oldest)</option>
+              <option value="grand_total_desc">Sort: Total (High-Low)</option>
+              <option value="grand_total_asc">Sort: Total (Low-High)</option>
+            </select>
+
+            <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
@@ -580,6 +621,11 @@ export default function RevenueDashboardPage() {
             data={invoices}
             rowId={(d) => String(d.id)}
             searchKey={(d) => `${d.invoice_number} ${d.customer_name} ${d.customer_gstin} ${d.vehicle_number} ${d.po_number}`}
+            searchValue={searchQuery}
+            onSearchChange={(val) => {
+              setSearchQuery(val);
+              setPage(1);
+            }}
             hidePagination={true}
           />
           <Pagination

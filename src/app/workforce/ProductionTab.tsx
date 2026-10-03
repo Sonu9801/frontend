@@ -183,7 +183,25 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
       });
     }
 
-    return list;
+    return list.sort((a: any, b: any) => {
+      const stageA = (a.currentStage || a.current_stage || a.stage || "").toLowerCase().trim();
+      const stageB = (b.currentStage || b.current_stage || b.stage || "").toLowerCase().trim();
+
+      const isDispatchedA = stageA === "dispatch" || stageA === "dispatched" || stageA === "delivered";
+      const isDispatchedB = stageB === "dispatch" || stageB === "dispatched" || stageB === "delivered";
+
+      if (!isDispatchedA && isDispatchedB) return -1;
+      if (isDispatchedA && !isDispatchedB) return 1;
+
+      const dtA = a.receivedAt || a.received_at || a.createdAt || a.created_at || a.date;
+      const dtB = b.receivedAt || b.received_at || b.createdAt || b.created_at || b.date;
+
+      const timeA = dtA ? new Date(dtA).getTime() : 0;
+      const timeB = dtB ? new Date(dtB).getTime() : 0;
+
+      if (timeA !== timeB) return timeB - timeA;
+      return (Number(b.id) || 0) - (Number(a.id) || 0);
+    });
   }, [platformsList, searchQuery, stageFilter, priorityFilter, oemFilter, dateRange]);
 
   const dispatchCandidateVehicles = useMemo(() => {

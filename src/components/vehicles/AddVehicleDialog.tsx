@@ -193,6 +193,8 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
       if (trimmed) {
         if (trimmed.toLowerCase() === "sincear marketing") {
           map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
         } else {
           map.set(trimmed.toLowerCase(), trimmed);
         }
@@ -203,6 +205,8 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
       if (trimmed) {
         if (trimmed.toLowerCase() === "sincear marketing") {
           map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
         } else {
           map.set(trimmed.toLowerCase(), trimmed);
         }

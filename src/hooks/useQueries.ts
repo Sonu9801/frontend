@@ -19,6 +19,7 @@ export function useVehicles(params?: { page?: number; pageSize?: number; search?
   return useQuery<any>({
     queryKey: ["vehicles", params?.page, params?.pageSize, params?.search],
     queryFn: () => vehiclesApi.getAll(params),
+    placeholderData: (previousData: any) => previousData,
   });
 }
 
@@ -26,6 +27,7 @@ export function useWorkers(params?: { page?: number; pageSize?: number; search?:
   return useQuery<any>({
     queryKey: ["workers", params?.page, params?.pageSize, params?.search, params?.department, params?.status],
     queryFn: () => workersApi.getAll(params),
+    placeholderData: (previousData: any) => previousData,
   });
 }
 
@@ -79,10 +81,11 @@ export function useDispatchRecords(params?: { page?: number; pageSize?: number; 
   });
 }
 
-export function useInvoices(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string }) {
+export function useInvoices(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; vendor?: string; department?: string; category?: string; start_date?: string; end_date?: string; date_from?: string; date_to?: string; sort_by?: string; sort_order?: string }) {
   return useQuery<any>({
-    queryKey: ["invoices", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.vendor, params?.department, params?.category, params?.start_date, params?.end_date, params?.date_from, params?.date_to],
+    queryKey: ["invoices", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.vendor, params?.department, params?.category, params?.start_date, params?.end_date, params?.date_from, params?.date_to, params?.sort_by, params?.sort_order],
     queryFn: () => invoicesApi.getAll(params),
+    placeholderData: (previousData: any) => previousData,
   });
 }
 
@@ -405,10 +408,11 @@ export function useUpdateInvoice() {
 }
 
 // Revenue Hooks
-export function useRevenue(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string }) {
+export function useRevenue(params?: { page?: number; pageSize?: number; search?: string; approval_status?: string; payment_status?: string; customer?: string; oem?: string; work_type?: string; start_date?: string; end_date?: string; sort_by?: string; sort_order?: string }) {
   return useQuery<any>({
-    queryKey: ["revenue", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.customer, params?.oem, params?.work_type, params?.start_date, params?.end_date],
+    queryKey: ["revenue", params?.page, params?.pageSize, params?.search, params?.approval_status, params?.payment_status, params?.customer, params?.oem, params?.work_type, params?.start_date, params?.end_date, params?.sort_by, params?.sort_order],
     queryFn: () => revenueApi.getAll(params),
+    placeholderData: (previousData: any) => previousData,
   });
 }
 

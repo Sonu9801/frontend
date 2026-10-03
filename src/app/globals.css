@@ -120,13 +120,13 @@
   --chart-4: 0.55 0.22 25;
   --chart-5: 0.75 0.15 210;
 
-  --sidebar: 0.98 0 0;
-  --sidebar-foreground: 0.15 0 0;
+  --sidebar: 0.08 0 0;
+  --sidebar-foreground: 0.98 0 0;
   --sidebar-primary: 0.65 0.21 275;
   --sidebar-primary-foreground: 0.98 0 0;
-  --sidebar-accent: 0.95 0 0;
-  --sidebar-accent-foreground: 0.25 0 0;
-  --sidebar-border: 0.9 0 0;
+  --sidebar-accent: 0.18 0 0;
+  --sidebar-accent-foreground: 0.98 0 0;
+  --sidebar-border: 0.18 0 0;
   --sidebar-ring: 0.65 0.21 275;
 
   --success: 0.52 0.17 142;
@@ -221,6 +221,25 @@ select {
 select option {
   color: oklch(var(--foreground));
   background-color: oklch(var(--background));
+}
+
+/* Custom Sleek Dark Scrollbar for Sidebar */
+.bg-sidebar nav::-webkit-scrollbar {
+  width: 5px;
+}
+.bg-sidebar nav::-webkit-scrollbar-track {
+  background: transparent;
+}
+.bg-sidebar nav::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
+}
+.bg-sidebar nav::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+.bg-sidebar nav {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
 }
 
 /* Enforce Portrait Orientation for Mobile */

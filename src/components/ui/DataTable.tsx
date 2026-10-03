@@ -28,6 +28,8 @@ interface DataTableProps<T> {
   columns: ColumnDef<T>[];
   data: T[];
   searchKey?: (row: T) => string;
+  searchValue?: string;
+  onSearchChange?: (val: string) => void;
   onRowClick?: (row: T) => void;
   expandable?: (row: T) => React.ReactNode;
   bulkAction?: (selectedRows: T[]) => React.ReactNode;
@@ -73,6 +75,8 @@ export function DataTable<T>({
   columns: initialColumns,
   data,
   searchKey,
+  searchValue,
+  onSearchChange,
   onRowClick,
   expandable,
   bulkAction,
@@ -80,7 +84,8 @@ export function DataTable<T>({
   extraFilters,
   hidePagination = false,
 }: DataTableProps<T>) {
-  const [search, setSearch] = useState("");
+  const [internalSearch, setInternalSearch] = useState("");
+  const search = searchValue !== undefined ? searchValue : internalSearch;
   const [sortCol, setSortCol] = useState<string | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [page, setPage] = useState(1);
@@ -107,10 +112,10 @@ export function DataTable<T>({
   const visibleColumns = initialColumns.filter((c) => colVisibility[c.id]);
 
   const filtered = useMemo(() => {
-    if (!search || !searchKey) return data;
+    if (onSearchChange || !search || !searchKey) return data;
     const q = search.toLowerCase();
     return data.filter((row) => searchKey(row).toLowerCase().includes(q));
-  }, [data, search, searchKey]);
+  }, [data, search, searchKey, onSearchChange]);
 
   const sorted = useMemo(() => {
     if (!sortCol) return filtered;
@@ -144,7 +149,8 @@ export function DataTable<T>({
   }
 
   function handleSearch(val: string) {
-    setSearch(val);
+    setInternalSearch(val);
+    onSearchChange?.(val);
     setPage(1);
     setSelectedIds(new Set());
   }
@@ -191,7 +197,7 @@ export function DataTable<T>({
     <div className="bg-card border border-border rounded-xl overflow-hidden">
       {/* Toolbar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border flex-wrap">
-        {searchKey && (
+        {(searchKey || onSearchChange) && (
           <div className="relative flex-1 min-w-48 max-w-xs">
             <Search
               size={13}

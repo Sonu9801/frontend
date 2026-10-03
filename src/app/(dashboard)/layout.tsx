@@ -90,15 +90,15 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-background font-body">
+    <div className="flex h-screen w-screen overflow-hidden bg-background font-body">
       {/* Desktop Sidebar */}
-      <div className="hidden md:flex sticky top-0 h-screen flex-shrink-0 z-40">
+      <div className="hidden md:flex h-full flex-shrink-0 z-40">
         <Sidebar />
       </div>
       
-      <div className="flex flex-col flex-1 min-w-0 pb-16 md:pb-0">
+      <div className="flex flex-col flex-1 h-full min-w-0 overflow-hidden">
         {/* Desktop TopBar */}
-        <div className="hidden md:block sticky top-0 z-50">
+        <div className="hidden md:block flex-shrink-0 z-30">
           <TopBar />
         </div>
         
@@ -106,7 +106,7 @@ export default function DashboardLayout({
         <MobileTopBar />
 
         <main
-          className="flex-1 flex flex-col bg-background"
+          className="flex-1 overflow-y-auto [overscroll-behavior:contain] bg-background"
           data-ocid="main.content"
         >
           {children}
