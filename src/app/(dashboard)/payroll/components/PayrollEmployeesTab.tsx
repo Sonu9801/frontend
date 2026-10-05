@@ -415,7 +415,7 @@ export default function PayrollEmployeesTab() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
       
       {/* TOOLBAR */}
       <div className="p-4 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/10 gap-4">

@@ -28,38 +28,38 @@ export default function PayrollPage() {
         </div>
       </div>
       <div className="flex-1 p-6 overflow-y-auto">
-        <Tabs defaultValue="dashboard" className="h-full flex flex-col">
-          <div className="w-full overflow-x-auto pb-2 -mb-2 no-scrollbar">
-            <TabsList className="mb-4 inline-flex min-w-full sm:min-w-0 sm:w-auto">
-              <TabsTrigger value="dashboard" className="flex-1 whitespace-nowrap">
-                <Banknote className="mr-2" size={16} />
+        <Tabs defaultValue="dashboard" className="w-full space-y-6">
+          <div className="w-full overflow-x-auto pb-1 no-scrollbar">
+            <TabsList className="inline-flex min-w-full sm:min-w-0 sm:w-auto p-1 bg-slate-200/70 dark:bg-zinc-800/80 border border-slate-300/70 dark:border-zinc-700/60 rounded-xl">
+              <TabsTrigger value="dashboard" className="flex-1 whitespace-nowrap px-4 py-2 text-sm font-semibold">
+                <Banknote size={16} />
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="employees" className="flex-1 whitespace-nowrap">
-                <Users className="mr-2" size={16} />
+              <TabsTrigger value="employees" className="flex-1 whitespace-nowrap px-4 py-2 text-sm font-semibold">
+                <Users size={16} />
                 Employees
               </TabsTrigger>
-              <TabsTrigger value="advances" className="flex-1 whitespace-nowrap">
-                <HandCoins className="mr-2" size={16} />
+              <TabsTrigger value="advances" className="flex-1 whitespace-nowrap px-4 py-2 text-sm font-semibold">
+                <HandCoins size={16} />
                 Advances
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex-1 whitespace-nowrap">
-                <BarChart3 className="mr-2" size={16} />
+              <TabsTrigger value="analytics" className="flex-1 whitespace-nowrap px-4 py-2 text-sm font-semibold">
+                <BarChart3 size={16} />
                 Analytics
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="dashboard" className="flex-1 outline-none">
+          <TabsContent value="dashboard" className="outline-none mt-4">
             <PayrollDashboardTab />
           </TabsContent>
-          <TabsContent value="employees" className="flex-1 outline-none">
+          <TabsContent value="employees" className="outline-none mt-4">
             <PayrollEmployeesTab />
           </TabsContent>
-          <TabsContent value="advances" className="flex-1 outline-none">
+          <TabsContent value="advances" className="outline-none mt-4">
             <PayrollAdvancesTab />
           </TabsContent>
-          <TabsContent value="analytics" className="flex-1 outline-none">
+          <TabsContent value="analytics" className="outline-none mt-4">
             <PayrollAnalyticsTab />
           </TabsContent>
         </Tabs>

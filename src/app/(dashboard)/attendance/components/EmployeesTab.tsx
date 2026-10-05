@@ -136,7 +136,7 @@ export default function EmployeesTab() {
   if (isLoading) return <div>Loading employees...</div>;
 
   return (
-    <div className="flex flex-col gap-6 h-full pb-8">
+    <div className="flex flex-col gap-6 w-full pb-8">
       {/* OWNER KPIs */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">

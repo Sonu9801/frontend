@@ -148,7 +148,7 @@ export default function PayrollAdvancesTab() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col h-full min-h-[500px]">
+    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
       <div className="p-4 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/10 gap-4">
         <div className="relative w-full sm:w-72">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />

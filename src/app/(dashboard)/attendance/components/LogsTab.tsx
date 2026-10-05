@@ -190,7 +190,7 @@ export default function LogsTab() {
   if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading logs...</div>;
 
   return (
-    <div className="flex flex-col h-full bg-card rounded-xl border border-border overflow-hidden">
+    <div className="flex flex-col w-full min-h-[500px] bg-card rounded-xl border border-border overflow-hidden">
       <div className="px-4 sm:px-6 py-4 border-b border-border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-muted/10">
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2">

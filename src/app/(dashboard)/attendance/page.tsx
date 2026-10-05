@@ -31,38 +31,38 @@ export default function AttendancePage() {
         </div>
       </div>
       <div className="flex-1 p-6 overflow-y-auto">
-        <Tabs defaultValue="dashboard" className="h-full flex flex-col">
-          <div className="w-full overflow-x-auto pb-2 -mb-2 no-scrollbar">
-            <TabsList className="mb-4 inline-flex justify-start sm:justify-center min-w-full sm:min-w-0 sm:w-auto h-auto p-1.5 gap-1">
-              <TabsTrigger value="dashboard" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2">
+        <Tabs defaultValue="dashboard" className="w-full space-y-6">
+          <div className="w-full overflow-x-auto pb-1 no-scrollbar">
+            <TabsList className="inline-flex justify-start sm:justify-center min-w-full sm:min-w-0 sm:w-auto p-1 bg-slate-200/70 dark:bg-zinc-800/80 border border-slate-300/70 dark:border-zinc-700/60 rounded-xl gap-1">
+              <TabsTrigger value="dashboard" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-sm font-semibold">
                 <Clock className="mr-2" size={16} />
                 Dashboard
               </TabsTrigger>
-              <TabsTrigger value="employees" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2">
+              <TabsTrigger value="employees" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-sm font-semibold">
                 <Users className="mr-2" size={16} />
                 Employees
               </TabsTrigger>
-              <TabsTrigger value="logs" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2">
+              <TabsTrigger value="logs" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-sm font-semibold">
                 <List className="mr-2" size={16} />
                 Logs
               </TabsTrigger>
-              <TabsTrigger value="settings" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2">
+              <TabsTrigger value="settings" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-sm font-semibold">
                 <SettingsIcon className="mr-2" size={16} />
                 Settings
               </TabsTrigger>
             </TabsList>
           </div>
 
-          <TabsContent value="dashboard" className="flex-1">
+          <TabsContent value="dashboard" className="outline-none mt-4">
             <DashboardTab workers={workers} isLoading={isLoading} />
           </TabsContent>
-          <TabsContent value="employees" className="flex-1">
+          <TabsContent value="employees" className="outline-none mt-4">
             <EmployeesTab />
           </TabsContent>
-          <TabsContent value="logs" className="flex-1">
+          <TabsContent value="logs" className="outline-none mt-4">
             <LogsTab />
           </TabsContent>
-          <TabsContent value="settings" className="flex-1">
+          <TabsContent value="settings" className="outline-none mt-4">
             <SettingsTab />
           </TabsContent>
         </Tabs>
