@@ -31,14 +31,22 @@ export function ProductionReportsTab({
   }, [vehicles, dateRange, filters]);
 
   const tableData = useMemo(() => {
-    return filteredVehicles.map(v => ({
-      TrackingID: v.trackingId,
-      VehicleNumber: v.vehicleNumber,
-      OEM: v.oemName,
-      Stage: v.currentStage,
-      Progress: `${v.progressPercent}%`,
-      ExpectedDelivery: new Date(v.estimatedDelivery).toLocaleDateString(),
-    }));
+    return filteredVehicles.map(v => {
+      const s = (v.currentStage || "").toLowerCase();
+      const stageName = s === "supervisor_verification" ? "Supervisor Verification"
+        : s === "incoming_verification" ? "Incoming Verification"
+        : s === "rtd" || s === "readytodispatch" ? "Ready To Dispatch"
+        : s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ")
+        : "-";
+      return {
+        TrackingID: v.trackingId,
+        VehicleNumber: v.vehicleNumber || "-",
+        OEM: v.oemName,
+        Stage: stageName,
+        Progress: `${v.progressPercent}%`,
+        ExpectedDelivery: v.estimatedDelivery ? new Date(v.estimatedDelivery).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+      };
+    });
   }, [filteredVehicles]);
 
   const headers = ["TrackingID", "VehicleNumber", "OEM", "Stage", "Progress", "ExpectedDelivery"];

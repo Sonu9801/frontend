@@ -19,6 +19,7 @@ export interface ColumnDef<T> {
   id: string;
   header: string;
   accessor: (row: T) => React.ReactNode;
+  sortValue?: (row: T) => string | number | null | undefined;
   sortable?: boolean;
   visible?: boolean;
   className?: string;
@@ -122,9 +123,21 @@ export function DataTable<T>({
     const col = initialColumns.find((c) => c.id === sortCol);
     if (!col) return filtered;
     return [...filtered].sort((a, b) => {
-      const av = String(col.accessor(a) ?? "");
-      const bv = String(col.accessor(b) ?? "");
-      const cmp = av.localeCompare(bv, undefined, { numeric: true });
+      let av: any;
+      let bv: any;
+      if (col.sortValue) {
+        av = col.sortValue(a);
+        bv = col.sortValue(b);
+      } else {
+        const rawA = col.accessor(a);
+        const rawB = col.accessor(b);
+        av = typeof rawA === "string" || typeof rawA === "number" ? rawA : "";
+        bv = typeof rawB === "string" || typeof rawB === "number" ? rawB : "";
+      }
+      if (typeof av === "number" && typeof bv === "number") {
+        return sortDir === "asc" ? av - bv : bv - av;
+      }
+      const cmp = String(av ?? "").localeCompare(String(bv ?? ""), undefined, { numeric: true });
       return sortDir === "asc" ? cmp : -cmp;
     });
   }, [filtered, sortCol, sortDir, initialColumns]);

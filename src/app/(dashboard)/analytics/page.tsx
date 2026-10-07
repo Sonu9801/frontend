@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from "react";
 import { KPICard } from "@/components/ui/KPICard";
+import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { useVehicles, useWorkers, useQCRecords, useDispatchRecords } from "@/hooks/useQueries";
 import { Clock, Download, TrendingUp, Truck, Users, Star } from "lucide-react";
@@ -437,49 +438,45 @@ export default function AnalyticsPage() {
   return (
     <div className="p-6 space-y-6" data-ocid="analytics.page">
       {/* Header */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
-            Analytics
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Factory performance metrics and operational insights
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center bg-muted rounded-lg p-1 gap-0.5">
-            {(["7D", "30D", "90D"] as Range[]).map((r) => (
-              <button
-                key={r}
-                type="button"
-                onClick={() => setRange(r)}
-                data-ocid={`analytics.range_filter.${r.toLowerCase()}`}
-                className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-150 ${
-                  range === r
-                    ? "bg-card text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {r}
-              </button>
-            ))}
+      <PageHeader
+        title="Analytics & Intelligence"
+        subtitle="Factory performance metrics, operational throughput, and quality insights"
+        actions={
+          <div className="flex items-center gap-2">
+            <div className="flex items-center bg-muted rounded-lg p-1 gap-0.5 border border-border/50">
+              {(["7D", "30D", "90D"] as Range[]).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRange(r)}
+                  data-ocid={`analytics.range_filter.${r.toLowerCase()}`}
+                  className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-150 ${
+                    range === r
+                      ? "bg-card text-foreground shadow-xs font-bold"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                toast.success("Export started", {
+                  description: "Your analytics report is being prepared.",
+                })
+              }
+              data-ocid="analytics.export_button"
+              className="gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              toast.success("Export started", {
-                description: "Your analytics report is being prepared.",
-              })
-            }
-            data-ocid="analytics.export_button"
-            className="gap-1.5"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Export
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       {/* KPI Row */}
       <motion.div

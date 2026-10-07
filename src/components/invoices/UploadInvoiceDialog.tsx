@@ -234,7 +234,8 @@ export function UploadInvoiceDialog({ open, onOpenChange }: UploadInvoiceDialogP
 
             <div className="flex flex-col sm:flex-row gap-3 w-full max-w-sm">
               <Button
-                onClick={() => setShowCamera(true)}
+                type="button"
+                onClick={() => cameraFileInputRef.current?.click()}
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold px-4 py-3 shadow-md flex items-center justify-center gap-2"
               >
                 <Camera size={16} />
@@ -242,6 +243,7 @@ export function UploadInvoiceDialog({ open, onOpenChange }: UploadInvoiceDialogP
               </Button>
 
               <Button
+                type="button"
                 onClick={() => fileInputRef.current?.click()}
                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold px-4 py-3 shadow-md flex items-center justify-center gap-2"
               >

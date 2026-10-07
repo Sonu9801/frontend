@@ -20,6 +20,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { KPICard } from "@/components/ui/KPICard";
 import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 
 export default function RevenueDashboardPage() {
@@ -441,35 +443,32 @@ export default function RevenueDashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6" data-ocid="revenue.page">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-foreground">
-            Sales Invoices Dashboard
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            Manage sales invoices, customer payments, and track income
-          </p>
-        </div>
-        {canUpload && (
-          <div className="flex items-center gap-2">
-            <Button 
-              onClick={() => setShowAddModal(true)} 
-              className="flex items-center gap-2"
-            >
-              <Plus size={16} />
-              Add Sales Invoice
-            </Button>
-            <Button 
-              onClick={() => router.push("/revenue/upload")} 
-              className="flex items-center gap-2"
-            >
-              <Plus size={16} />
-              Upload Sales Invoice
-            </Button>
-          </div>
-        )}
-      </div>
+    <div className="p-4 md:p-6 space-y-6" data-ocid="revenue.page">
+      <PageHeader
+        title="Sales Invoices Dashboard"
+        description="Manage sales invoices, customer payments, tax breakdowns, and revenue tracking"
+        actions={
+          canUpload && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button 
+                onClick={() => setShowAddModal(true)} 
+                className="gap-1.5 shadow-xs"
+              >
+                <Plus size={15} />
+                Add Sales Invoice
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => router.push("/revenue/upload")} 
+                className="gap-1.5"
+              >
+                <Plus size={15} />
+                Upload Invoice
+              </Button>
+            </div>
+          )
+        }
+      />
 
       {/* Global Date & Month Calendar Filter Bar */}
       <GlobalDateFilterBar
@@ -484,60 +483,42 @@ export default function RevenueDashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10"><FileText size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Today's Bills</p>
-          <p className="text-2xl font-bold font-display text-foreground">{stats?.today_uploads || 0}</p>
-        </div>
-        
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-warning"><Clock size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Pending Review</p>
-          <p className="text-2xl font-bold font-display text-warning">{stats?.pending_review || 0}</p>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10"><IndianRupee size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Today's Sales Revenue</p>
-          <p className="text-2xl font-bold font-display text-foreground">
-            ₹{(stats?.today_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-        
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-primary"><Calendar size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Monthly Sales Revenue</p>
-          <p className="text-2xl font-bold font-display text-primary">
-            ₹{(stats?.monthly_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-destructive"><Banknote size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Outstanding Dues</p>
-          <p className="text-2xl font-bold font-display text-destructive">
-            ₹{(stats?.outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-
-
-
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-success"><Banknote size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Received Amount</p>
-          <p className="text-2xl font-bold font-display text-success">
-            ₹{(stats?.received || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col shadow-subtle relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-3 opacity-10 text-warning"><Clock size={48} /></div>
-          <p className="text-xs text-muted-foreground mb-1 uppercase font-semibold tracking-wider">Pending Amount</p>
-          <p className="text-2xl font-bold font-display text-warning">
-            ₹{(stats?.outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-          </p>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+        <KPICard
+          title="Today's Bills"
+          value={stats?.today_uploads || 0}
+          description="Invoices uploaded today"
+          icon={<FileText size={14} />}
+          semantic="neutral"
+        />
+        <KPICard
+          title="Pending Review"
+          value={stats?.pending_review || 0}
+          description="Awaiting approval"
+          icon={<Clock size={14} />}
+          semantic={stats?.pending_review > 0 ? "warning" : "neutral"}
+        />
+        <KPICard
+          title="Today's Sales"
+          value={`₹${(stats?.today_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          description="Day gross billing"
+          icon={<IndianRupee size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Monthly Sales"
+          value={`₹${(stats?.monthly_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          description="Current month revenue"
+          icon={<Calendar size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Outstanding Dues"
+          value={`₹${(stats?.outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          description="Pending collection"
+          icon={<Banknote size={14} />}
+          semantic={stats?.outstanding > 0 ? "destructive" : "success"}
+        />
       </div>
 
       {/* Analytics Charts */}

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useRef } from "react";
 import type { ColumnDef } from "@/components/ui/DataTable";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import {
   Dialog,
@@ -20,8 +21,9 @@ import {
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { useQCRecords, useVehicles, useCreateQCRecord, useUpdateQCRecord, useUploadQCPhoto, useCreateDefect } from "@/hooks/useQueries";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { KPICard } from "@/components/ui/KPICard";
 import { Pagination } from "@/components/ui/Pagination";
 import type { QCRecord, Vehicle, DefectRecord } from "@/types";
 import { AlertCircle, CheckCircle2, Plus, XCircle, Camera, CheckSquare, Edit, History, ChevronDown } from "lucide-react";
@@ -457,29 +459,36 @@ export default function QualityControlPage() {
   }
 
   return (
-    <div className="p-4 md:p-6">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-foreground">Quality Control</h1>
-          <p className="text-sm text-muted-foreground">Inspection workflow, checklists, and defect management</p>
-        </div>
-        <AddQCModal vehicles={vehicles} />
-      </div>
+    <div className="p-4 md:p-6 space-y-6" data-ocid="quality_control.page">
+      <PageHeader
+        title="Quality Control"
+        description="Inspection workflow, quality checklist execution, and defect rework management"
+        icon={<CheckCircle2 className="w-5 h-5 text-primary" />}
+        actions={<AddQCModal vehicles={vehicles} />}
+      />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {[
-          { label: "Passed", count: stats.passed, icon: <CheckCircle2 size={18} />, cls: "text-success bg-success/15" },
-          { label: "Failed/Rework", count: stats.failed, icon: <XCircle size={18} />, cls: "text-destructive bg-destructive/15" },
-          { label: "Pass Rate", count: `${stats.passRate}%`, icon: <AlertCircle size={18} />, cls: "text-primary bg-primary/15" },
-        ].map((s) => (
-          <div key={s.label} className="bg-card border border-border rounded-xl p-4 flex items-center gap-3 shadow-subtle">
-            <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center shrink-0", s.cls)}>{s.icon}</div>
-            <div>
-              <p className="text-2xl font-bold font-display text-foreground">{s.count}</p>
-              <p className="text-xs text-muted-foreground">{s.label}</p>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <KPICard
+          title="Passed Inspection"
+          value={stats.passed}
+          description="Approved vehicles"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Failed / Rework"
+          value={stats.failed}
+          description="Rework flagged"
+          icon={<XCircle size={14} />}
+          semantic={stats.failed > 0 ? "destructive" : "neutral"}
+        />
+        <KPICard
+          title="QC Pass Rate"
+          value={`${stats.passRate}%`}
+          description="Overall inspection success"
+          icon={<AlertCircle size={14} />}
+          semantic="primary"
+        />
       </div>
 
       <DataTable columns={columns} data={qcRecords} rowId={(q) => String(q.id)} searchKey={(q) => `${q.stage} ${q.status}`} />

@@ -6,12 +6,15 @@ import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useDispatchRecords, useVehicles, useUpdateDispatchRecord, useDeleteDispatchRecord, useUpdateVehicleStage } from "@/hooks/useQueries";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { KPICard } from "@/components/ui/KPICard";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
 import { Pagination } from "@/components/ui/Pagination";
 import type { DispatchRecord, Vehicle } from "@/types";
 import { useAuthStore } from "@/store/authStore";
 import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
-import { exportToCSV, exportToExcel } from "../reports/components/exportUtils";
+import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
 import { 
   Calendar as CalendarIcon, 
   ExternalLink, 
@@ -52,6 +55,30 @@ const STATUS_CONFIG: Record<
 
 const STATUSES = ["All", "pending", "scheduled", "in_transit", "dispatched", "delivered"];
 const CARRIERS = ["All", "BlueDart", "DHL", "FedEx", "DTDC", "Gati", "Self Transport"];
+
+const DEFAULT_OEM_OPTIONS = [
+  "EULER MOTORS",
+  "MONTRA ELECTRIC",
+  "BAJAJ AUTO",
+  "PIAGGIO",
+  "JUPITER ELECTRIC MOBILITY",
+  "TVS MOTORS",
+  "E NEXT MOBILITY",
+  "TATA MOTORS",
+  "MAHINDRA",
+];
+
+const DEFAULT_DEALER_OPTIONS = [
+  "Tech UP",
+  "Eco Edge",
+  "Smart Solution",
+  "Sincere Marketing",
+  "Bhutani Auto Cap",
+  "KK Auto mobile",
+  "SHREE BALAJI MOTORS",
+  "RAJAN AUTOTECH LLP",
+  "ALLIED EV SOLUTIONS",
+];
 
 function DispatchStatusBadge({ status }: { status: string }) {
   const normStatus = (status || "pending").toLowerCase();
@@ -124,6 +151,18 @@ function DispatchExpand({ record, vehicle }: { record: DispatchRecord; vehicle?:
   );
 }
 
+// Helper to parse numeric challan sequence for accurate sorting
+function parseChallanNumber(d: any, v?: Vehicle): number | null {
+  const rawChallan = d.dispatchChallanNumber || d.challanNumber || (d as any).challan_number || v?.dispatchChallanNumber || (v as any)?.challanNumber;
+  if (!rawChallan) return null;
+  const match = String(rawChallan).match(/\d+/);
+  if (match) {
+    const num = parseInt(match[0], 10);
+    return isNaN(num) ? null : num;
+  }
+  return null;
+}
+
 export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState<"standard" | "excel">("standard");
   const [dispatchScope, setDispatchScope] = useState<"production_dispatches" | "all" | "pending">("production_dispatches");
@@ -132,6 +171,8 @@ export default function DispatchPage() {
   const [pageSize, setPageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState("All");
   const [carrierFilter, setCarrierFilter] = useState("All");
+  const [oemFilter, setOemFilter] = useState("All");
+  const [dealerFilter, setDealerFilter] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
 
   // Date filter state
@@ -161,14 +202,25 @@ export default function DispatchPage() {
       return { month: `${yyyy}-${mm}` };
     }
     if (dateFilter === "This Quarter") {
-      const qMonth = Math.floor(now.getMonth() / 3) * 3;
-      const qStart = new Date(now.getFullYear(), qMonth, 1);
-      const yyyy = qStart.getFullYear();
-      const mm = String(qStart.getMonth() + 1).padStart(2, "0");
-      return { start_date: `${yyyy}-${mm}-01` };
+      const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
+      const qStart = new Date(now.getFullYear(), qStartMonth, 1);
+      const qEnd = new Date(now.getFullYear(), qStartMonth + 3, 0);
+      const startStr = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, "0")}-01`;
+      const endStr = `${qEnd.getFullYear()}-${String(qEnd.getMonth() + 1).padStart(2, "0")}-${String(qEnd.getDate()).padStart(2, "0")}`;
+      return { start_date: startStr, end_date: endStr };
+    }
+    if (dateFilter === "Last Quarter") {
+      const currentQ = Math.floor(now.getMonth() / 3);
+      const lastQMonth = currentQ === 0 ? 9 : (currentQ - 1) * 3;
+      const lastQYear = currentQ === 0 ? now.getFullYear() - 1 : now.getFullYear();
+      const qStart = new Date(lastQYear, lastQMonth, 1);
+      const qEnd = new Date(lastQYear, lastQMonth + 3, 0);
+      const startStr = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, "0")}-01`;
+      const endStr = `${qEnd.getFullYear()}-${String(qEnd.getMonth() + 1).padStart(2, "0")}-${String(qEnd.getDate()).padStart(2, "0")}`;
+      return { start_date: startStr, end_date: endStr };
     }
     if (dateFilter === "This Year") {
-      return { start_date: `${now.getFullYear()}-01-01` };
+      return { start_date: `${now.getFullYear()}-01-01`, end_date: `${now.getFullYear()}-12-31` };
     }
     if (dateFilter === "Month" && customMonth) {
       return { month: customMonth };
@@ -178,6 +230,36 @@ export default function DispatchPage() {
     }
     return {};
   }, [dateFilter, customMonth, customStartDate, customEndDate]);
+
+  // Helper function to check if a date string falls within active date range
+  const matchesActiveDateFilter = (dateStr: string | undefined | null): boolean => {
+    if (!dateStr) return false;
+    if (!dateQueryParams.start_date && !dateQueryParams.end_date && !dateQueryParams.month) return true;
+
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return false;
+
+      if (dateQueryParams.month) {
+        const [y, m] = dateQueryParams.month.split("-");
+        return d.getFullYear() === parseInt(y, 10) && (d.getMonth() + 1) === parseInt(m, 10);
+      }
+
+      if (dateQueryParams.start_date) {
+        const sd = new Date(`${dateQueryParams.start_date}T00:00:00`);
+        if (d < sd) return false;
+      }
+
+      if (dateQueryParams.end_date) {
+        const ed = new Date(`${dateQueryParams.end_date}T23:59:59.999`);
+        if (d > ed) return false;
+      }
+
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
   // Fetch paginated dispatch records for table view
   const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({
@@ -240,8 +322,16 @@ export default function DispatchPage() {
     const itemsList: any[] = [];
     const addedVehicleIds = new Set<string>();
 
-    // 1. Include all vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered
+    // 1. Include records from backend query (which are already date & search filtered)
+    dispatchRecords.forEach((d: any) => {
+      itemsList.push(d);
+      addedVehicleIds.add(String(d.vehicleId));
+    });
+
+    // 2. Include vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered matching date filter
     vehiclesList.forEach((v: Vehicle) => {
+      if (addedVehicleIds.has(String(v.id))) return;
+
       const vStage = (v.currentStage || (v as any).current_stage || "").toLowerCase().trim();
       const isDispatchedStage =
         vStage === "dispatch" ||
@@ -253,64 +343,151 @@ export default function DispatchPage() {
         Boolean(v.truckNumber || v.driverName || v.dispatchDateTime);
 
       if (isDispatchedStage) {
+        const vDate = v.dispatchDateTime || (v as any).receivedAt;
+        if (!matchesActiveDateFilter(vDate)) return;
+
         addedVehicleIds.add(String(v.id));
-        const existingRecord = recordsMap[String(v.id)];
-        if (existingRecord) {
-          itemsList.push(existingRecord);
-        } else {
-          itemsList.push({
-            id: `v_${v.id}`,
-            vehicleId: v.id,
-            trackingNumber: v.trackingId || `FF-${v.id}`,
-            trackingId: v.trackingId,
-            chassisNumber: v.chassisNumber || v.vin,
-            vehicleNumber: v.vehicleNumber,
-            oemName: v.oemName,
-            modelName: v.vehicleModel || (v as any).modelName,
-            carrier: v.transportCompany || "Self Transport",
-            truckNumber: v.truckNumber,
-            driverName: v.driverName,
-            driverPhone: v.driverMobileNumber,
-            dispatchChallanNumber: v.dispatchChallanNumber,
-            invoiceNumber: v.invoiceNumber,
-            lrNumber: v.lrNumber,
-            destination: v.dealerName || v.oemName || "Factory Outbound",
-            scheduledDate: v.dispatchDateTime || (v as any).receivedAt || new Date().toISOString(),
-            status: vStage === "delivered" ? "delivered" : "dispatched",
-            documentsUrl: v.documentsUrl,
+        itemsList.push({
+          id: `v_${v.id}`,
+          vehicleId: v.id,
+          trackingNumber: v.trackingId || `FF-${v.id}`,
+          trackingId: v.trackingId,
+          chassisNumber: v.chassisNumber || v.vin,
+          vehicleNumber: v.vehicleNumber,
+          oemName: v.oemName,
+          modelName: v.vehicleModel || (v as any).modelName,
+          carrier: v.transportCompany || "Self Transport",
+          truckNumber: v.truckNumber,
+          driverName: v.driverName,
+          driverPhone: v.driverMobileNumber,
+          dispatchChallanNumber: v.dispatchChallanNumber,
+          invoiceNumber: v.invoiceNumber,
+          lrNumber: v.lrNumber,
+          destination: v.dealerName || v.oemName || "Factory Outbound",
+          scheduledDate: v.dispatchDateTime || (v as any).receivedAt || new Date().toISOString(),
+          status: vStage === "delivered" ? "delivered" : "dispatched",
+          documentsUrl: v.documentsUrl,
+        });
+      }
+    });
+
+    return itemsList;
+  }, [vehiclesList, dispatchRecords, dateQueryParams]);
+
+  // Dynamic unique OEMs list (aggregates defaults, vehicles DB, custom saved, and dispatches)
+  const uniqueOems = useMemo(() => {
+    const oemsMap = new Map<string, string>();
+
+    // 1. Defaults
+    DEFAULT_OEM_OPTIONS.forEach((o) => {
+      oemsMap.set(o.toLowerCase().trim(), o.trim());
+    });
+
+    // 2. Custom stored OEMs from localStorage
+    try {
+      const stored = localStorage.getItem("custom_oem_names");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((o: string) => {
+            if (o && String(o).trim()) oemsMap.set(String(o).toLowerCase().trim(), String(o).trim());
           });
         }
       }
+    } catch {}
+
+    // 3. From complete vehicles list
+    vehiclesList.forEach((v) => {
+      const oem = v.oemName || (v as any).oem_name;
+      if (oem && String(oem).trim()) {
+        oemsMap.set(String(oem).toLowerCase().trim(), String(oem).trim());
+      }
     });
 
-    // 2. Include explicit dispatch records with active statuses
-    dispatchRecords.forEach((d: any) => {
-      if (!addedVehicleIds.has(String(d.vehicleId))) {
-        const normStatus = (d.status || "").toLowerCase();
-        if (normStatus === "dispatched" || normStatus === "delivered" || normStatus === "in_transit" || normStatus === "scheduled") {
-          itemsList.push(d);
-          addedVehicleIds.add(String(d.vehicleId));
+    // 4. From dispatch items
+    allDispatchedItems.forEach((d: any) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const oem = d.oemName || (d as any).oem_name || v?.oemName;
+      if (oem && String(oem).trim()) {
+        oemsMap.set(String(oem).toLowerCase().trim(), String(oem).trim());
+      }
+    });
+
+    return ["All", ...Array.from(oemsMap.values()).sort((a, b) => a.localeCompare(b))];
+  }, [vehiclesList, allDispatchedItems, vehicleMap]);
+
+  // Dynamic unique Dealers / Destinations list (aggregates defaults, vehicles DB, custom saved, and dispatches)
+  const uniqueDealers = useMemo(() => {
+    const dealersMap = new Map<string, string>();
+
+    // 1. Defaults
+    DEFAULT_DEALER_OPTIONS.forEach((d) => {
+      dealersMap.set(d.toLowerCase().trim(), d.trim());
+    });
+
+    // 2. Custom stored dealers from localStorage
+    try {
+      const stored = localStorage.getItem("custom_dealer_names");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          parsed.forEach((d: string) => {
+            if (d && String(d).trim()) dealersMap.set(String(d).toLowerCase().trim(), String(d).trim());
+          });
+        }
+      }
+    } catch {}
+
+    // 3. From complete vehicles list
+    vehiclesList.forEach((v) => {
+      const dealer = v.dealerName || (v as any).dealer_name;
+      if (dealer && String(dealer).trim()) {
+        const trimmed = String(dealer).trim();
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          dealersMap.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          dealersMap.set("euler motors", "EULER MOTORS");
+        } else {
+          dealersMap.set(trimmed.toLowerCase(), trimmed);
         }
       }
     });
 
-    // If dispatchScope is "all" or "pending", also include remaining pending dispatchRecords
-    if (dispatchScope !== "production_dispatches") {
-      dispatchRecords.forEach((d: any) => {
-        if (!addedVehicleIds.has(String(d.vehicleId))) {
-          itemsList.push(d);
-        }
-      });
-    }
+    // 4. From dispatch items
+    allDispatchedItems.forEach((d: any) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const dealer = d.destination || (d as any).dealerName || (d as any).destination || v?.dealerName;
+      if (dealer && String(dealer).trim()) {
+        const trimmed = String(dealer).trim();
+        dealersMap.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
 
-    return itemsList;
-  }, [vehiclesList, dispatchRecords, dispatchScope]);
+    return ["All", ...Array.from(dealersMap.values()).sort((a, b) => a.localeCompare(b))];
+  }, [vehiclesList, allDispatchedItems, vehicleMap]);
 
-  // Filtered dispatches for status and carrier
+  // Dynamic carriers list
+  const dynamicCarriers = useMemo(() => {
+    const carriers = new Set<string>(CARRIERS);
+    allDispatchedItems.forEach((d: any) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const carrier = d.carrier || v?.transportCompany;
+      if (carrier && String(carrier).trim() && carrier !== "Pending Assignment") {
+        carriers.add(String(carrier).trim());
+      }
+    });
+    return Array.from(carriers);
+  }, [allDispatchedItems, vehicleMap]);
+
+  // Filtered dispatches for status, carrier, OEM, dealer, and date - sorted by Date Descending (Newest / Current date first)
   const filteredRecords = useMemo(() => {
-    return allDispatchedItems.filter((d: any) => {
+    const list = allDispatchedItems.filter((d: any) => {
       const v = vehicleMap[String(d.vehicleId)];
       const normStatus = (d.status || "dispatched").toLowerCase();
+
+      if (dispatchScope === "pending") {
+        if (normStatus !== "pending" && normStatus !== "scheduled") return false;
+      }
 
       if (statusFilter !== "All" && normStatus !== statusFilter.toLowerCase()) {
         return false;
@@ -321,9 +498,65 @@ export default function DispatchPage() {
         if (carrierName.toLowerCase() !== carrierFilter.toLowerCase()) return false;
       }
 
+      if (oemFilter !== "All") {
+        const oemName = d.oemName || (d as any).oem_name || v?.oemName || "";
+        const targetOem = oemFilter.toLowerCase().trim();
+        const currentOem = oemName.toLowerCase().trim();
+        if (currentOem !== targetOem && !currentOem.includes(targetOem) && !targetOem.includes(currentOem)) {
+          return false;
+        }
+      }
+
+      if (dealerFilter !== "All") {
+        const dealerName = d.destination || (d as any).dealerName || v?.dealerName || "";
+        const targetDealer = dealerFilter.toLowerCase().trim();
+        const currentDealer = dealerName.toLowerCase().trim();
+        if (currentDealer !== targetDealer && !currentDealer.includes(targetDealer) && !targetDealer.includes(currentDealer)) {
+          return false;
+        }
+      }
+
+      // Check date filter
+      const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time;
+      if (!matchesActiveDateFilter(dDate)) {
+        return false;
+      }
+
       return true;
     });
-  }, [allDispatchedItems, statusFilter, carrierFilter, vehicleMap]);
+
+    // Sort descending:
+    // 1. By Challan Number (numerical descending: e.g. 538, 537, 536, ...)
+    // 2. By Dispatch / Scheduled Date (newest date first)
+    // 3. By ID descending
+    return list.sort((a: any, b: any) => {
+      const vA = vehicleMap[String(a.vehicleId)];
+      const vB = vehicleMap[String(b.vehicleId)];
+
+      const challanA = parseChallanNumber(a, vA);
+      const challanB = parseChallanNumber(b, vB);
+
+      // If both have numerical challan numbers, sort descending (e.g. 538, 537, 536...)
+      if (challanA !== null && challanB !== null && challanA !== challanB) {
+        return challanB - challanA;
+      }
+
+      // If only one has a challan number, prioritize the one with challan
+      if (challanA !== null && challanB === null) return -1;
+      if (challanA === null && challanB !== null) return 1;
+
+      // Otherwise sort by dispatch / scheduled date descending
+      const dateA = a.scheduledDate || (a as any).dispatchDate || (a as any).dispatch_date_time || vA?.dispatchDateTime || vA?.receivedAt;
+      const dateB = b.scheduledDate || (b as any).dispatchDate || (b as any).dispatch_date_time || vB?.dispatchDateTime || vB?.receivedAt;
+      const timeA = dateA ? new Date(dateA).getTime() : 0;
+      const timeB = dateB ? new Date(dateB).getTime() : 0;
+      if (timeB !== timeA) {
+        return timeB - timeA;
+      }
+
+      return (b.id || 0) - (a.id || 0);
+    });
+  }, [allDispatchedItems, dispatchScope, statusFilter, carrierFilter, oemFilter, dealerFilter, vehicleMap, dateQueryParams]);
 
   // Overall Stats calculation
   const stats = useMemo(() => {
@@ -349,6 +582,16 @@ export default function DispatchPage() {
     return { total, scheduled, pending, inTransit, delivered, oemCounts };
   }, [filteredRecords, vehicleMap]);
 
+  // Client-side pagination calculations for accurate page switching
+  const totalFilteredRecords = filteredRecords.length;
+  const calculatedTotalPages = Math.max(1, Math.ceil(totalFilteredRecords / pageSize));
+  const safeCurrentPage = Math.min(Math.max(1, page), calculatedTotalPages);
+
+  const paginatedRecords = useMemo(() => {
+    const startIndex = (safeCurrentPage - 1) * pageSize;
+    return filteredRecords.slice(startIndex, startIndex + pageSize);
+  }, [filteredRecords, safeCurrentPage, pageSize]);
+
   // Table view columns
   const columns: ColumnDef<DispatchRecord>[] = useMemo(
     () => [
@@ -372,6 +615,10 @@ export default function DispatchPage() {
             </div>
           );
         },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "";
+        },
         sortable: true,
       },
       {
@@ -385,6 +632,10 @@ export default function DispatchPage() {
               {oem}
             </span>
           );
+        },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return d.oemName || (d as any).oem_name || v?.oemName || "";
         },
         sortable: true,
       },
@@ -403,6 +654,10 @@ export default function DispatchPage() {
             </div>
           );
         },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return parseChallanNumber(d, v) ?? 0;
+        },
         sortable: true,
       },
       {
@@ -420,6 +675,10 @@ export default function DispatchPage() {
               {lr && <span className="text-[10px] text-muted-foreground font-mono">LR: {lr}</span>}
             </div>
           );
+        },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return d.trackingNumber || d.trackingId || v?.trackingId || "";
         },
         sortable: true,
       },
@@ -440,6 +699,10 @@ export default function DispatchPage() {
             </div>
           );
         },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return d.carrier || v?.transportCompany || "";
+        },
         sortable: true,
       },
       {
@@ -457,6 +720,10 @@ export default function DispatchPage() {
             </div>
           );
         },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          return d.driverName || (d as any).driver_name || v?.driverName || "";
+        },
         sortable: true,
       },
       {
@@ -470,6 +737,11 @@ export default function DispatchPage() {
             </span>
           );
         },
+        sortValue: (d: DispatchRecord) => {
+          const v = vehicleMap[String(d.vehicleId)];
+          const dateStr = d.scheduledDate || d.dispatchDate || (d as any).dispatch_date_time || v?.dispatchDateTime;
+          return dateStr ? new Date(dateStr).getTime() : 0;
+        },
         sortable: true,
       },
       {
@@ -480,12 +752,15 @@ export default function DispatchPage() {
             {d.destination || "-"}
           </span>
         ),
+        sortValue: (d: DispatchRecord) => d.destination || "",
         sortable: true,
       },
       {
         id: "status",
         header: "Status",
         accessor: (d: DispatchRecord) => <DispatchStatusBadge status={d.status} />,
+        sortValue: (d: DispatchRecord) => d.status || "",
+        sortable: true,
       },
       {
         id: "actions",
@@ -533,42 +808,38 @@ export default function DispatchPage() {
   return (
     <div className="p-4 md:p-6 space-y-6" data-ocid="dispatch.page">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-card border border-border p-4 rounded-xl shadow-sm">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-foreground flex items-center gap-2">
-            <Truck className="text-primary" size={24} />
-            Dispatch Module
-          </h1>
-          <p className="text-sm text-muted-foreground mt-0.5">
-            Logistics chassis dispatch records & date filtering
-          </p>
-        </div>
-
-        {/* View Mode Switcher */}
-        <div className="flex items-center gap-1.5 bg-muted/50 p-1 rounded-lg border border-border/60">
-          <button
-            type="button"
-            onClick={() => setActiveTab("standard")}
-            className={cn(
-              "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap cursor-pointer",
-              activeTab === "standard" ? "bg-card text-foreground shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            Standard View
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("excel")}
-            className={cn(
-              "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
-              activeTab === "excel" ? "bg-card text-foreground shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            <FileSpreadsheet size={14} className="text-emerald-600" />
-            Excel / Table View
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Dispatch Command Center"
+        description="Logistics chassis dispatch records, transporter tracking, gate pass generation, and delivery tracking"
+        icon={<Truck className="w-5 h-5 text-primary" />}
+        actions={
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+              <button
+                type="button"
+                onClick={() => setActiveTab("standard")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer",
+                  activeTab === "standard" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Standard View
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab("excel")}
+                className={cn(
+                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
+                  activeTab === "excel" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <FileSpreadsheet size={13} className="text-emerald-600" />
+                Table View
+              </button>
+            </div>
+          </div>
+        }
+      />
 
       {/* Global Date Filter Bar */}
       <GlobalDateFilterBar
@@ -583,57 +854,38 @@ export default function DispatchPage() {
       />
 
       {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
-          <div className="w-11 h-11 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
-            <CalendarIcon size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold font-display text-foreground">
-              {totalDispatch}
-            </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              Total Dispatches
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center flex-shrink-0">
-            <CheckCircle2 size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold font-display text-foreground">
-              {stats.delivered + stats.inTransit}
-            </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              Dispatched / Delivered
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex items-center gap-3.5 shadow-sm">
-          <div className="w-11 h-11 rounded-xl bg-warning/10 text-warning flex items-center justify-center flex-shrink-0">
-            <Clock size={22} />
-          </div>
-          <div>
-            <p className="text-2xl font-bold font-display text-foreground">
-              {stats.scheduled + stats.pending}
-            </p>
-            <p className="text-xs font-semibold text-muted-foreground">
-              Scheduled / Pending
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col justify-center shadow-sm">
-          <p className="text-xs font-bold text-foreground mb-1">OEM Dispatches Summary</p>
-          <div className="flex items-center gap-2 flex-wrap">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard
+          title="Total Dispatches"
+          value={stats.total}
+          description="Recorded movements"
+          icon={<Truck size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Delivered / Dispatched"
+          value={stats.delivered + stats.inTransit}
+          description="In transit or finished"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Scheduled / Pending"
+          value={stats.scheduled + stats.pending}
+          description="Awaiting pickup"
+          icon={<Clock size={14} />}
+          semantic={stats.scheduled + stats.pending > 0 ? "warning" : "neutral"}
+        />
+        <div className="bg-card border border-border rounded-xl p-4 flex flex-col justify-between gap-1.5 shadow-xs">
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            OEM Summary
+          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
             {Object.keys(stats.oemCounts).length === 0 ? (
               <span className="text-xs text-muted-foreground">No dispatches</span>
             ) : (
               Object.entries(stats.oemCounts).map(([oem, cnt]) => (
-                <span key={oem} className="text-[11px] font-semibold bg-muted px-2 py-0.5 rounded-md text-foreground">
+                <span key={oem} className="text-[11px] font-semibold bg-muted px-2 py-0.5 rounded-md text-foreground border border-border/50">
                   {oem}: <span className="text-primary font-bold">{cnt}</span>
                 </span>
               ))
@@ -699,7 +951,7 @@ export default function DispatchPage() {
                       "Challan Number": challan,
                       "Invoice Number": invoice,
                       "Destination": d.destination || "-",
-                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN") : "-",
+                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
                       "Status": d.status || "pending"
                     };
                   });
@@ -751,7 +1003,72 @@ export default function DispatchPage() {
                       "Challan Number": challan,
                       "Invoice Number": invoice,
                       "Destination": d.destination || "-",
-                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN") : "-",
+                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+                      "Status": d.status || "pending"
+                    };
+                  });
+                  exportToPDF(
+                    "Dispatch_Master_List",
+                    "Dispatch & Logistics Master Report",
+                    headers,
+                    tableRows,
+                    {
+                      dateRange: dateFilter,
+                      oem: oemFilter,
+                      dealer: dealerFilter,
+                      carrier: carrierFilter,
+                      status: statusFilter,
+                      summary: `Total ${filteredRecords.length} dispatch records matching filter criteria.`
+                    }
+                  );
+                }}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
+              >
+                <FileText size={13} /> Export PDF (.pdf)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = [
+                    "Tracking ID",
+                    "Chassis / VIN",
+                    "Vehicle Number",
+                    "OEM Name",
+                    "Transporter / Carrier",
+                    "Truck Number",
+                    "Driver Name",
+                    "Driver Mobile",
+                    "Challan Number",
+                    "Invoice Number",
+                    "Destination",
+                    "Dispatch Date",
+                    "Status"
+                  ];
+                  const tableRows = filteredRecords.map((d: DispatchRecord) => {
+                    const v = vehicleMap[String(d.vehicleId)];
+                    const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
+                    const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
+                    const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
+                    const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
+                    const truckNo = d.truckNumber || v?.truckNumber || "-";
+                    const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
+                    const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
+                    const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
+                    const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
+                    const dateStr = d.scheduledDate || (d as any).dispatchDate;
+                    return {
+                      "Tracking ID": d.trackingNumber || d.trackingId || "-",
+                      "Chassis / VIN": chassis,
+                      "Vehicle Number": vehicleNum,
+                      "OEM Name": oem,
+                      "Transporter / Carrier": carrierName,
+                      "Truck Number": truckNo,
+                      "Driver Name": driver,
+                      "Driver Mobile": phone,
+                      "Challan Number": challan,
+                      "Invoice Number": invoice,
+                      "Destination": d.destination || "-",
+                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
                       "Status": d.status || "pending"
                     };
                   });
@@ -762,6 +1079,82 @@ export default function DispatchPage() {
                 <Download size={13} /> Export CSV
               </button>
             </div>
+          </div>
+
+          {/* Excel Filter Strip */}
+          <div className="flex flex-wrap items-center gap-2 bg-card p-3 rounded-xl border border-border">
+            <select
+              value={dispatchScope}
+              onChange={(e) => {
+                setDispatchScope(e.target.value as any);
+                setPage(1);
+              }}
+              className="h-8 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded-lg px-2 focus:outline-none cursor-pointer"
+            >
+              <option value="production_dispatches">🚚 Production Dispatches Only</option>
+              <option value="all">📋 All Records (Inc. Pending)</option>
+              <option value="pending">⏳ Pending Dispatch Only</option>
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All Statuses" : s.replace("_", " ").toUpperCase()}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={carrierFilter}
+              onChange={(e) => {
+                setCarrierFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
+            >
+              {dynamicCarriers.map((c) => (
+                <option key={c} value={c}>
+                  {c === "All" ? "All Carriers" : c}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={oemFilter}
+              onChange={(e) => {
+                setOemFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
+            >
+              {uniqueOems.map((oem) => (
+                <option key={oem} value={oem}>
+                  {oem === "All" ? "🏭 All OEMs" : oem}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={dealerFilter}
+              onChange={(e) => {
+                setDealerFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none max-w-[170px] truncate"
+            >
+              {uniqueDealers.map((dealer) => (
+                <option key={dealer} value={dealer}>
+                  {dealer === "All" ? "📍 All Dealers / Dest" : dealer}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Excel Grid Table */}
@@ -788,14 +1181,14 @@ export default function DispatchPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
-                  {filteredRecords.length === 0 ? (
+                  {paginatedRecords.length === 0 ? (
                     <tr>
                       <td colSpan={15} className="px-4 py-12 text-center text-muted-foreground">
                         No dispatch records found matching your criteria.
                       </td>
                     </tr>
                   ) : (
-                    filteredRecords.map((d: DispatchRecord, idx: number) => {
+                    paginatedRecords.map((d: DispatchRecord, idx: number) => {
                       const v = vehicleMap[String(d.vehicleId)];
                       const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
                       const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
@@ -811,7 +1204,9 @@ export default function DispatchPage() {
 
                       return (
                         <tr key={d.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-3.5 py-2.5 font-mono text-muted-foreground">{idx + 1}</td>
+                          <td className="px-3.5 py-2.5 font-mono text-muted-foreground">
+                            {(safeCurrentPage - 1) * pageSize + idx + 1}
+                          </td>
                           <td className="px-3.5 py-2.5 font-mono font-semibold text-primary">
                             {d.trackingNumber || d.trackingId || "-"}
                           </td>
@@ -831,7 +1226,7 @@ export default function DispatchPage() {
                           </td>
                           <td className="px-3.5 py-2.5 font-medium text-foreground">{d.destination || "-"}</td>
                           <td className="px-3.5 py-2.5 font-mono text-muted-foreground text-xs whitespace-nowrap">
-                            {dateStr ? new Date(dateStr).toLocaleDateString("en-IN") : "-"}
+                            {dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
                           </td>
                           <td className="px-3.5 py-2.5">
                             <DispatchStatusBadge status={d.status} />
@@ -908,10 +1303,10 @@ export default function DispatchPage() {
           </div>
 
           <Pagination
-            page={page}
+            page={safeCurrentPage}
             pageSize={pageSize}
-            total={totalDispatch}
-            totalPages={totalPages}
+            total={totalFilteredRecords}
+            totalPages={calculatedTotalPages}
             onPageChange={setPage}
             onPageSizeChange={(size) => {
               setPageSize(size);
@@ -925,7 +1320,7 @@ export default function DispatchPage() {
         <div className="space-y-4">
           <DataTable
             columns={columns}
-            data={filteredRecords}
+            data={paginatedRecords}
             rowId={(d) => String(d.id)}
             hidePagination={true}
             bulkAction={(selectedRows: DispatchRecord[]) => (
@@ -993,12 +1388,45 @@ export default function DispatchPage() {
 
                 <select
                   value={carrierFilter}
-                  onChange={(e) => setCarrierFilter(e.target.value)}
+                  onChange={(e) => {
+                    setCarrierFilter(e.target.value);
+                    setPage(1);
+                  }}
                   className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
                 >
-                  {CARRIERS.map((c) => (
+                  {dynamicCarriers.map((c) => (
                     <option key={c} value={c}>
                       {c === "All" ? "All Carriers" : c}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={oemFilter}
+                  onChange={(e) => {
+                    setOemFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
+                >
+                  {uniqueOems.map((oem) => (
+                    <option key={oem} value={oem}>
+                      {oem === "All" ? "🏭 All OEMs" : oem}
+                    </option>
+                  ))}
+                </select>
+
+                <select
+                  value={dealerFilter}
+                  onChange={(e) => {
+                    setDealerFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none max-w-[170px] truncate"
+                >
+                  {uniqueDealers.map((dealer) => (
+                    <option key={dealer} value={dealer}>
+                      {dealer === "All" ? "📍 All Dealers / Dest" : dealer}
                     </option>
                   ))}
                 </select>
@@ -1007,10 +1435,10 @@ export default function DispatchPage() {
           />
 
           <Pagination
-            page={page}
+            page={safeCurrentPage}
             pageSize={pageSize}
-            total={totalDispatch}
-            totalPages={totalPages}
+            total={totalFilteredRecords}
+            totalPages={calculatedTotalPages}
             onPageChange={setPage}
             onPageSizeChange={(size) => {
               setPageSize(size);

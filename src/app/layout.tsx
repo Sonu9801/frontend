@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { Toaster } from "sonner";
+import { PWAInstallPrompt } from "@/components/pwa/PWAInstallPrompt";
 import "./globals.css";
 
 const spaceGrotesk = { variable: "--font-display" };
@@ -49,6 +50,7 @@ export default function RootLayout({
         <Providers>
           {children}
           <Toaster richColors position="top-right" />
+          <PWAInstallPrompt />
         </Providers>
         <script
           dangerouslySetInnerHTML={{

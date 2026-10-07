@@ -35,6 +35,7 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
     designation: "",
     role: "Worker",
     joiningDate: "",
+    status: "Active",
     employmentStatus: "Active",
     
     shiftType: "General Shift",
@@ -91,6 +92,7 @@ export default function EmployeeFormDrawer({ open, onOpenChange, worker }: Emplo
           designation: worker.designation || "",
           role: worker.role || "Worker",
           joiningDate: worker.joiningDate || "",
+          status: worker.status || "Active",
           employmentStatus: worker.employmentStatus || "Active",
         
         shiftType: worker.shiftType || "General Shift",

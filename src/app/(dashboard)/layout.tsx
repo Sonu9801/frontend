@@ -93,7 +93,9 @@ export default function DashboardLayout({
     <div className="flex h-screen w-screen overflow-hidden bg-background font-body">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex h-full flex-shrink-0 z-40">
-        <Sidebar />
+        <React.Suspense fallback={<div className="w-16 h-full bg-sidebar border-r border-sidebar-border" />}>
+          <Sidebar />
+        </React.Suspense>
       </div>
       
       <div className="flex flex-col flex-1 h-full min-w-0 overflow-hidden">

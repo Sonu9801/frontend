@@ -2,10 +2,14 @@
 
 import React, { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useVehicles, useDispatchRecords, useOemSubmitVehicle, useUpdateDispatchRecord } from "@/hooks/useQueries";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { useVehicles, useDispatchRecords, useOemSubmitVehicle, useUpdateDispatchRecord, useUpdateVehicleStage } from "@/hooks/useQueries";
 import type { DispatchRecord, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
+import { useAuthStore } from "@/store/authStore";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import {
   ArrowRight,
@@ -576,11 +580,9 @@ export default function OEMPortalPage() {
   const setSearch = useUIStore(state => state.setSearchQuery);
   const [showAddModal, setShowAddModal] = useState(false);
 
-  const { useAuthStore } = require("@/store/authStore");
   const userRole = useAuthStore((state: any) => state.role) || "operator";
   const canEdit = ["admin", "owner"].includes(userRole);
 
-  const { useUpdateVehicleStage } = require("@/hooks/useQueries");
   const updateStageMutation = useUpdateVehicleStage();
 
   const [editRecord, setEditRecord] = useState<Vehicle | null>(null);
@@ -637,35 +639,23 @@ export default function OEMPortalPage() {
   return (
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
-      <div className="bg-card border-b border-border sticky top-0 z-20 shadow-sm">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <div className="flex items-center justify-between py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center shadow-sm">
-                <span className="text-primary-foreground font-black text-xs">
-                  FF
-                </span>
-              </div>
-              <div>
-                <h1 className="text-base font-bold text-foreground tracking-tight">
-                  Live Tracking Portal
-                </h1>
-                <p className="text-[10px] text-muted-foreground font-medium uppercase tracking-widest">
-                  Enterprise Dashboard
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
+      <div className="bg-card border-b border-border sticky top-0 z-20 shadow-xs">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4">
+          <PageHeader
+            title="Live Tracking Portal"
+            subtitle="Real-time vehicle manufacturing milestones, logistics & delivery tracking"
+            actions={
+              <Button
+                size="sm"
                 onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-semibold hover:bg-primary/90 transition-colors shadow-sm"
+                className="gap-1.5 shadow-sm"
               >
                 <Plus size={14} />
                 <span className="hidden sm:inline">Add Vehicle Dispatch</span>
                 <span className="sm:hidden">Add</span>
-              </button>
-            </div>
-          </div>
+              </Button>
+            }
+          />
         </div>
       </div>
 
@@ -682,26 +672,28 @@ export default function OEMPortalPage() {
             className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
           />
           <Input
-            placeholder="Search by tracking ID, vehicle number..."
+            placeholder="Search by tracking ID, vehicle number, product category..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-12 bg-card rounded-xl border-border text-sm shadow-sm"
+            className="pl-10 h-11 bg-card rounded-xl border-border text-sm shadow-xs"
           />
         </div>
 
         {/* Vehicle List */}
         <div className="space-y-4">
           {filtered.length === 0 ? (
-             <div className="flex flex-col items-center py-16 text-center">
-              <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4 border border-border/40">
-                <Search size={24} className="text-muted-foreground" />
-              </div>
-              <h3 className="font-semibold text-foreground mb-1">
-                No orders found
-              </h3>
-              <p className="text-sm text-muted-foreground max-w-xs">
-                {isSearching ? "Adjust your search terms to find orders." : "You have not submitted any vehicles yet."}
-              </p>
+            <div className="py-16 bg-card border border-border rounded-xl">
+              <EmptyState
+                icon={Search}
+                title="No orders found"
+                description={isSearching ? "No vehicles matched your search query. Try adjusting your search keywords." : "You have not submitted any vehicle orders yet."}
+                action={
+                  !isSearching ? {
+                    label: "Submit Vehicle",
+                    onClick: () => setShowAddModal(true)
+                  } : undefined
+                }
+              />
             </div>
           ) : (
               filtered.map((v) => (

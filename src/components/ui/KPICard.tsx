@@ -59,15 +59,19 @@ function useCountUp(target: number, duration = 1200) {
 }
 
 export type TrendDirection = "up" | "down" | "neutral";
+export type SemanticColor = "primary" | "success" | "warning" | "destructive" | "neutral";
 
 interface KPICardProps {
   title: string;
-  value: number;
+  value: number | string;
+  subtext?: string;
+  description?: string;
   trend?: TrendDirection;
   trendValue?: string;
   sparklineData?: number[];
   sparklineColor?: string;
   accentClass?: string;
+  semantic?: SemanticColor;
   icon?: React.ReactNode;
   className?: string;
   "data-ocid"?: string;
@@ -76,66 +80,100 @@ interface KPICardProps {
 export function KPICard({
   title,
   value,
+  subtext,
+  description,
   trend = "neutral",
   trendValue,
   sparklineData,
   sparklineColor,
-  accentClass = "text-foreground",
+  accentClass,
+  semantic,
   icon,
   className,
   "data-ocid": ocid,
 }: KPICardProps) {
-  const count = useCountUp(value);
+  const isNumeric = typeof value === "number";
+  const numericCount = useCountUp(isNumeric ? (value as number) : 0);
+  const displayValue = isNumeric ? numericCount : value;
 
   const TrendIcon =
     trend === "up" ? TrendingUp : trend === "down" ? TrendingDown : Minus;
+  
   const trendColorClass =
     trend === "up"
-      ? "text-success"
+      ? "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10"
       : trend === "down"
-        ? "text-destructive"
-        : "text-muted-foreground";
+        ? "text-rose-600 dark:text-rose-400 bg-rose-500/10"
+        : "text-muted-foreground bg-muted";
+
+  const semanticAccentClass =
+    semantic === "primary"
+      ? "text-primary"
+      : semantic === "success"
+        ? "text-emerald-600 dark:text-emerald-400"
+        : semantic === "warning"
+          ? "text-amber-600 dark:text-amber-400"
+          : semantic === "destructive"
+            ? "text-rose-600 dark:text-rose-400"
+            : semantic === "neutral"
+              ? "text-muted-foreground"
+              : accentClass || "text-foreground";
+
+  const helperText = subtext || description;
 
   return (
     <motion.div
       data-ocid={ocid}
-      initial={{ opacity: 0, y: 12 }}
+      initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "bg-card border border-border rounded-xl p-4 shadow-subtle flex flex-col gap-3 hover:shadow-elevated transition-smooth cursor-default",
+        "bg-card border border-border rounded-xl p-4 shadow-xs flex flex-col justify-between gap-2.5 hover:shadow-subtle hover:border-border/80 transition-smooth cursor-default",
         className,
       )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
           {title}
         </span>
-        {icon && <span className="text-muted-foreground">{icon}</span>}
+        {icon && (
+          <div className="w-7 h-7 rounded-lg bg-muted/60 border border-border/50 flex items-center justify-center text-muted-foreground flex-shrink-0">
+            {icon}
+          </div>
+        )}
       </div>
-      <div className="flex items-end justify-between gap-2">
-        <div>
+
+      <div className="flex items-baseline justify-between gap-2 mt-1">
+        <span
+          className={cn(
+            "text-2xl sm:text-3xl font-bold font-display tabular-nums tracking-tight",
+            semanticAccentClass,
+          )}
+        >
+          {displayValue}
+        </span>
+        {trendValue && (
           <span
             className={cn(
-              "text-3xl font-bold font-display tabular-nums",
-              accentClass,
+              "text-[11px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 flex-shrink-0",
+              trendColorClass,
             )}
           >
-            {count}
+            <TrendIcon size={12} />
+            {trendValue}
           </span>
-          {trendValue && (
-            <span
-              className={cn(
-                "ml-2 text-xs font-medium flex items-center gap-0.5 inline-flex",
-                trendColorClass,
-              )}
-            >
-              <TrendIcon size={12} />
-              {trendValue}
-            </span>
-          )}
-        </div>
-        {sparklineData && (
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-2 min-h-[16px]">
+        {helperText ? (
+          <p className="text-[11px] text-muted-foreground truncate leading-tight">
+            {helperText}
+          </p>
+        ) : (
+          <div />
+        )}
+        {sparklineData && sparklineData.length > 0 && (
           <Sparkline
             data={sparklineData}
             color={sparklineColor ?? "oklch(var(--primary))"}

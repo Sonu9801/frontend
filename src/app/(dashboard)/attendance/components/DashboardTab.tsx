@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useAttendanceAnalytics, useAttendanceLogs, usePayrollSummary, useUpdateAttendance } from "@/hooks/useQueries";
 import AttendanceDetailsDrawer from "./AttendanceDetailsDrawer";
+import { KPICard } from "@/components/ui/KPICard";
 import { Worker } from "@/types";
 import { 
   Users, UserCheck, UserX, Clock, Calendar, Briefcase, 
@@ -192,7 +193,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
   });
 
   let displayFeed = liveFeed;
-  
+
   if (filterDept !== "All" || filterType !== "All") {
     displayFeed = displayFeed.filter((item: any) => {
       const matchDept = filterDept === "All" || item.department === filterDept;
@@ -201,32 +202,19 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
     });
   }
 
-  const KPICard = ({ title, value, icon: Icon, colorClass, subtext }: any) => (
-    <div className="bg-card border border-border rounded-xl p-5 shadow-sm flex items-start justify-between">
-      <div>
-        <p className="text-sm font-medium text-muted-foreground">{title}</p>
-        <h3 className="text-3xl font-bold text-foreground mt-2">{value}</h3>
-        {subtext && <p className="text-xs text-muted-foreground mt-2">{subtext}</p>}
-      </div>
-      <div className={`p-3 rounded-lg ${colorClass}`}>
-        <Icon size={20} />
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex flex-col gap-6 pb-8">
-      <div className="relative z-30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 rounded-xl border border-border shadow-sm">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <Briefcase className="text-primary" size={20} />
-          Attendance Command Center
+      <div className="relative z-30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-card p-4 rounded-xl border border-border shadow-xs">
+        <h2 className="text-base font-semibold flex items-center gap-2">
+          <Briefcase className="text-primary" size={18} />
+          Attendance Overview
         </h2>
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <select 
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="flex-1 sm:flex-none bg-muted/50 border border-input rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="flex-1 sm:flex-none bg-muted/50 border border-input rounded-lg px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               <option>Today</option>
               <option>Yesterday</option>
@@ -241,38 +229,38 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
                   type="date"
                   value={customStartDate}
                   onChange={(e) => setCustomStartDate(e.target.value)}
-                  className="bg-muted/50 border border-input rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="bg-muted/50 border border-input rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
                 <span className="text-xs text-muted-foreground hidden sm:inline">to</span>
                 <input 
                   type="date"
                   value={customEndDate}
                   onChange={(e) => setCustomEndDate(e.target.value)}
-                  className="bg-muted/50 border border-input rounded-lg px-2 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  className="bg-muted/50 border border-input rounded-lg px-2 py-1 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
                 />
               </div>
             )}
           </div>
           <button 
             onClick={() => setShowFilters(!showFilters)}
-            className={`flex-1 sm:flex-none justify-center flex items-center gap-2 border border-input px-3 py-2 rounded-lg text-sm font-medium transition-colors ${showFilters ? 'bg-primary/20 text-primary border-primary/30' : 'bg-muted/50 hover:bg-muted text-foreground'}`}
+            className={`flex-1 sm:flex-none justify-center flex items-center gap-2 border border-border px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${showFilters ? 'bg-primary/10 text-primary border-primary/30' : 'bg-muted/40 hover:bg-muted text-foreground'}`}
           >
-            <Filter size={16} /> Filters
+            <Filter size={14} /> Filters
           </button>
-          <button className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-            <Download size={16} /> Export
+          <button className="flex-1 sm:flex-none justify-center flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors">
+            <Download size={14} /> Export
           </button>
         </div>
       </div>
 
       {showFilters && (
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-xs flex flex-wrap gap-4 items-end animate-in fade-in slide-in-from-top-2">
           <div className="flex flex-col gap-1.5">
             <label className="text-xs font-semibold text-muted-foreground uppercase">Department</label>
             <select 
               value={filterDept}
               onChange={(e) => setFilterDept(e.target.value)}
-              className="h-9 bg-background border border-input rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[160px]"
+              className="h-9 bg-background border border-input rounded-md px-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[160px]"
             >
               <option value="All">All Departments</option>
               <option value="Fabrication">Fabrication</option>
@@ -287,7 +275,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
             <select 
               value={filterType}
               onChange={(e) => setFilterType(e.target.value)}
-              className="h-9 bg-background border border-input rounded-md px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[140px]"
+              className="h-9 bg-background border border-input rounded-md px-3 text-xs focus:outline-none focus:ring-2 focus:ring-primary/50 min-w-[140px]"
             >
               <option value="All">All Statuses</option>
               <option value="Present">Present</option>
@@ -298,7 +286,7 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
           <div className="ml-auto">
             <button 
               onClick={() => { setFilterDept("All"); setFilterType("All"); }}
-              className="h-9 px-4 bg-muted/50 text-muted-foreground hover:text-foreground text-sm font-medium rounded-md transition-colors"
+              className="h-9 px-4 bg-muted/50 text-muted-foreground hover:text-foreground text-xs font-medium rounded-md transition-colors"
             >
               Reset
             </button>
@@ -306,13 +294,49 @@ export default function DashboardTab({ workers, isLoading }: { workers: Worker[]
         </div>
       )}
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <KPICard title={dateRange === "Today" ? "Present Today" : "Present"} value={kpis.present} icon={UserCheck} colorClass="bg-emerald-500/10 text-emerald-500" subtext={`${presentPercent}% of workforce`} />
-        <KPICard title={dateRange === "Today" ? "Absent Today" : "Absent"} value={kpis.absent} icon={UserX} colorClass="bg-red-500/10 text-red-500" subtext={`${absentPercent}% of workforce`} />
-        <KPICard title="Late Employees" value={kpis.late} icon={Clock} colorClass="bg-orange-500/10 text-orange-500" subtext="After shift start" />
-        <KPICard title="Half Day" value={kpis.halfDay} icon={Calendar} colorClass="bg-yellow-500/10 text-yellow-600 dark:text-yellow-400" subtext="Left early" />
-        <KPICard title={dateRange === "Today" ? "OT Running" : "OT Completed"} value={kpis.ot} icon={TrendingUp} colorClass="bg-purple-500/10 text-purple-500" subtext={dateRange === "Today" ? "Currently working OT" : "Records with OT"} />
-        <KPICard title="Total Employees" value={kpis.total} icon={Users} colorClass="bg-blue-500/10 text-blue-500" subtext="Registered workforce" />
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+        <KPICard
+          title={dateRange === "Today" ? "Present Today" : "Present"}
+          value={kpis.present}
+          icon={<UserCheck size={14} />}
+          semantic="success"
+          description={`${presentPercent}% of workforce`}
+        />
+        <KPICard
+          title={dateRange === "Today" ? "Absent Today" : "Absent"}
+          value={kpis.absent}
+          icon={<UserX size={14} />}
+          semantic={kpis.absent > 0 ? "destructive" : "neutral"}
+          description={`${absentPercent}% of workforce`}
+        />
+        <KPICard
+          title="Late Employees"
+          value={kpis.late}
+          icon={<Clock size={14} />}
+          semantic={kpis.late > 0 ? "warning" : "neutral"}
+          description="After shift start"
+        />
+        <KPICard
+          title="Half Day"
+          value={kpis.halfDay}
+          icon={<Calendar size={14} />}
+          semantic="warning"
+          description="Left early"
+        />
+        <KPICard
+          title={dateRange === "Today" ? "OT Running" : "OT Completed"}
+          value={kpis.ot}
+          icon={<TrendingUp size={14} />}
+          accentClass="text-purple-600 dark:text-purple-400"
+          description={dateRange === "Today" ? "Currently working OT" : "Records with OT"}
+        />
+        <KPICard
+          title="Total Employees"
+          value={kpis.total}
+          icon={<Users size={14} />}
+          semantic="primary"
+          description="Registered workforce"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

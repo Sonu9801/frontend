@@ -8,8 +8,8 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Priority, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
-import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table, Calendar as CalendarIcon } from "lucide-react";
-import { exportToCSV, exportToExcel } from "../reports/components/exportUtils";
+import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table, Calendar as CalendarIcon, FileText } from "lucide-react";
+import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
 import { isDateInFilterRange, formatFilterLabel } from "../reports/components/dateFilterUtils";
 import { toast } from "sonner";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
@@ -24,6 +24,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { EmptyState } from "@/components/shared/EmptyState";
+import { Button } from "@/components/ui/button";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
 import { ReasonPromptDialog } from "@/components/shared/ReasonPromptDialog";
 import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
@@ -568,6 +571,40 @@ function KanbanColumn({
     </div>
   );
 }
+
+const formatStageName = (stage?: string): string => {
+  if (!stage) return "-";
+  const s = stage.toLowerCase().trim();
+  if (s === "supervisor_verification") return "Supervisor Verification";
+  if (s === "incoming_verification") return "Incoming Verification";
+  if (s === "received") return "Received";
+  if (s === "fabrication") return "Fabrication";
+  if (s === "paint") return "Paint";
+  if (s === "quality" || s === "qc") return "Quality";
+  if (s === "rtd" || s === "readytodispatch" || s === "ready_to_dispatch") return "Ready To Dispatch";
+  if (s === "dispatch") return "Dispatch";
+  if (s === "dispatched") return "Dispatched";
+  if (s === "delivered") return "Delivered";
+  if (s === "hold") return "On Hold";
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, " ");
+};
+
+const formatPriorityName = (priority?: string): string => {
+  if (!priority) return "Normal";
+  const p = priority.toLowerCase().trim();
+  return p.charAt(0).toUpperCase() + p.slice(1);
+};
+
+const formatReceivedDate = (dateStr?: string): string => {
+  if (!dateStr) return "-";
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  } catch {
+    return String(dateStr);
+  }
+};
 
 // ─── Production Page ──────────────────────────────────────────────────────
 export default function ProductionPage() {
@@ -1114,20 +1151,34 @@ export default function ProductionPage() {
       data-ocid="production.page"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-4">
-          <div>
-            <h1 className="text-2xl font-bold font-display text-foreground tracking-tight flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4">
-              Production Board
-              
-              {/* Tabs */}
-              <div className="flex flex-nowrap overflow-x-auto no-scrollbar bg-muted rounded-lg p-1 mt-1 border border-border w-full sm:w-auto">
+      <div className="flex-shrink-0 p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card space-y-4">
+        {/* Header with PageHeader and Actions */}
+        <PageHeader
+          title="Production Board"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span>{vehicles.length} total vehicles tracked through manufacturing stages</span>
+              {urgentCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  {urgentCount} urgent
+                </span>
+              )}
+              {highCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  {highCount} high priority
+                </span>
+              )}
+            </span>
+          }
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
                 <button
                   type="button"
                   onClick={() => setActiveTab("incoming")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap",
-                    activeTab === "incoming" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    activeTab === "incoming" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Verification
@@ -1136,8 +1187,8 @@ export default function ProductionPage() {
                   type="button"
                   onClick={() => setActiveTab("board")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap",
-                    activeTab === "board" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    activeTab === "board" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Kanban Board
@@ -1146,142 +1197,50 @@ export default function ProductionPage() {
                   type="button"
                   onClick={() => setActiveTab("table")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5",
-                    activeTab === "table" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5",
+                    activeTab === "table" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <FileSpreadsheet size={13} className="text-emerald-600" />
-                  Excel / Table View
+                  Table View
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("history")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-md transition-colors whitespace-nowrap",
-                    activeTab === "history" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    activeTab === "history" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   Work History
                 </button>
               </div>
-            </h1>
-            <p className="text-sm text-muted-foreground mt-2">
-              {vehicles.length} vehicles &mdash;&nbsp;
-              <span className="text-destructive font-medium">
-                {urgentCount} urgent
-              </span>
-              {" Â· "}
-              <span className="text-warning font-medium">{highCount} high</span>
-            </p>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {priorityFilter !== "all" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
-                {priorityFilter}
-                <button
-                  type="button"
-                  onClick={() => setPriorityFilter("all")}
-                  className="ml-0.5 hover:text-primary/60"
-                  aria-label="Clear priority filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
-            {categoryFilter !== "All Categories" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
-                {categoryFilter}
-                <button
-                  type="button"
-                  onClick={() => setCategoryFilter("All Categories")}
-                  className="ml-0.5 hover:text-primary/60"
-                  aria-label="Clear category filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
-            {oemFilter !== "All OEMs" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
-                OEM: {oemFilter}
-                <button
-                  type="button"
-                  onClick={() => setOemFilter("All OEMs")}
-                  className="ml-0.5 hover:text-primary/60"
-                  aria-label="Clear OEM filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
-            {dealerFilter !== "All Dealers" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
-                Dealer: {dealerFilter}
-                <button
-                  type="button"
-                  onClick={() => setDealerFilter("All Dealers")}
-                  className="ml-0.5 hover:text-primary/60"
-                  aria-label="Clear dealer filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
-            {statusFilter !== "All Statuses" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
-                Status: {statusFilter}
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter("All Statuses")}
-                  className="ml-0.5 hover:text-amber-600"
-                  aria-label="Clear status filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
-            {dateRange !== "All Time" && (
-              <span className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium bg-primary/10 text-primary border border-primary/20">
-                <CalendarIcon size={11} />
-                {formatFilterLabel(dateRange)}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDatePreset("All Time");
-                    setDateRange("All Time");
-                  }}
-                  className="ml-0.5 hover:text-primary/60"
-                  aria-label="Clear date filter"
-                >
-                  <X size={9} />
-                </button>
-              </span>
-            )}
 
-            {/* Action Buttons: Received & Dispatch */}
-            <button
-              type="button"
-              onClick={() => {
-                setAddModalMode("received");
-                setShowAddModal(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 transition-all cursor-pointer"
-            >
-              <Plus size={14} /> Received Vehicle
-            </button>
+              <Button
+                type="button"
+                onClick={() => {
+                  setAddModalMode("received");
+                  setShowAddModal(true);
+                }}
+                className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+              >
+                <Plus size={14} /> Received Vehicle
+              </Button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setAddModalMode("dispatch");
-                setShowAddModal(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition-all cursor-pointer"
-            >
-              <Truck size={14} /> Dispatch Vehicle
-            </button>
-          </div>
-        </div>
+              <Button
+                type="button"
+                variant="success"
+                onClick={() => {
+                  setAddModalMode("dispatch");
+                  setShowAddModal(true);
+                }}
+                className="gap-1.5 shadow-xs"
+              >
+                <Truck size={14} /> Dispatch Vehicle
+              </Button>
+            </div>
+          }
+        />
 
         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
           <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
@@ -1718,23 +1677,26 @@ export default function ProductionPage() {
                 <p className="text-xs text-muted-foreground">Real-time row and column table list ({filtered.length} vehicles matching filter)</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
               <button
                 type="button"
                 onClick={() => {
                   const headers = ["Tracking ID", "Chassis / VIN", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %", "Received Date"];
-                  const tableRows = filtered.map((v: Vehicle) => ({
-                    "Tracking ID": v.trackingId,
-                    "Chassis / VIN": v.chassisNumber || v.vin || "-",
-                    "OEM Name": v.oemName,
-                    "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
-                    "Dealer Name": v.dealerName || "-",
-                    "Category": v.productCategory,
-                    "Stage": v.currentStage,
-                    "Priority": v.priority,
-                    "Progress %": `${v.progressPercent}%`,
-                    "Received Date": new Date(v.receivedAt).toLocaleDateString("en-IN")
-                  }));
+                  const tableRows = filtered.map((v: Vehicle) => {
+                    const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+                    return {
+                      "Tracking ID": v.trackingId,
+                      "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                      "OEM Name": v.oemName,
+                      "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
+                      "Dealer Name": v.dealerName || "-",
+                      "Category": v.productCategory,
+                      "Stage": formatStageName(v.currentStage),
+                      "Priority": formatPriorityName(v.priority),
+                      "Progress %": `${v.progressPercent}%`,
+                      "Received Date": formatReceivedDate(vDateRaw)
+                    };
+                  });
                   exportToExcel("Vehicle_Master_List", headers, tableRows);
                 }}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
@@ -1745,18 +1707,59 @@ export default function ProductionPage() {
                 type="button"
                 onClick={() => {
                   const headers = ["Tracking ID", "Chassis / VIN", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %", "Received Date"];
-                  const tableRows = filtered.map((v: Vehicle) => ({
-                    "Tracking ID": v.trackingId,
-                    "Chassis / VIN": v.chassisNumber || v.vin || "-",
-                    "OEM Name": v.oemName,
-                    "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
-                    "Dealer Name": v.dealerName || "-",
-                    "Category": v.productCategory,
-                    "Stage": v.currentStage,
-                    "Priority": v.priority,
-                    "Progress %": `${v.progressPercent}%`,
-                    "Received Date": new Date(v.receivedAt).toLocaleDateString("en-IN")
-                  }));
+                  const tableRows = filtered.map((v: Vehicle) => {
+                    const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+                    return {
+                      "Tracking ID": v.trackingId,
+                      "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                      "OEM Name": v.oemName,
+                      "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
+                      "Dealer Name": v.dealerName || "-",
+                      "Category": v.productCategory,
+                      "Stage": formatStageName(v.currentStage),
+                      "Priority": formatPriorityName(v.priority),
+                      "Progress %": `${v.progressPercent}%`,
+                      "Received Date": formatReceivedDate(vDateRaw)
+                    };
+                  });
+                  exportToPDF(
+                    "Vehicle_Master_List",
+                    "Production Vehicle Master Report",
+                    headers,
+                    tableRows,
+                    {
+                      dateRange: dateRange || selectedDatePreset,
+                      oem: oemFilter,
+                      dealer: dealerFilter,
+                      category: categoryFilter,
+                      status: statusFilter,
+                      summary: `Total ${filtered.length} vehicles matching filter criteria.`
+                    }
+                  );
+                }}
+                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
+              >
+                <FileText size={13} /> Export PDF (.pdf)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ["Tracking ID", "Chassis / VIN", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %", "Received Date"];
+                  const tableRows = filtered.map((v: Vehicle) => {
+                    const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+                    return {
+                      "Tracking ID": v.trackingId,
+                      "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                      "OEM Name": v.oemName,
+                      "Model Name": v.vehicleModel || (v as any).modelName || (v as any).model_name || "-",
+                      "Dealer Name": v.dealerName || "-",
+                      "Category": v.productCategory,
+                      "Stage": formatStageName(v.currentStage),
+                      "Priority": formatPriorityName(v.priority),
+                      "Progress %": `${v.progressPercent}%`,
+                      "Received Date": formatReceivedDate(vDateRaw)
+                    };
+                  });
                   exportToCSV("Vehicle_Master_List", headers, tableRows);
                 }}
                 className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
@@ -1822,8 +1825,8 @@ export default function ProductionPage() {
                           <td className="px-4 py-3 text-muted-foreground">{v.dealerName || "-"}</td>
                           <td className="px-4 py-3 text-muted-foreground">{v.productCategory}</td>
                           <td className="px-4 py-3">
-                            <span className="capitalize font-semibold px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20">
-                              {vStage === "rtd" ? "Ready-to-Dispatch" : vStage}
+                            <span className="font-semibold px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20">
+                              {formatStageName(v.currentStage)}
                             </span>
                           </td>
                           <td className="px-4 py-3">

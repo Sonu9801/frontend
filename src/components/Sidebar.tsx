@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { useUIStore } from "@/store/uiStore";
 import { useAuthStore } from "@/store/authStore";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   Boxes,
@@ -95,6 +95,7 @@ export function Sidebar() {
   const { sidebarCollapsed, toggleSidebar } = useUIStore();
   const { name, email, role, initialize } = useAuthStore();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
     "Overview": true,
     "Production": true,
@@ -209,13 +210,25 @@ export function Sidebar() {
                     {filteredItems.map((item) => {
                       const Icon = item.icon;
                       let isActive = false;
-                      if (item.href === "/") {
+                      const [itemPath, itemQuery] = item.href.split("?");
+
+                      if (itemPath === "/") {
                         isActive = pathname === "/";
-                      } else if (item.href.includes("?")) {
-                        // Very simple active check for now
-                        isActive = typeof window !== 'undefined' && window.location.search.includes(item.href.split("?")[1]);
+                      } else if (itemQuery) {
+                        if (pathname === itemPath) {
+                          const params = new URLSearchParams(itemQuery);
+                          const cat = params.get("category");
+                          const currentCat = searchParams ? searchParams.get("category") : null;
+                          if (cat === "All Categories") {
+                            isActive = !currentCat || currentCat === "All Categories";
+                          } else {
+                            isActive = currentCat === cat;
+                          }
+                        } else {
+                          isActive = false;
+                        }
                       } else {
-                        isActive = pathname.startsWith(item.href);
+                        isActive = pathname === itemPath || pathname.startsWith(`${itemPath}/`);
                       }
 
                       const content = (

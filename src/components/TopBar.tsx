@@ -77,33 +77,39 @@ export function TopBar() {
   const displayEmail = email ? email : "admin@foxflow.in";
 
   return (
-    <header className="h-14 flex items-center gap-3 px-4 bg-card border-b border-border shadow-subtle flex-shrink-0 z-50">
+    <header className="h-14 flex items-center justify-between gap-4 px-4 sm:px-6 bg-card border-b border-border shadow-xs flex-shrink-0 z-40 select-none">
       {/* Search */}
-      <div className="flex-1 max-w-sm relative">
+      <div className="flex-1 max-w-md relative">
         <Search
           size={15}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none"
         />
         <input
           id="global-search"
           data-ocid="topbar.search_input"
           type="text"
-          placeholder="Global search... ⌘K"
+          placeholder="Search vehicles, workers, orders..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-muted/50 border border-border rounded-lg pl-9 pr-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-smooth"
+          className="w-full bg-muted/40 hover:bg-muted/60 focus:bg-background border border-border rounded-lg pl-9 pr-12 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-smooth"
         />
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-0.5 pointer-events-none">
+          <kbd className="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[10px] font-mono font-medium text-muted-foreground bg-background border border-border rounded shadow-2xs">
+            ⌘K
+          </kbd>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1 ml-auto">
+      <div className="flex items-center gap-2">
         {/* Theme toggle */}
         <Button
           type="button"
           variant="ghost"
-          size="icon"
+          size="icon-sm"
           data-ocid="topbar.theme_toggle"
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+          className="h-8 w-8 text-muted-foreground hover:text-foreground rounded-lg"
+          title="Toggle color theme"
         >
           <Sun
             size={16}

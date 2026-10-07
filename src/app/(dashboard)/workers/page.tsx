@@ -25,7 +25,10 @@ import { ReasonPromptDialog } from "@/components/shared/ReasonPromptDialog";
 import { useQuery } from "@tanstack/react-query";
 import { jobsApi, componentsApi } from "@/lib/api";
 import { format, differenceInMinutes } from "date-fns";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { KPICard } from "@/components/ui/KPICard";
 import { Badge } from "@/components/ui/badge";
+import { Users, UserCheck, Clock } from "lucide-react";
 import EmployeeFormDrawer from "../attendance/components/EmployeeFormDrawer";
 
 const DEPARTMENTS = ["All", "Fabrication", "Paint", "Assembly", "Quality", "Dispatch"];
@@ -48,18 +51,19 @@ function WorkerAvatar({ name }: { name: string }) {
 }
 
 function WorkerStatusBadge({ status }: { status: Worker["status"] }) {
+  const s = (status || "Active").toLowerCase();
   return (
     <span
       className={cn(
-        "text-[10px] font-medium px-2 py-0.5 rounded-full capitalize",
-        status === "active"
-          ? "bg-success/15 text-success"
-          : status === "break"
-            ? "bg-warning/15 text-warning"
-            : "bg-muted text-muted-foreground",
+        "text-[11px] font-semibold px-2.5 py-0.5 rounded-full capitalize border",
+        s === "active"
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+          : s === "break"
+            ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+            : "bg-muted text-muted-foreground border-border",
       )}
     >
-      {status}
+      {status || "Active"}
     </span>
   );
 }
@@ -601,70 +605,108 @@ export default function WorkersPage() {
       </div>
     );
   }
+  const activeWorkersCount = workers.filter((w: Worker) => (w.status || "Active").toLowerCase() === "active").length;
+  const avgPerformance = workers.length > 0
+    ? Math.round(workers.reduce((acc, w) => acc + (w.performanceScore || 0), 0) / workers.length)
+    : 0;
+  const totalHoursToday = workers.reduce((acc, w) => acc + (w.hoursToday || 0), 0);
 
   return (
-    <div className="p-4 md:p-6" data-ocid="workers.page">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-5 gap-4">
-        <div>
-          <h1 className="text-2xl font-bold font-display text-foreground">
-            Workers
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {totalWorkers} team members ·{" "}
-            {workers.filter((w: Worker) => w.status.toLowerCase() === "active").length} active now
-          </p>
-        </div>
-        <Button onClick={() => setIsCreateOpen(true)} className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90">
-          <Plus size={16} /> Add Worker
-        </Button>
-      </div>
-      <DataTable
-        columns={columns}
-        data={workers}
-        rowId={(w) => String(w.id)}
-        searchKey={(w) => `${w.name} ${w.employeeId}`}
-        expandable={(w) => <WorkerExpand worker={w} />}
-        hidePagination={true}
-        extraFilters={
-          <>
-            <select
-              value={deptFilter}
-              onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
-              data-ocid="workers.dept_filter"
-              className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {DEPARTMENTS.map((d) => (
-                <option key={d} value={d}>
-                  {d === "All" ? "All Departments" : d === "Quality" ? "QC" : d}
-                </option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              data-ocid="workers.status_filter"
-              className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s === "All"
-                    ? "All Statuses"
-                    : s.charAt(0).toUpperCase() + s.slice(1)}
-                </option>
-              ))}
-            </select>
-          </>
+    <div className="p-4 md:p-6 space-y-6" data-ocid="workers.page">
+      <PageHeader
+        title="Workers"
+        description={`${totalWorkers} registered team members · ${activeWorkersCount} active now across factory departments`}
+        actions={
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            className="gap-2 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
+          >
+            <Plus size={16} /> Add Worker
+          </Button>
         }
       />
-      <Pagination
-        page={page}
-        pageSize={pageSize}
-        total={totalWorkers}
-        totalPages={totalPages}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
-        isLoading={isLoadingWorkers}
-      />
+
+      {/* KPI Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <KPICard
+          title="Total Workforce"
+          value={totalWorkers}
+          description="Registered employees"
+          icon={<Users size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Active Now"
+          value={activeWorkersCount}
+          description={`${totalWorkers > 0 ? Math.round((activeWorkersCount / totalWorkers) * 100) : 0}% on shop floor`}
+          icon={<UserCheck size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Avg Performance"
+          value={`${avgPerformance}%`}
+          description="Quality & speed score"
+          icon={<Star size={14} className="text-amber-500 fill-amber-500" />}
+          semantic="warning"
+        />
+        <KPICard
+          title="Hours Logged Today"
+          value={`${totalHoursToday}h`}
+          description="Combined work duration"
+          icon={<Clock size={14} />}
+          semantic="neutral"
+        />
+      </div>
+
+      <div className="space-y-4">
+        <DataTable
+          columns={columns}
+          data={workers}
+          rowId={(w) => String(w.id)}
+          searchKey={(w) => `${w.name} ${w.employeeId}`}
+          expandable={(w) => <WorkerExpand worker={w} />}
+          hidePagination={true}
+          extraFilters={
+            <div className="flex items-center gap-2">
+              <select
+                value={deptFilter}
+                onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
+                data-ocid="workers.dept_filter"
+                className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {DEPARTMENTS.map((d) => (
+                  <option key={d} value={d}>
+                    {d === "All" ? "All Departments" : d === "Quality" ? "QC" : d}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                data-ocid="workers.status_filter"
+                className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              >
+                {STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s === "All"
+                      ? "All Statuses"
+                      : s.charAt(0).toUpperCase() + s.slice(1)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          }
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={totalWorkers}
+          totalPages={totalPages}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+          isLoading={isLoadingWorkers}
+        />
+      </div>
       {/* Enterprise Administration Controls */}
       <AuditHistoryDrawer
         open={!!historyRecord}

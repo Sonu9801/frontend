@@ -2,10 +2,10 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronDown, X, Upload, Plus } from "lucide-react";
+import { ChevronDown, X, Upload, Plus, Truck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
-import { useVehicles } from "@/hooks/useQueries";
+import { useVehicles, useUpdateVehicle } from "@/hooks/useQueries";
 import { toast } from "sonner";
 import type { Priority, Stage, Vehicle } from "@/types";
 
@@ -138,6 +138,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
   const [activeMode, setActiveMode] = useState<"received" | "dispatch">(initialMode);
   const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
   const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
+  const updateVehicleMutation = useUpdateVehicle();
 
   const [customOems, setCustomOems] = useState<string[]>(() => {
     if (typeof window === "undefined") return [];
@@ -302,8 +303,42 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
           ((v as any).chassis_number && String((v as any).chassis_number).trim().toLowerCase() === chassisVal)
       );
       if (duplicate) {
-        toast.error(`Chassis Number '${form.chassisNumber || form.vin}' already exists in the system (Tracking ID: ${duplicate.trackingId})! Duplicate receiving is not allowed.`);
-        return;
+        if (activeMode === "dispatch") {
+          // Update the existing vehicle to dispatch stage
+          updateVehicleMutation.mutate(
+            {
+              id: duplicate.id,
+              data: {
+                current_stage: "dispatch",
+                progress_percent: 100,
+                transport_company: form.transportCompany || undefined,
+                truck_number: form.truckNumber || undefined,
+                driver_name: form.driverName || undefined,
+                driver_mobile_number: form.driverMobileNumber || undefined,
+                dispatch_challan_number: form.dispatchChallanNumber || undefined,
+                invoice_number: form.invoiceNumber || undefined,
+                lr_number: form.lrNumber || undefined,
+                dealer_name: form.dealerName || duplicate.dealerName || undefined,
+                dispatch_date_time: form.dispatchDateTime ? new Date(form.dispatchDateTime).toISOString() : new Date().toISOString(),
+                documents_url: form.documentsUrl || undefined,
+                remarks: form.remarks || undefined,
+              },
+            },
+            {
+              onSuccess: () => {
+                toast.success(`Vehicle ${duplicate.chassisNumber || duplicate.trackingId} dispatched successfully!`);
+                onClose();
+              },
+              onError: (err: any) => {
+                toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
+              },
+            }
+          );
+          return;
+        } else {
+          toast.error(`Chassis Number '${form.chassisNumber || form.vin}' already exists in the system (Tracking ID: ${duplicate.trackingId})! Duplicate receiving is not allowed.`);
+          return;
+        }
       }
     }
     
@@ -691,13 +726,25 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                 <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Logistics & Dispatch Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className={labelCls}>Chassis / VIN Number</label>
+                    <label className={labelCls}>Chassis / VIN Number *</label>
                     <input
+                      list="dispatch-chassis-list"
                       placeholder="CH-98765 / VIN"
                       value={form.chassisNumber}
                       onChange={(e) => setForm((f) => ({ ...f, chassisNumber: e.target.value }))}
                       className={inputCls}
                     />
+                    <datalist id="dispatch-chassis-list">
+                      {vehiclesList.map((v) => {
+                        const chassis = v.chassisNumber || v.vin;
+                        if (!chassis) return null;
+                        return (
+                          <option key={v.id} value={chassis}>
+                            {v.trackingId} - {v.oemName} ({v.dealerName || "Direct"}) [{v.currentStage}]
+                          </option>
+                        );
+                      })}
+                    </datalist>
                   </div>
                   <div>
                     <label className={labelCls}>Truck Number</label>
@@ -805,19 +852,34 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
             </div>
           </div>
 
-          <div className="flex-none flex gap-2 border-t border-border/50 p-4 bg-card rounded-b-2xl">
+          <div className="flex-none flex gap-2.5 border-t border-border/50 p-4 bg-card rounded-b-2xl">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="flex-1 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              disabled={updateVehicleMutation.isPending}
+              className={cn(
+                "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm",
+                activeMode === "dispatch"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+              )}
             >
-              {isOemSubmission ? "Submit Dispatch" : "Add Vehicle"}
+              {activeMode === "dispatch" ? (
+                <>
+                  <Truck size={15} />
+                  <span>Dispatch Vehicle</span>
+                </>
+              ) : isOemSubmission ? (
+                "Submit Dispatch"
+              ) : (
+                "Add Vehicle"
+              )}
             </button>
           </div>
         </form>

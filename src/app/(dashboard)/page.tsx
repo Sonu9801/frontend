@@ -3,6 +3,8 @@
 import { KPICard } from "@/components/ui/KPICard";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/PageHeader";
+import { EmptyState } from "@/components/shared/EmptyState";
 import { cn, parseUTCDate } from "@/lib/utils";
 import { useVehicles, useActivities } from "@/hooks/useQueries";
 import { useUIStore } from "@/store/uiStore";
@@ -218,6 +220,7 @@ export default function DashboardPage() {
       sparklineData: [110, 125, 118, 130, 135, 140, 148],
       sparklineColor: "oklch(var(--primary))",
       icon: <Factory size={14} />,
+      semantic: "primary" as const,
     },
     {
       title: "In Fabrication",
@@ -227,22 +230,23 @@ export default function DashboardPage() {
       sparklineData: [60, 65, 70, 68, 72, 74, 75],
       sparklineColor: "oklch(var(--primary))",
       icon: <Activity size={14} />,
+      semantic: "primary" as const,
     },
     {
       title: "In Paint",
       value: stats.inPaint,
       trend: "down" as const,
       trendValue: "-3%",
-      accentClass: "text-warning",
+      accentClass: "text-purple-600 dark:text-purple-400",
       sparklineData: [38, 35, 36, 34, 33, 32, 32],
-      sparklineColor: "oklch(var(--warning))",
+      sparklineColor: "#a855f7",
     },
     {
-      title: "RTD",
+      title: "Ready to Dispatch",
       value: stats.readyToDispatch,
       trend: "up" as const,
       trendValue: "+12%",
-      accentClass: "text-success",
+      semantic: "success" as const,
       sparklineData: [70, 75, 80, 82, 85, 88, 91],
       sparklineColor: "oklch(var(--success))",
       icon: <CheckCircle2 size={14} />,
@@ -252,7 +256,7 @@ export default function DashboardPage() {
       value: stats.dispatchToday,
       trend: "up" as const,
       trendValue: "+18%",
-      accentClass: "text-success",
+      semantic: "success" as const,
       sparklineData: [90, 95, 100, 105, 108, 112, 115],
       sparklineColor: "oklch(var(--success))",
       icon: <Truck size={14} />,
@@ -260,23 +264,23 @@ export default function DashboardPage() {
     {
       title: "Delayed Orders",
       value: stats.delayedOrders,
-      trend: "down" as const,
-      trendValue: "-2",
-      accentClass: "text-warning",
+      trend: stats.delayedOrders > 0 ? ("down" as const) : ("neutral" as const),
+      trendValue: stats.delayedOrders > 0 ? `-${stats.delayedOrders}` : undefined,
+      semantic: stats.delayedOrders > 0 ? ("warning" as const) : ("neutral" as const),
       sparklineData: [16, 15, 14, 14, 13, 13, 12],
-      sparklineColor: "oklch(var(--warning))",
-      highlight: "warning",
+      sparklineColor: stats.delayedOrders > 0 ? "oklch(var(--warning))" : undefined,
+      highlight: stats.delayedOrders > 0 ? "warning" : undefined,
       icon: <AlertTriangle size={14} />,
     },
     {
       title: "Emergency",
       value: stats.emergencyOrders,
-      trend: "up" as const,
-      trendValue: "+1",
-      accentClass: "text-destructive",
-      sparklineData: [2, 2, 3, 3, 4, 4, 4],
-      sparklineColor: "oklch(var(--destructive))",
-      highlight: "destructive",
+      trend: stats.emergencyOrders > 0 ? ("up" as const) : ("neutral" as const),
+      trendValue: stats.emergencyOrders > 0 ? `+${stats.emergencyOrders}` : undefined,
+      semantic: stats.emergencyOrders > 0 ? ("destructive" as const) : ("neutral" as const),
+      sparklineData: stats.emergencyOrders > 0 ? [2, 2, 3, 3, 4, 4, 4] : undefined,
+      sparklineColor: stats.emergencyOrders > 0 ? "oklch(var(--destructive))" : undefined,
+      highlight: stats.emergencyOrders > 0 ? "destructive" : undefined,
       icon: <Zap size={14} />,
     },
   ];
@@ -324,45 +328,40 @@ export default function DashboardPage() {
       {/* Main content */}
       <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6">
         {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-          <div>
-            <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
-              Factory Command Center
-            </h1>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Live manufacturing operations overview ·{" "}
-              {new Date().toLocaleDateString("en-IN", {
-                weekday: "long",
-                day: "numeric",
-                month: "short",
-                year: "numeric",
-              })}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            {stats.emergencyOrders > 0 && (
-              <motion.div
-                animate={{ scale: [1, 1.04, 1] }}
-                transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-destructive/10 border border-destructive/30 rounded-lg"
-                data-ocid="dashboard.emergency_alert"
-              >
-                <Zap size={14} className="text-destructive" />
-                <span className="text-xs font-semibold text-destructive">
-                  {stats.emergencyOrders} Emergency
-                </span>
-              </motion.div>
-            )}
-            {stats.delayedOrders > 0 && (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-warning/10 border border-warning/30 rounded-lg">
-                <AlertTriangle size={13} className="text-warning" />
-                <span className="text-xs font-semibold text-warning">
-                  {stats.delayedOrders} Delayed
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
+        <PageHeader
+          title="Factory Command Center"
+          description={`Live manufacturing operations overview · ${new Date().toLocaleDateString("en-IN", {
+            weekday: "long",
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })}`}
+          actions={
+            <>
+              {stats.emergencyOrders > 0 && (
+                <motion.div
+                  animate={{ scale: [1, 1.04, 1] }}
+                  transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg"
+                  data-ocid="dashboard.emergency_alert"
+                >
+                  <Zap size={14} className="text-rose-600 dark:text-rose-400" />
+                  <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                    {stats.emergencyOrders} Emergency
+                  </span>
+                </motion.div>
+              )}
+              {stats.delayedOrders > 0 && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                  <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
+                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                    {stats.delayedOrders} Delayed
+                  </span>
+                </div>
+              )}
+            </>
+          }
+        />
 
         {/* KPI grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
@@ -579,13 +578,12 @@ export default function DashboardPage() {
                       </Link>
                     )}
                     {(vehiclesByStage[stage] || []).length === 0 && (
-                      <div
-                        className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-1.5"
-                        data-ocid={`production_board.${stage}.empty_state`}
-                      >
-                        <Inbox size={20} className="opacity-30" />
-                        <span className="text-[10px]">No vehicles</span>
-                      </div>
+                      <EmptyState
+                        compact
+                        title="No vehicles"
+                        description={`No vehicles currently in ${STAGE_LABELS[stage]}`}
+                        className="py-6 border-0 bg-transparent"
+                      />
                     )}
                   </div>
                 </div>
@@ -607,13 +605,13 @@ export default function DashboardPage() {
               Live Factory Feed
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
             <motion.div
               animate={{ opacity: [1, 0.3, 1] }}
               transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
-              className="w-1.5 h-1.5 rounded-full bg-success"
+              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
             />
-            <span className="text-[10px] text-muted-foreground font-medium">
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
               Live
             </span>
           </div>
@@ -623,9 +621,13 @@ export default function DashboardPage() {
           data-ocid="dashboard.activity_feed"
         >
           {activities.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-muted-foreground gap-1">
-              <Activity size={24} className="opacity-20" />
-              <span className="text-xs">No activity yet</span>
+            <div className="p-6">
+              <EmptyState
+                compact
+                icon={<Activity size={20} className="text-muted-foreground" />}
+                title="No activity yet"
+                description="Live manufacturing events and status changes will appear here automatically."
+              />
             </div>
           ) : (
             <AnimatePresence initial={false}>
