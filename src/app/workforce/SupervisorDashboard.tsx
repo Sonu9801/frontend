@@ -525,7 +525,20 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     <div className="mb-4 mt-2">
                       <p className="text-[10px] text-white/70 font-medium mb-1.5 tracking-wide">Shift Time</p>
                       <p className="text-[11px] font-bold text-white tracking-wide leading-tight">
-                        {activeUser?.shift_start && activeUser?.shift_end ? `${activeUser.shift_start} - ${activeUser.shift_end}` : "09:00 AM - 06:00 PM"}
+                        {activeUser?.shift_start && activeUser?.shift_end ? (() => {
+                          try {
+                            const formatT = (tStr: string) => {
+                              const [h, m] = tStr.split(':');
+                              const d = new Date();
+                              d.setHours(parseInt(h));
+                              d.setMinutes(parseInt(m));
+                              return format(d, 'hh:mm a');
+                            };
+                            return `${formatT(activeUser.shift_start)} - ${formatT(activeUser.shift_end)}`;
+                          } catch {
+                            return activeUser.shift_type || "05:30 PM - 11:00 PM";
+                          }
+                        })() : "09:00 AM - 06:00 PM"}
                       </p>
                     </div>
                     <div className="h-[1px] w-3/4 bg-white/10 mb-4"></div>

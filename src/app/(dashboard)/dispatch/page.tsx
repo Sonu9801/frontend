@@ -339,12 +339,12 @@ export default function DispatchPage() {
         vStage === "delivered" ||
         vStage === "rtd" ||
         vStage === "ready_to_dispatch" ||
-        vStage === "readytodispatch" ||
-        Boolean(v.truckNumber || v.driverName || v.dispatchDateTime);
+        vStage === "readytodispatch";
 
       if (isDispatchedStage) {
         const vDate = v.dispatchDateTime || (v as any).receivedAt;
         if (!matchesActiveDateFilter(vDate)) return;
+
 
         addedVehicleIds.add(String(v.id));
         itemsList.push({
@@ -1282,7 +1282,10 @@ export default function DispatchPage() {
                                       className="text-destructive focus:text-destructive cursor-pointer"
                                       onClick={() => {
                                         if (window.confirm(`Delete dispatch record #${d.id}?`)) {
-                                          deleteDispatchMutation.mutate(d.id);
+                                          deleteDispatchMutation.mutate(d.id, {
+                                            onSuccess: () => toast.success(`Dispatch record #${d.id} deleted successfully`),
+                                            onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete dispatch record"),
+                                          });
                                         }
                                       }}
                                     >

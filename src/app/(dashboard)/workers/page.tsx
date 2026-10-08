@@ -439,7 +439,8 @@ export default function WorkersPage() {
   const totalWorkers = workersData?.total ?? 0;
   const totalPages = workersData?.total_pages ?? 1;
 
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
   const { data: allTasks = [] } = useQuery({
     queryKey: ['all-component-tasks'],
     queryFn: componentsApi.getAllTasks,

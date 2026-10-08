@@ -272,7 +272,7 @@ export default function EmployeeMonthlyAttendanceModal({
     const calculated = calcOtAndWorking(inStr, outStr);
     setEditWorkingHours(dayItem.net_working_hours > 0 ? dayItem.net_working_hours : calculated.workingHours);
     setEditOtHours(dayItem.ot_hours > 0 ? dayItem.ot_hours : calculated.otHours);
-    setEditIsSunday(Boolean(dayItem.is_sunday));
+    setEditIsSunday(Boolean(dayItem.is_sunday || dayItem.status === "Sunday Work" || dayItem.status === "Festival Work" || dayItem.status === "Holiday Work"));
     setEditReason("Manual Edit by Manager");
   };
 
@@ -418,7 +418,7 @@ export default function EmployeeMonthlyAttendanceModal({
                       <th className="py-2.5 px-3">Out Time</th>
                       <th className="py-2.5 px-3">Working Hours</th>
                       <th className="py-2.5 px-3">OT Hours</th>
-                      <th className="py-2.5 px-3">Sunday Work</th>
+                      <th className="py-2.5 px-3">Sunday / Festival Work</th>
                       <th className="py-2.5 px-3 text-right">Action</th>
                     </tr>
                   </thead>
@@ -472,6 +472,14 @@ export default function EmployeeMonthlyAttendanceModal({
                         );
                       }
 
+                      const isSunOrFestWork = Boolean(
+                        dayItem.is_sunday || 
+                        dayItem.status === "Sunday Work" || 
+                        dayItem.status === "Festival Work" || 
+                        dayItem.status === "Holiday Work" || 
+                        (dayItem.holiday_name && dayItem.net_working_hours > 0)
+                      );
+
                       return (
                         <tr
                           key={dayItem.date}
@@ -496,7 +504,7 @@ export default function EmployeeMonthlyAttendanceModal({
                             {dayItem.ot_hours > 0 ? `${dayItem.ot_hours}h` : "-"}
                           </td>
                           <td className="py-2.5 px-3">
-                            {dayItem.is_sunday ? (
+                            {isSunOrFestWork ? (
                               <span className="text-[10px] bg-purple-500/15 text-purple-600 dark:text-purple-300 border border-purple-500/30 px-2 py-0.5 rounded-full font-bold">
                                 Yes
                               </span>
@@ -555,7 +563,7 @@ export default function EmployeeMonthlyAttendanceModal({
                       setEditWorkingHours(0);
                       setEditOtHours(0);
                       setEditIsSunday(false);
-                    } else if (val === "Sunday Work") {
+                    } else if (val === "Sunday Work" || val === "Festival Work") {
                       setEditIsSunday(true);
                       setEditWorkingHours(8.0);
                     } else if (val === "Half Day") {
@@ -638,22 +646,22 @@ export default function EmployeeMonthlyAttendanceModal({
                 </div>
               </div>
 
-              {/* Sunday Work Selector (Yes / No) */}
+              {/* Sunday / Festival Work Selector (Yes / No) */}
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold">Sunday Work (Extra Shift / Pay)</Label>
+                <Label className="text-xs font-bold">Sunday / Festival Work (Extra Shift / Pay)</Label>
                 <select
                   value={editIsSunday ? "yes" : "no"}
                   onChange={(e) => {
                     const isYes = e.target.value === "yes";
                     setEditIsSunday(isYes);
                     if (isYes && (editStatus === "Holiday" || editStatus === "Sunday")) {
-                      setEditStatus("Sunday Work");
+                      setEditStatus(editingDay?.holiday_name ? "Festival Work" : "Sunday Work");
                     }
                   }}
                   className="w-full h-9 px-3 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/40 font-bold"
                 >
                   <option value="no">No (Regular Day / Normal Holiday)</option>
-                  <option value="yes">Yes (Mark as Sunday Work)</option>
+                  <option value="yes">Yes (Mark as Sunday / Festival Work)</option>
                 </select>
               </div>
 

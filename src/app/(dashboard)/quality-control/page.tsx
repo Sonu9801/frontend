@@ -73,12 +73,12 @@ function QCDetailsDrawer({
   record, 
   open, 
   onClose,
-  vehicles
+  vehicles = []
 }: { 
   record: QCRecord | null, 
   open: boolean, 
   onClose: () => void,
-  vehicles: Vehicle[] 
+  vehicles?: Vehicle[] 
 }) {
   const updateMutation = useUpdateQCRecord();
   const uploadMutation = useUploadQCPhoto();
@@ -90,7 +90,8 @@ function QCDetailsDrawer({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const vehicle = record ? vehicles.find((v) => String(v.id) === String(record.vehicleId)) : null;
+  const vehicleList = Array.isArray(vehicles) ? vehicles : [];
+  const vehicle = record ? vehicleList.find((v) => String(v.id) === String(record.vehicleId)) : null;
   const checklist = record?.checklist && record.checklist.length > 0 ? record.checklist : DEFAULT_CHECKLIST;
 
   const handleUpdateStatus = (status: string) => {
@@ -267,22 +268,24 @@ function QCDetailsDrawer({
   );
 }
 
-function AddQCModal({ vehicles }: { vehicles: Vehicle[] }) {
+function AddQCModal({ vehicles = [] }: { vehicles?: Vehicle[] }) {
   const createMutation = useCreateQCRecord();
   const [open, setOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState("");
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [stage, setStage] = useState("fabrication");
   
+  const vehicleList = Array.isArray(vehicles) ? vehicles : [];
+
   const matchedVehicles = useMemo(() => {
     if (!vehicleSearch || (selectedVehicle && selectedVehicle.vehicleNumber === vehicleSearch)) {
       return [];
     }
-    return vehicles.filter((v: Vehicle) =>
-      v.vehicleNumber.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
-      v.trackingId.toLowerCase().includes(vehicleSearch.toLowerCase())
+    return vehicleList.filter((v: Vehicle) =>
+      v.vehicleNumber?.toLowerCase().includes(vehicleSearch.toLowerCase()) ||
+      v.trackingId?.toLowerCase().includes(vehicleSearch.toLowerCase())
     );
-  }, [vehicles, vehicleSearch, selectedVehicle]);
+  }, [vehicleList, vehicleSearch, selectedVehicle]);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -356,7 +359,8 @@ export default function QualityControlPage() {
   const totalQC = qcData?.total ?? 0;
   const totalPages = qcData?.total_pages ?? 1;
 
-  const { data: vehicles = [], isLoading: isLoadingVehicles } = useVehicles();
+  const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
+  const vehicles: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
   const [selectedRecord, setSelectedRecord] = useState<QCRecord | null>(null);
   
   const updateMutation = useUpdateQCRecord();
