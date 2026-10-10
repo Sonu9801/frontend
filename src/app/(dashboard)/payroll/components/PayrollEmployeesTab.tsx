@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet } from "lucide-react";
+import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -622,12 +622,33 @@ export default function PayrollEmployeesTab() {
           { name: "deductions", label: "Deductions", type: "number", defaultValue: editRecord.deductions },
           { name: "status", label: "Status", type: "select", defaultValue: editRecord.status, options: ["Draft", "Approved", "Paid"] },
         ] : []}
-        onSubmit={(data) => {
+        onSubmit={(data, reason) => {
           if (!editRecord) return;
-          updatePayroll.mutate({ id: editRecord.id, data: { ...data, month: editRecord.month || selectedMonth } }, {
+          const sanitizedData: any = {};
+          Object.entries(data).forEach(([key, val]) => {
+            if (typeof val === "string" && val.trim() === "" && key !== "status") {
+              sanitizedData[key] = 0;
+            } else if (typeof val === "number" && isNaN(val)) {
+              sanitizedData[key] = 0;
+            } else {
+              sanitizedData[key] = val;
+            }
+          });
+
+          updatePayroll.mutate({ 
+            id: editRecord.id, 
+            data: { 
+              ...sanitizedData, 
+              month: editRecord.month || selectedMonth,
+              reason: reason?.trim() || "Administrative adjustment"
+            } 
+          }, {
             onSuccess: () => {
-              toast.success("Payroll updated successfully");
+              toast.success(`Payroll updated successfully for ${editRecord.employeeName}`);
               setEditRecord(null);
+            },
+            onError: (err: any) => {
+              toast.error(err?.response?.data?.detail || "Failed to update payroll");
             }
           });
         }}
@@ -643,11 +664,18 @@ export default function PayrollEmployeesTab() {
           if (!markPaidRecord) return;
           updatePayroll.mutate({ 
             id: markPaidRecord.id, 
-            data: { month: markPaidRecord.month || selectedMonth, status: "Paid", reason } 
+            data: { 
+              month: markPaidRecord.month || selectedMonth, 
+              status: "Paid", 
+              reason: reason?.trim() || "Marked as paid" 
+            } 
           }, {
             onSuccess: () => {
               toast.success("Payroll marked as paid");
               setMarkPaidRecord(null);
+            },
+            onError: (err: any) => {
+              toast.error(err?.response?.data?.detail || "Failed to mark as paid");
             }
           });
         }}
@@ -700,17 +728,59 @@ export default function PayrollEmployeesTab() {
               </div>
             </div>
 
+            {/* Quick Amount Preset Chips */}
+            <div className="space-y-1.5">
+              <span className="text-xs text-muted-foreground font-medium">Quick Amount Presets:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[500, 1000, 2000, 5000, 10000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setAdvanceAmountInput(amt.toString())}
+                    className={`text-xs px-2.5 py-1 rounded-md border font-mono font-medium transition-colors ${
+                      advanceAmountInput === amt.toString()
+                        ? "bg-destructive text-destructive-foreground border-destructive"
+                        : "bg-muted/50 hover:bg-muted text-foreground border-border"
+                    }`}
+                  >
+                    +₹{amt.toLocaleString("en-IN")}
+                  </button>
+                ))}
+                {advanceAmountInput && advanceAmountInput !== "0" && (
+                  <button
+                    type="button"
+                    onClick={() => setAdvanceAmountInput("0")}
+                    className="text-xs px-2.5 py-1 rounded-md border font-mono font-medium bg-secondary text-secondary-foreground border-border hover:bg-secondary/80 transition-colors"
+                  >
+                    Clear (₹0)
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label className="font-bold text-sm">Advance / Deduction Amount (₹) *</Label>
+              <div className="flex items-center justify-between">
+                <Label className="font-bold text-sm">Advance / Deduction Amount (₹) *</Label>
+                {advanceAmountInput && (
+                  <span className="text-xs text-muted-foreground font-mono">
+                    ₹{parseFloat(advanceAmountInput) || 0}
+                  </span>
+                )}
+              </div>
               <Input 
                 type="number"
                 min="0"
-                placeholder="e.g. 2000"
+                placeholder="Enter amount (e.g. 2000)"
                 value={advanceAmountInput}
                 onChange={(e) => setAdvanceAmountInput(e.target.value)}
                 className="h-11 font-mono text-lg font-bold border-input"
                 autoFocus
               />
+              {!advanceAmountInput && (
+                <p className="text-[11px] text-muted-foreground">
+                  * Kripya amount type karein ya upar presets me se chunein.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -739,43 +809,62 @@ export default function PayrollEmployeesTab() {
               Cancel
             </Button>
             <Button 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2 font-bold"
-              disabled={isSavingAdvance || !advanceAmountInput}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2 font-bold cursor-pointer"
+              disabled={isSavingAdvance}
               onClick={async () => {
                 if (!advanceDeductEmp) return;
-                setIsSavingAdvance(true);
-                const dedVal = parseFloat(advanceAmountInput) || 0.0;
-                try {
-                  await api.post("/payroll/advances", {
-                    worker_id: advanceDeductEmp.id,
-                    amount: dedVal,
-                    reason: advanceReasonInput || "Advance deduction"
-                  }).catch(() => {});
+                
+                if (!advanceAmountInput || advanceAmountInput.trim() === "") {
+                  toast.error("Please enter an amount (e.g. 2000) or choose a preset");
+                  return;
+                }
 
-                  updatePayroll.mutate({
+                const dedVal = parseFloat(advanceAmountInput);
+                if (isNaN(dedVal) || dedVal < 0) {
+                  toast.error("Please enter a valid amount (₹0 or more)");
+                  return;
+                }
+
+                setIsSavingAdvance(true);
+                try {
+                  if (dedVal > 0) {
+                    await api.post("/payroll/advances", {
+                      worker_id: advanceDeductEmp.id,
+                      amount: dedVal,
+                      reason: advanceReasonInput || "Advance deduction",
+                      status: "Approved",
+                      deducted_in_payroll: true
+                    }).catch((err) => {
+                      console.warn("Advance request log note:", err);
+                    });
+                  }
+
+                  await updatePayroll.mutateAsync({
                     id: advanceDeductEmp.id,
                     data: {
                       month: selectedMonth,
                       deductions: dedVal,
                       reason: advanceReasonInput || "Advance deduction"
                     }
-                  }, {
-                    onSuccess: () => {
-                      toast.success(`Advance deduction of ₹${dedVal} saved for ${advanceDeductEmp.employeeName}`);
-                      setAdvanceDeductEmp(null);
-                      setIsSavingAdvance(false);
-                    },
-                    onError: (err: any) => {
-                      toast.error(err.response?.data?.detail || "Failed to update advance");
-                      setIsSavingAdvance(false);
-                    }
                   });
-                } catch (e) {
+
+                  toast.success(`Advance deduction of ₹${dedVal.toFixed(2)} saved for ${advanceDeductEmp.employeeName}`);
+                  setAdvanceDeductEmp(null);
+                } catch (err: any) {
+                  toast.error(err?.response?.data?.detail || "Failed to update advance deduction");
+                } finally {
                   setIsSavingAdvance(false);
                 }
               }}
             >
-              {isSavingAdvance ? "Saving..." : "Save Advance Deduction"}
+              {isSavingAdvance ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                  Saving...
+                </>
+              ) : (
+                "Save Advance Deduction"
+              )}
             </Button>
           </div>
         </DialogContent>

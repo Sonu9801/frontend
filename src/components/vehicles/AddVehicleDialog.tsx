@@ -2,10 +2,12 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { ChevronDown, X, Upload, Plus, Truck } from "lucide-react";
+import { ChevronDown, X, Upload, Plus, Truck, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DocumentUploadWithCamera } from "@/components/ui/DocumentUploadWithCamera";
 import { useVehicles, useUpdateVehicle } from "@/hooks/useQueries";
+import { useQueryClient } from "@tanstack/react-query";
+import { vehiclesApi } from "@/lib/api";
 import { toast } from "sonner";
 import type { Priority, Stage, Vehicle } from "@/types";
 
@@ -258,6 +260,45 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
     toast.success(`Dealer "${name}" added and selected!`);
   };
 
+  const queryClient = useQueryClient();
+  const [dispatchChassisList, setDispatchChassisList] = useState<string[]>([""]);
+  const [isSubmittingDispatch, setIsSubmittingDispatch] = useState(false);
+
+  const handleChassisChange = (index: number, val: string) => {
+    setDispatchChassisList((prev) => {
+      const next = [...prev];
+      next[index] = val;
+      return next;
+    });
+    if (index === 0) {
+      setForm((f) => {
+        const updated = { ...f, chassisNumber: val };
+        const matched = vehiclesList.find(
+          (v) =>
+            (v.chassisNumber && v.chassisNumber.trim().toLowerCase() === val.trim().toLowerCase()) ||
+            (v.vin && v.vin.trim().toLowerCase() === val.trim().toLowerCase()) ||
+            ((v as any).chassis_number && String((v as any).chassis_number).trim().toLowerCase() === val.trim().toLowerCase())
+        );
+        if (matched) {
+          if (!updated.dealerName && matched.dealerName) updated.dealerName = matched.dealerName;
+          if (!updated.oemName && matched.oemName) updated.oemName = matched.oemName;
+        }
+        return updated;
+      });
+    }
+  };
+
+  const handleAddChassisRow = () => {
+    setDispatchChassisList((prev) => [...prev, ""]);
+  };
+
+  const handleRemoveChassisRow = (index: number) => {
+    setDispatchChassisList((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      return next.length > 0 ? next : [""];
+    });
+  };
+
   const [form, setForm] = useState({
     vehicleNumber: "",
     platformNumber: "",
@@ -285,14 +326,154 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
     lrNumber: "",
     invoiceNumber: "",
     dispatchChallanNumber: "",
-    dispatchDateTime: "",
+    dispatchDateTime: formatForDateTimeLocal(),
     expectedArrivalDateTime: "",
     documentsUrl: "", // Mock URL
     remarks: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (activeMode === "dispatch") {
+      const cleanedChassis = dispatchChassisList
+        .map((c) => c.trim())
+        .filter((c) => c.length > 0);
+
+      if (cleanedChassis.length === 0) {
+        toast.error("Please enter at least one Chassis / VIN Number.");
+        return;
+      }
+
+      // Check for duplicate chassis entered in form
+      const seen = new Set<string>();
+      const formDuplicates: string[] = [];
+      for (const c of cleanedChassis) {
+        const lower = c.toLowerCase();
+        if (seen.has(lower)) {
+          formDuplicates.push(c);
+        } else {
+          seen.add(lower);
+        }
+      }
+      if (formDuplicates.length > 0) {
+        toast.error(`Duplicate chassis entered in form: ${formDuplicates.join(", ")}`);
+        return;
+      }
+
+      if (!form.driverName.trim()) {
+        toast.error("Please enter Driver Name.");
+        return;
+      }
+      if (!form.driverMobileNumber.trim() || !/^\d{10}$/.test(form.driverMobileNumber.trim())) {
+        toast.error("Please enter a valid 10-digit Driver Mobile Number.");
+        return;
+      }
+
+      setIsSubmittingDispatch(true);
+      const isoDispatchTime = form.dispatchDateTime
+        ? new Date(form.dispatchDateTime).toISOString()
+        : new Date().toISOString();
+
+      try {
+        const promises = cleanedChassis.map(async (chassis) => {
+          const lower = chassis.toLowerCase();
+          const duplicate = vehiclesList.find(
+            (v) =>
+              (v.chassisNumber && v.chassisNumber.trim().toLowerCase() === lower) ||
+              (v.vin && v.vin.trim().toLowerCase() === lower) ||
+              ((v as any).chassis_number && String((v as any).chassis_number).trim().toLowerCase() === lower)
+          );
+
+          if (duplicate) {
+            return await vehiclesApi.update(duplicate.id, {
+              current_stage: "dispatch",
+              progress_percent: 100,
+              transport_company: form.transportCompany || undefined,
+              truck_number: form.truckNumber || undefined,
+              driver_name: form.driverName || undefined,
+              driver_mobile_number: form.driverMobileNumber || undefined,
+              dispatch_challan_number: form.dispatchChallanNumber || undefined,
+              invoice_number: form.invoiceNumber || undefined,
+              lr_number: form.lrNumber || undefined,
+              dealer_name: form.dealerName || duplicate.dealerName || undefined,
+              dispatch_date_time: isoDispatchTime,
+              documents_url: form.documentsUrl || undefined,
+              remarks: form.remarks || undefined,
+            });
+          } else {
+            const now = new Date().toISOString();
+            const trackingId = `FF-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
+            const combinedNotes = [
+              `Chassis Number: ${chassis}`,
+              form.truckNumber ? `Truck Number: ${form.truckNumber}` : "",
+              form.dispatchChallanNumber ? `Challan: ${form.dispatchChallanNumber}` : "",
+              form.notes,
+            ]
+              .filter(Boolean)
+              .join("\n");
+
+            return await vehiclesApi.create({
+              trackingId,
+              vehicleNumber: chassis,
+              chassisNumber: chassis,
+              vin: chassis,
+              oemName: form.oemName || "Default OEM",
+              dealerName: form.dealerName || undefined,
+              productCategory: form.productCategory || "Cargo Box",
+              priority: form.priority,
+              currentStage: "dispatch",
+              assignedWorkerIds: [],
+              receivedAt: now,
+              estimatedDelivery: now,
+              progressPercent: 100,
+              notes: combinedNotes,
+
+              driverName: form.driverName || undefined,
+              driverMobileNumber: form.driverMobileNumber || undefined,
+              transportCompany: form.transportCompany || undefined,
+              truckNumber: form.truckNumber || undefined,
+              lrNumber: form.lrNumber || undefined,
+              invoiceNumber: form.invoiceNumber || undefined,
+              dispatchChallanNumber: form.dispatchChallanNumber || undefined,
+              dispatchDateTime: isoDispatchTime,
+              documentsUrl: form.documentsUrl || undefined,
+              remarks: form.remarks || undefined,
+            });
+          }
+        });
+
+        const results = await Promise.allSettled(promises);
+        const succeeded = results.filter((r) => r.status === "fulfilled");
+        const failed = results.filter((r) => r.status === "rejected");
+
+        await queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        await queryClient.invalidateQueries({ queryKey: ["dispatchRecords"] });
+        await queryClient.invalidateQueries({ queryKey: ["dispatch_records"] });
+
+        if (failed.length === 0) {
+          if (cleanedChassis.length === 1) {
+            toast.success(`Vehicle ${cleanedChassis[0]} dispatched successfully!`);
+          } else {
+            toast.success(
+              `${cleanedChassis.length} vehicles dispatched successfully under Challan ${form.dispatchChallanNumber || "N/A"}!`
+            );
+          }
+          onClose();
+        } else if (succeeded.length > 0) {
+          toast.warning(`${succeeded.length} vehicles dispatched, but ${failed.length} failed.`);
+          onClose();
+        } else {
+          const firstErr: any = (failed[0] as PromiseRejectedResult).reason;
+          toast.error(firstErr?.response?.data?.detail || "Failed to dispatch vehicle(s).");
+        }
+      } catch (err: any) {
+        toast.error(err?.message || "Failed to dispatch vehicle(s)");
+      } finally {
+        setIsSubmittingDispatch(false);
+      }
+      return;
+    }
 
     const chassisVal = (form.chassisNumber || form.vin || "").trim().toLowerCase();
     if (chassisVal) {
@@ -303,42 +484,8 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
           ((v as any).chassis_number && String((v as any).chassis_number).trim().toLowerCase() === chassisVal)
       );
       if (duplicate) {
-        if (activeMode === "dispatch") {
-          // Update the existing vehicle to dispatch stage
-          updateVehicleMutation.mutate(
-            {
-              id: duplicate.id,
-              data: {
-                current_stage: "dispatch",
-                progress_percent: 100,
-                transport_company: form.transportCompany || undefined,
-                truck_number: form.truckNumber || undefined,
-                driver_name: form.driverName || undefined,
-                driver_mobile_number: form.driverMobileNumber || undefined,
-                dispatch_challan_number: form.dispatchChallanNumber || undefined,
-                invoice_number: form.invoiceNumber || undefined,
-                lr_number: form.lrNumber || undefined,
-                dealer_name: form.dealerName || duplicate.dealerName || undefined,
-                dispatch_date_time: form.dispatchDateTime ? new Date(form.dispatchDateTime).toISOString() : new Date().toISOString(),
-                documents_url: form.documentsUrl || undefined,
-                remarks: form.remarks || undefined,
-              },
-            },
-            {
-              onSuccess: () => {
-                toast.success(`Vehicle ${duplicate.chassisNumber || duplicate.trackingId} dispatched successfully!`);
-                onClose();
-              },
-              onError: (err: any) => {
-                toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
-              },
-            }
-          );
-          return;
-        } else {
-          toast.error(`Chassis Number '${form.chassisNumber || form.vin}' already exists in the system (Tracking ID: ${duplicate.trackingId})! Duplicate receiving is not allowed.`);
-          return;
-        }
+        toast.error(`Chassis Number '${form.chassisNumber || form.vin}' already exists in the system (Tracking ID: ${duplicate.trackingId})! Duplicate receiving is not allowed.`);
+        return;
       }
     }
     
@@ -380,7 +527,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
       form.notes
     ].filter(Boolean).join("\n");
 
-    const targetStage = activeMode === "dispatch" ? "dispatch" : (isOemSubmission ? "oem" : "received");
+    const targetStage = isOemSubmission ? "oem" : "received";
 
     onAdd({
       trackingId,
@@ -394,7 +541,7 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
       estimatedDelivery: form.estimatedDelivery
         ? new Date(form.estimatedDelivery).toISOString()
         : new Date(Date.now() + 7 * 86400000).toISOString(),
-      progressPercent: activeMode === "dispatch" ? 100 : 0,
+      progressPercent: 0,
       notes: combinedNotes,
       
       // Logistics Fields
@@ -722,30 +869,86 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
 
             {/* Section: Logistics Details (Shown when Mode === 'dispatch') */}
             {activeMode === "dispatch" && (
-              <div>
-                <h3 className="text-sm font-semibold text-foreground mb-3 pb-1 border-b border-border/50">Logistics & Dispatch Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className={labelCls}>Chassis / VIN Number *</label>
-                    <input
-                      list="dispatch-chassis-list"
-                      placeholder="CH-98765 / VIN"
-                      value={form.chassisNumber}
-                      onChange={(e) => setForm((f) => ({ ...f, chassisNumber: e.target.value }))}
-                      className={inputCls}
-                    />
-                    <datalist id="dispatch-chassis-list">
-                      {vehiclesList.map((v) => {
-                        const chassis = v.chassisNumber || v.vin;
-                        if (!chassis) return null;
-                        return (
-                          <option key={v.id} value={chassis}>
-                            {v.trackingId} - {v.oemName} ({v.dealerName || "Direct"}) [{v.currentStage}]
-                          </option>
-                        );
-                      })}
-                    </datalist>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between pb-1 border-b border-border/50">
+                  <h3 className="text-sm font-semibold text-foreground">Logistics & Dispatch Information</h3>
+                  {form.dispatchChallanNumber && (
+                    <span className="text-xs text-muted-foreground">
+                      Challan: <strong className="text-foreground">{form.dispatchChallanNumber}</strong>
+                    </span>
+                  )}
+                </div>
+
+                {/* Multi-Chassis Section */}
+                <div className="bg-muted/30 border border-border/70 rounded-xl p-3.5 space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs font-semibold text-foreground">
+                          Chassis / VIN Number(s) *
+                        </label>
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {dispatchChassisList.length} {dispatchChassisList.length > 1 ? "Vehicles" : "Vehicle"} (Same Challan)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                        Same Challan No. pe multiple chassis add kar sakte hain. Dispatch list mein har chassis alag-alag show hogi.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddChassisRow}
+                      className="px-2.5 py-1 text-xs font-medium bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs active:scale-95 shrink-0"
+                    >
+                      <Plus size={13} />
+                      <span>Add More Chassis</span>
+                    </button>
                   </div>
+
+                  <div className="space-y-2 pt-1">
+                    {dispatchChassisList.map((chassisVal, idx) => (
+                      <div key={idx} className="flex items-center gap-2">
+                        <span className="text-xs font-semibold text-muted-foreground/80 w-6 text-center shrink-0">
+                          #{idx + 1}
+                        </span>
+                        <div className="flex-1 relative">
+                          <input
+                            list="dispatch-chassis-list"
+                            placeholder={idx === 0 ? "Enter or select Chassis / VIN (e.g. MD9EAAAD26J217032)" : `Chassis / VIN #${idx + 1}`}
+                            value={chassisVal}
+                            onChange={(e) => handleChassisChange(idx, e.target.value)}
+                            className={cn(inputCls, "font-mono text-xs md:text-sm")}
+                            required
+                          />
+                        </div>
+                        {dispatchChassisList.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveChassisRow(idx)}
+                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer shrink-0"
+                            title="Remove this chassis"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <datalist id="dispatch-chassis-list">
+                    {vehiclesList.map((v) => {
+                      const chassis = v.chassisNumber || v.vin;
+                      if (!chassis) return null;
+                      return (
+                        <option key={v.id} value={chassis}>
+                          {v.trackingId} - {v.oemName} ({v.dealerName || "Direct"}) [{v.currentStage}]
+                        </option>
+                      );
+                    })}
+                  </datalist>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={labelCls}>Truck Number</label>
                     <input
@@ -862,18 +1065,27 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
             </button>
             <button
               type="submit"
-              disabled={updateVehicleMutation.isPending}
+              disabled={updateVehicleMutation.isPending || isSubmittingDispatch}
               className={cn(
-                "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm",
+                "flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed",
                 activeMode === "dispatch"
                   ? "bg-emerald-600 hover:bg-emerald-700 text-white"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
               )}
             >
-              {activeMode === "dispatch" ? (
+              {isSubmittingDispatch ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Dispatching Vehicles...</span>
+                </>
+              ) : activeMode === "dispatch" ? (
                 <>
                   <Truck size={15} />
-                  <span>Dispatch Vehicle</span>
+                  <span>
+                    {dispatchChassisList.filter((c) => c.trim().length > 0).length > 1
+                      ? `Dispatch ${dispatchChassisList.filter((c) => c.trim().length > 0).length} Vehicles`
+                      : "Dispatch Vehicle"}
+                  </span>
                 </>
               ) : isOemSubmission ? (
                 "Submit Dispatch"
