@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -25,17 +25,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
 import { ReasonPromptDialog } from "@/components/shared/ReasonPromptDialog";
 import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
 import { useEmployeePayroll, useUpdateEmployeePayroll, useGeneratePayroll, useDeletePayroll } from "@/hooks/useQueries";
 import { useAuthStore } from "@/store/authStore";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export default function PayrollEmployeesTab() {
+  const queryClient = useQueryClient();
   const [selectedMonth, setSelectedMonth] = useState<string>(format(new Date(), "yyyy-MM"));
   const { data: employees = [], isLoading: loading } = useEmployeePayroll(selectedMonth);
   const updatePayroll = useUpdateEmployeePayroll();
@@ -294,7 +295,17 @@ export default function PayrollEmployeesTab() {
     {
       id: "baseSalary",
       header: "Base",
-      accessor: (row) => <span className="font-mono text-muted-foreground">₹{row.baseSalary}</span>,
+      accessor: (row) => (
+        <button
+          type="button"
+          onClick={() => setEditRecord(row)}
+          className="font-mono text-foreground font-semibold hover:text-primary hover:underline cursor-pointer flex items-center gap-1 group"
+          title="Click to edit Base Salary & recalculate OT / Sunday pay"
+        >
+          ₹{row.baseSalary}
+          <Edit size={11} className="opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+        </button>
+      ),
     },
     {
       id: "otAmount",
@@ -418,26 +429,26 @@ export default function PayrollEmployeesTab() {
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
       
       {/* TOOLBAR */}
-      <div className="p-4 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between bg-muted/10 gap-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
+      <div className="p-3.5 sm:p-4 border-b border-border flex flex-wrap items-center justify-between bg-muted/10 gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
+          <div className="relative w-full sm:w-56 shrink-0">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
             <Input 
               placeholder="Search employees..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-10 bg-background rounded-xl border-input w-full"
+              className="pl-9 h-9 bg-background rounded-xl border-input w-full text-xs"
             />
           </div>
 
           {/* Month Selector */}
-          <div className="flex items-center gap-2 bg-background border border-input rounded-xl px-3 h-10 shrink-0 w-full sm:w-auto">
-            <CalendarDays size={16} className="text-emerald-500 shrink-0" />
-            <span className="text-xs font-bold text-muted-foreground shrink-0">Month:</span>
+          <div className="flex items-center gap-2 bg-background border border-input rounded-xl px-2.5 h-9 shrink-0">
+            <CalendarDays size={14} className="text-emerald-500 shrink-0" />
+            <span className="text-xs font-semibold text-muted-foreground shrink-0">Month:</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer w-full sm:w-auto"
+              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
             >
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
                 const now = new Date();
@@ -453,21 +464,25 @@ export default function PayrollEmployeesTab() {
             </select>
           </div>
 
-          <div className="flex gap-2 w-full sm:w-auto">
-            <Button variant="outline" className="flex-1 sm:flex-none justify-center rounded-xl h-10 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20"
+          <div className="flex flex-wrap items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="rounded-xl h-9 px-3 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
               onClick={() => {
                 generatePayroll.mutate(selectedMonth, {
                   onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
                 });
               }}
             >
-              <Calculator size={16} className="mr-2"/> Generate Payroll
+              <Calculator size={14} /> Generate Payroll
             </Button>
 
             {canEdit && (
               <Button 
                 variant="outline" 
-                className="flex-1 sm:flex-none justify-center rounded-xl h-10 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold gap-1.5"
+                size="sm"
+                className="rounded-xl h-9 px-3 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
                 onClick={() => {
                   if (filteredEmployees.length > 0) {
                     openAdvanceDeduct(filteredEmployees[0]);
@@ -476,35 +491,51 @@ export default function PayrollEmployeesTab() {
                   }
                 }}
               >
-                <MinusCircle size={16} /> Deduct Advance
+                <MinusCircle size={14} /> Deduct Advance
               </Button>
             )}
+
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl h-9 px-3 border-border hover:bg-muted text-foreground font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["employeePayroll"] });
+                queryClient.invalidateQueries({ queryKey: ["payrollSummary"] });
+                toast.success("Payroll and OT/Sunday calculations re-synced successfully");
+              }}
+              title="Refresh and sync all payroll, OT, and Sunday calculations"
+            >
+              <RefreshCw size={13} className="text-primary" /> Recalculate
+            </Button>
           </div>
         </div>
         
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <Button 
             variant="outline" 
-            className="rounded-xl h-10 gap-2 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-bold text-xs sm:text-sm"
+            size="sm"
+            className="rounded-xl h-9 px-3 gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs shadow-xs cursor-pointer whitespace-nowrap"
             onClick={exportToExcel}
             title="Download full payroll summary in Excel (.xlsx) format"
           >
-            <FileSpreadsheet size={16} className="text-emerald-600" /> Export Excel
+            <FileSpreadsheet size={15} className="text-emerald-600" /> Export Excel
           </Button>
 
           <Button 
             variant="outline" 
-            className="rounded-xl h-10 gap-2 border-red-500/30 text-red-700 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-bold text-xs sm:text-sm"
+            size="sm"
+            className="rounded-xl h-9 px-3 gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-semibold text-xs shadow-xs cursor-pointer whitespace-nowrap"
             onClick={exportToPDFReport}
             title="Download landscape PDF payroll report with totals"
           >
-            <FileText size={16} className="text-red-600" /> Download PDF
+            <FileText size={15} className="text-red-600" /> Download PDF
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="rounded-xl h-10 px-3 border-border" title="More Export Options">
-                <Download size={16} />
+              <Button variant="outline" size="sm" className="rounded-xl h-9 w-9 p-0 border-border cursor-pointer shadow-xs" title="More Export Options">
+                <Download size={14} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -610,37 +641,18 @@ export default function PayrollEmployeesTab() {
       </Sheet>
 
       {/* Enterprise Admin Dialogs */}
-      <EditRecordDialog
+      <EditPayrollModal
+        record={editRecord}
         open={!!editRecord}
         onOpenChange={(open) => !open && setEditRecord(null)}
-        title={`Edit Payroll: ${editRecord?.employeeName}`}
-        fields={editRecord ? [
-          { name: "base_salary", label: "Base Salary", type: "number", defaultValue: editRecord.baseSalary },
-          { name: "ot_amount", label: "OT Amount", type: "number", defaultValue: editRecord.otAmount },
-          { name: "sunday_amount", label: "Sunday Amount", type: "number", defaultValue: editRecord.sundayAmount },
-          { name: "bonus_amount", label: "Bonus", type: "number", defaultValue: editRecord.bonusAmount },
-          { name: "deductions", label: "Deductions", type: "number", defaultValue: editRecord.deductions },
-          { name: "status", label: "Status", type: "select", defaultValue: editRecord.status, options: ["Draft", "Approved", "Paid"] },
-        ] : []}
-        onSubmit={(data, reason) => {
+        onSave={(data, reason) => {
           if (!editRecord) return;
-          const sanitizedData: any = {};
-          Object.entries(data).forEach(([key, val]) => {
-            if (typeof val === "string" && val.trim() === "" && key !== "status") {
-              sanitizedData[key] = 0;
-            } else if (typeof val === "number" && isNaN(val)) {
-              sanitizedData[key] = 0;
-            } else {
-              sanitizedData[key] = val;
-            }
-          });
-
           updatePayroll.mutate({ 
             id: editRecord.id, 
             data: { 
-              ...sanitizedData, 
+              ...data, 
               month: editRecord.month || selectedMonth,
-              reason: reason?.trim() || "Administrative adjustment"
+              reason: reason?.trim() || "Administrative salary adjustment"
             } 
           }, {
             onSuccess: () => {
@@ -652,7 +664,7 @@ export default function PayrollEmployeesTab() {
             }
           });
         }}
-        isSubmitting={updatePayroll.isPending}
+        isSaving={updatePayroll.isPending}
       />
 
       <ReasonPromptDialog
@@ -871,5 +883,322 @@ export default function PayrollEmployeesTab() {
       </Dialog>
 
     </div>
+  );
+}
+
+function EditPayrollModal({
+  record,
+  open,
+  onOpenChange,
+  onSave,
+  isSaving,
+}: {
+  record: any;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSave: (data: any, reason: string) => void;
+  isSaving: boolean;
+}) {
+  const [baseSalary, setBaseSalary] = useState<number>(0);
+  const [otAmount, setOtAmount] = useState<number>(0);
+  const [sundayAmount, setSundayAmount] = useState<number>(0);
+  const [bonusAmount, setBonusAmount] = useState<number>(0);
+  const [deductions, setDeductions] = useState<number>(0);
+  const [status, setStatus] = useState<string>("Draft");
+  const [reason, setReason] = useState<string>("");
+  const [isCustomOt, setIsCustomOt] = useState<boolean>(false);
+  const [isCustomSunday, setIsCustomSunday] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (record && open) {
+      const b = record.baseSalary || 0;
+      setBaseSalary(b);
+      const rate = b > 0 ? (b / 30) / 8 : 0;
+      const expectedOt = Number(((record.otHours || 0) * rate).toFixed(2));
+      const expectedSun = Number(((record.sundayHours || 0) * rate).toFixed(2));
+
+      setOtAmount(record.otAmount !== undefined ? record.otAmount : expectedOt);
+      setSundayAmount(record.sundayAmount !== undefined ? record.sundayAmount : expectedSun);
+      setBonusAmount(record.bonusAmount || 0);
+      setDeductions(record.deductions || 0);
+      setStatus(record.status || "Draft");
+      setReason("");
+      setIsCustomOt(false);
+      setIsCustomSunday(false);
+    }
+  }, [record, open]);
+
+  const otHours = record?.otHours || 0;
+  const sundayHours = record?.sundayHours || 0;
+  const hourlyRate = baseSalary > 0 ? (baseSalary / 30) / 8 : 0;
+  const autoOt = Number((otHours * hourlyRate).toFixed(2));
+  const autoSunday = Number((sundayHours * hourlyRate).toFixed(2));
+
+  const handleBaseChange = (valStr: string) => {
+    const val = parseFloat(valStr) || 0;
+    setBaseSalary(val);
+    const newRate = val > 0 ? (val / 30) / 8 : 0;
+    if (!isCustomOt) {
+      setOtAmount(Number((otHours * newRate).toFixed(2)));
+    }
+    if (!isCustomSunday) {
+      setSundayAmount(Number((sundayHours * newRate).toFixed(2)));
+    }
+  };
+
+  const grossPay = Number((baseSalary + otAmount + sundayAmount + bonusAmount).toFixed(2));
+  const netPay = Number((grossPay - deductions).toFixed(2));
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(
+      {
+        base_salary: baseSalary,
+        ot_amount: otAmount,
+        sunday_amount: sundayAmount,
+        bonus_amount: bonusAmount,
+        deductions: deductions,
+        status: status,
+      },
+      reason || "Base salary and pay components adjusted"
+    );
+  };
+
+  if (!record) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border bg-muted/20">
+          <DialogTitle className="text-base font-bold flex items-center justify-between">
+            <span>Edit Payroll: {record.employeeName}</span>
+            <Badge variant="outline" className="font-mono text-xs">{record.employeeId}</Badge>
+          </DialogTitle>
+          <DialogDescription className="text-xs text-muted-foreground">
+            {record.department} • Role: {record.role || "worker"} • Month: {record.month}
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={handleSubmit} className="flex flex-col overflow-y-auto px-6 py-4 space-y-4">
+          {/* Attendance Stats Pill Bar */}
+          <div className="grid grid-cols-3 gap-2 bg-muted/40 p-2.5 rounded-xl border border-border text-xs">
+            <div className="text-center">
+              <span className="text-muted-foreground block text-[11px]">Present Days</span>
+              <span className="font-bold text-foreground font-mono">{record.presentDays} d</span>
+            </div>
+            <div className="text-center border-x border-border">
+              <span className="text-muted-foreground block text-[11px]">OT Hours</span>
+              <span className="font-bold text-orange-600 font-mono">{otHours} hrs</span>
+            </div>
+            <div className="text-center">
+              <span className="text-muted-foreground block text-[11px]">Sunday / Fest Hours</span>
+              <span className="font-bold text-purple-600 font-mono">{sundayHours} hrs</span>
+            </div>
+          </div>
+
+          {/* Base Salary Input */}
+          <div className="space-y-1.5 p-3 rounded-xl border-2 border-primary/20 bg-primary/5">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="base_salary" className="text-xs font-bold text-primary">
+                Monthly Base Salary (₹)
+              </Label>
+              <span className="text-[11px] font-mono font-semibold text-muted-foreground">
+                Hourly Rate: <span className="text-primary font-bold">₹{hourlyRate.toFixed(2)}/h</span> (Base / 30 / 8)
+              </span>
+            </div>
+            <Input
+              id="base_salary"
+              type="number"
+              value={baseSalary || ""}
+              onChange={(e) => handleBaseChange(e.target.value)}
+              className="bg-background text-base font-bold font-mono h-10 border-input"
+              placeholder="e.g. 23000"
+              required
+            />
+            <p className="text-[11px] text-muted-foreground">
+              💡 Base Salary change karte hi OT aur Sunday / Festival pay automatically recalculate ho jayenge.
+            </p>
+          </div>
+
+          {/* OT and Sunday Amount Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* OT Amount */}
+            <div className="space-y-1.5 p-3 rounded-xl border border-border bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="ot_amount" className="text-xs font-semibold text-foreground">
+                  OT Pay (₹)
+                </Label>
+                {isCustomOt && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomOt(false);
+                      setOtAmount(autoOt);
+                    }}
+                    className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Reset Auto (₹{autoOt})
+                  </button>
+                )}
+              </div>
+              <Input
+                id="ot_amount"
+                type="number"
+                step="0.01"
+                value={otAmount}
+                onChange={(e) => {
+                  setIsCustomOt(true);
+                  setOtAmount(parseFloat(e.target.value) || 0);
+                }}
+                className="bg-background font-mono font-semibold text-orange-600 h-9"
+              />
+              <span className="text-[10px] text-muted-foreground block font-mono">
+                Auto: {otHours}h × ₹{hourlyRate.toFixed(2)} = ₹{autoOt}
+              </span>
+            </div>
+
+            {/* Sunday Amount */}
+            <div className="space-y-1.5 p-3 rounded-xl border border-border bg-muted/20">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="sunday_amount" className="text-xs font-semibold text-foreground">
+                  Sunday / Fest Pay (₹)
+                </Label>
+                {isCustomSunday && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomSunday(false);
+                      setSundayAmount(autoSunday);
+                    }}
+                    className="text-[10px] text-primary hover:underline font-semibold cursor-pointer"
+                  >
+                    Reset Auto (₹{autoSunday})
+                  </button>
+                )}
+              </div>
+              <Input
+                id="sunday_amount"
+                type="number"
+                step="0.01"
+                value={sundayAmount}
+                onChange={(e) => {
+                  setIsCustomSunday(true);
+                  setSundayAmount(parseFloat(e.target.value) || 0);
+                }}
+                className="bg-background font-mono font-semibold text-purple-600 h-9"
+              />
+              <span className="text-[10px] text-muted-foreground block font-mono">
+                Auto: {sundayHours}h × ₹{hourlyRate.toFixed(2)} = ₹{autoSunday}
+              </span>
+            </div>
+          </div>
+
+          {/* Bonus and Deductions Row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="bonus_amount" className="text-xs font-medium text-foreground">
+                Bonus (₹)
+              </Label>
+              <Input
+                id="bonus_amount"
+                type="number"
+                step="0.01"
+                value={bonusAmount}
+                onChange={(e) => setBonusAmount(parseFloat(e.target.value) || 0)}
+                className="bg-background font-mono text-emerald-600 h-9"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="deductions" className="text-xs font-medium text-foreground">
+                Deductions / Advances (₹)
+              </Label>
+              <Input
+                id="deductions"
+                type="number"
+                step="0.01"
+                value={deductions}
+                onChange={(e) => setDeductions(parseFloat(e.target.value) || 0)}
+                className="bg-background font-mono text-destructive h-9"
+              />
+            </div>
+          </div>
+
+          {/* Status and Reason */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="status" className="text-xs font-medium text-foreground">
+                Payroll Status
+              </Label>
+              <select
+                id="status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-xs font-semibold focus:outline-none"
+              >
+                <option value="Draft">Draft</option>
+                <option value="Approved">Approved</option>
+                <option value="Paid">Paid</option>
+              </select>
+            </div>
+
+            <div className="sm:col-span-2 space-y-1">
+              <Label htmlFor="reason" className="text-xs font-medium text-foreground">
+                Reason for Edit (Optional)
+              </Label>
+              <Input
+                id="reason"
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. Salary hike / rate adjustment"
+                className="bg-background text-xs h-9"
+              />
+            </div>
+          </div>
+
+          {/* Live Pay Summary Box */}
+          <div className="bg-muted/50 border border-border rounded-xl p-3.5 space-y-2 text-xs">
+            <div className="flex justify-between items-center text-muted-foreground font-mono">
+              <span>Base Pay</span>
+              <span>₹{baseSalary.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-orange-600 dark:text-orange-400 font-mono">
+              <span>+ Overtime (OT) Pay</span>
+              <span>₹{otAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-purple-600 dark:text-purple-400 font-mono">
+              <span>+ Sunday / Festival Pay</span>
+              <span>₹{sundayAmount.toFixed(2)}</span>
+            </div>
+            {bonusAmount > 0 && (
+              <div className="flex justify-between items-center text-emerald-600 font-mono">
+                <span>+ Bonus</span>
+                <span>₹{bonusAmount.toFixed(2)}</span>
+              </div>
+            )}
+            {deductions > 0 && (
+              <div className="flex justify-between items-center text-destructive font-mono">
+                <span>- Deductions / Advances</span>
+                <span>₹{deductions.toFixed(2)}</span>
+              </div>
+            )}
+            <div className="pt-2 border-t border-border flex justify-between items-center font-bold">
+              <span className="text-foreground">Gross Pay: <span className="font-mono font-normal">₹{grossPay.toFixed(2)}</span></span>
+              <span className="text-sm text-emerald-600 font-mono font-extrabold">Final Net: ₹{netPay.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button type="button" variant="outline" size="sm" onClick={() => onOpenChange(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold" disabled={isSaving}>
+              {isSaving ? "Saving..." : "Save Payroll Changes"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }

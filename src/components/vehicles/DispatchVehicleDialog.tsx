@@ -59,24 +59,25 @@ export function DispatchVehicleDialog({
 
   useEffect(() => {
     if (open && vehicle) {
-      setTransportCompany(vehicle.transportCompany || "Self Transport");
-      setTruckNumber(vehicle.truckNumber || "");
-      setDriverName(vehicle.driverName || "");
-      setDriverMobileNumber(vehicle.driverMobileNumber || "");
+      setTransportCompany(vehicle.transportCompany || (vehicle as any).carrier || (vehicle as any).transport_company || "Self Transport");
+      setTruckNumber(vehicle.truckNumber || (vehicle as any).truck_number || "");
+      setDriverName(vehicle.driverName || (vehicle as any).driver_name || "");
+      setDriverMobileNumber(vehicle.driverMobileNumber || (vehicle as any).driverPhone || (vehicle as any).driver_phone || (vehicle as any).driver_mobile_number || "");
       setDispatchChallanNumber(
-        vehicle.dispatchChallanNumber || `DC-${Date.now().toString().slice(-6)}`
+        vehicle.dispatchChallanNumber || (vehicle as any).dispatch_challan_number || `DC-${Date.now().toString().slice(-6)}`
       );
-      setInvoiceNumber(vehicle.invoiceNumber || "");
-      setLrNumber(vehicle.lrNumber || "");
-      setDestination(vehicle.dealerName || vehicle.oemName || "Factory Outbound");
+      setInvoiceNumber(vehicle.invoiceNumber || (vehicle as any).invoice_number || "");
+      setLrNumber(vehicle.lrNumber || (vehicle as any).lr_number || "");
+      setDestination(vehicle.dealerName || (vehicle as any).destination || (vehicle as any).dealer_name || vehicle.oemName || "Factory Outbound");
       
       const now = new Date();
       const localIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000)
         .toISOString()
         .slice(0, 16);
-      setDispatchDateTime(vehicle.dispatchDateTime ? vehicle.dispatchDateTime.slice(0, 16) : localIso);
+      const rawDate = vehicle.dispatchDateTime || (vehicle as any).dispatch_date_time || (vehicle as any).scheduledDate || (vehicle as any).scheduled_date;
+      setDispatchDateTime(rawDate ? String(rawDate).slice(0, 16) : localIso);
       setRemarks(vehicle.remarks || "");
-      setDocumentsUrl(vehicle.documentsUrl || "");
+      setDocumentsUrl(vehicle.documentsUrl || (vehicle as any).documents_url || "");
     }
   }, [open, vehicle]);
 

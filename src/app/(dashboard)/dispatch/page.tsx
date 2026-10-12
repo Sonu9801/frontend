@@ -5,7 +5,7 @@ import type { ColumnDef } from "@/components/ui/DataTable";
 import { DataTable } from "@/components/ui/DataTable";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useDispatchRecords, useVehicles, useUpdateDispatchRecord, useDeleteDispatchRecord, useUpdateVehicleStage } from "@/hooks/useQueries";
+import { useDispatchRecords, useVehicles, useUpdateDispatchRecord, useDeleteDispatchRecord, useUpdateVehicleStage, useUpdateVehicle } from "@/hooks/useQueries";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -28,8 +28,10 @@ import {
   Trash2,
   FileSpreadsheet,
   Download,
-  FileText
+  FileText,
+  Search
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
   DropdownMenu,
@@ -164,7 +166,10 @@ function parseChallanNumber(d: any, v?: Vehicle): number | null {
 }
 
 export default function DispatchPage() {
-  const [activeTab, setActiveTab] = useState<"standard" | "excel">("standard");
+  const [activeTab, setActiveTab] = useState<"standard" | "excel">("excel");
+  const [showSelectVehicleModal, setShowSelectVehicleModal] = useState(false);
+  const [vehicleSearchQuery, setVehicleSearchQuery] = useState("");
+  const [modalStageFilter, setModalStageFilter] = useState<"all" | "received" | "rtd" | "dispatch" | "all_system">("all");
   const [dispatchScope, setDispatchScope] = useState<"production_dispatches" | "all" | "pending">("production_dispatches");
   // Table pagination state
   const [page, setPage] = useState(1);
@@ -233,8 +238,8 @@ export default function DispatchPage() {
 
   // Helper function to check if a date string falls within active date range
   const matchesActiveDateFilter = (dateStr: string | undefined | null): boolean => {
-    if (!dateStr) return false;
     if (!dateQueryParams.start_date && !dateQueryParams.end_date && !dateQueryParams.month) return true;
+    if (!dateStr) return false;
 
     try {
       const d = new Date(dateStr);
@@ -278,6 +283,7 @@ export default function DispatchPage() {
   const updateDispatchMutation = useUpdateDispatchRecord();
   const deleteDispatchMutation = useDeleteDispatchRecord();
   const updateStageMutation = useUpdateVehicleStage();
+  const updateVehicleMutation = useUpdateVehicle();
 
   const [editRecord, setEditRecord] = useState<DispatchRecord | null>(null);
   const [historyRecord, setHistoryRecord] = useState<DispatchRecord | null>(null);
@@ -288,18 +294,45 @@ export default function DispatchPage() {
 
   const handleFinalDispatchSubmit = (values: DispatchFormValues) => {
     if (!pendingDispatchVehicle) return;
-    updateStageMutation.mutate(
+
+    const payload: any = {
+      current_stage: "dispatched",
+      progress_percent: 100,
+      transport_company: values.transportCompany || "Self Transport",
+      truck_number: values.truckNumber || "",
+      driver_name: values.driverName || "",
+      driver_mobile_number: values.driverMobileNumber || "",
+      dispatch_challan_number: values.dispatchChallanNumber || "",
+      invoice_number: values.invoiceNumber || "",
+      lr_number: values.lrNumber || "",
+      dealer_name: values.destination || "",
+      remarks: values.remarks || "",
+      documents_url: values.documentsUrl || "",
+    };
+
+    if (values.dispatchDateTime) {
+      payload.dispatch_date_time = values.dispatchDateTime;
+    }
+
+    updateVehicleMutation.mutate(
       {
         id: pendingDispatchVehicle.id,
-        stage: "dispatch",
-        progress: 100,
+        data: payload,
       },
       {
         onSuccess: () => {
-          toast.success(`Vehicle ${pendingDispatchVehicle.chassisNumber || pendingDispatchVehicle.vehicleNumber || pendingDispatchVehicle.id} dispatched successfully!`);
+          toast.success(
+            `Vehicle ${
+              pendingDispatchVehicle.chassisNumber ||
+              pendingDispatchVehicle.vehicleNumber ||
+              pendingDispatchVehicle.trackingId ||
+              pendingDispatchVehicle.id
+            } dispatched & all logistics details saved successfully!`
+          );
           setPendingDispatchVehicle(null);
         },
-        onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to dispatch vehicle"),
+        onError: (err: any) =>
+          toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle"),
       }
     );
   };
@@ -314,23 +347,51 @@ export default function DispatchPage() {
 
   // Combined Production Board Dispatches & Dispatch Records List
   const allDispatchedItems = useMemo(() => {
-    const recordsMap: Record<string, DispatchRecord> = {};
-    dispatchRecords.forEach((d: any) => {
-      recordsMap[String(d.vehicleId)] = d;
-    });
-
     const itemsList: any[] = [];
     const addedVehicleIds = new Set<string>();
+    const addedChassisNumbers = new Set<string>();
+
+    const extractVehicleId = (d: any): string => {
+      const vid = d.vehicleId ?? d.vehicle_id;
+      if (vid !== undefined && vid !== null && String(vid).trim() !== "" && String(vid) !== "undefined") {
+        return String(vid).replace("v_", "").trim();
+      }
+      return "";
+    };
+
+    const extractChassis = (d: any, v?: Vehicle): string => {
+      const ch = d.chassisNumber || d.chassis_number || d.vin || v?.chassisNumber || v?.vin;
+      if (ch && String(ch).trim() && String(ch).trim() !== "-") {
+        return String(ch).trim().toLowerCase();
+      }
+      return "";
+    };
 
     // 1. Include records from backend query (which are already date & search filtered)
     dispatchRecords.forEach((d: any) => {
-      itemsList.push(d);
-      addedVehicleIds.add(String(d.vehicleId));
+      const vid = extractVehicleId(d);
+      const matchingV = vid ? vehicleMap[vid] : undefined;
+      const chassis = extractChassis(d, matchingV);
+
+      if (vid && addedVehicleIds.has(vid)) return;
+      if (chassis && addedChassisNumbers.has(chassis)) return;
+
+      if (vid) addedVehicleIds.add(vid);
+      if (chassis) addedChassisNumbers.add(chassis);
+
+      itemsList.push({
+        ...d,
+        vehicleId: vid ? (Number(vid) || vid) : d.vehicleId,
+      });
     });
 
-    // 2. Include vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered matching date filter
+    // 2. Include vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered matching date filter ONLY if not already in itemsList
     vehiclesList.forEach((v: Vehicle) => {
-      if (addedVehicleIds.has(String(v.id))) return;
+      const vid = String(v.id).trim();
+      const chassis = extractChassis(v);
+
+      if (vid && addedVehicleIds.has(vid)) return;
+      if (chassis && addedChassisNumbers.has(chassis)) return;
 
       const vStage = (v.currentStage || (v as any).current_stage || "").toLowerCase().trim();
       const isDispatchedStage =
@@ -345,8 +406,9 @@ export default function DispatchPage() {
         const vDate = v.dispatchDateTime || (v as any).receivedAt;
         if (!matchesActiveDateFilter(vDate)) return;
 
+        if (vid) addedVehicleIds.add(vid);
+        if (chassis) addedChassisNumbers.add(chassis);
 
-        addedVehicleIds.add(String(v.id));
         itemsList.push({
           id: `v_${v.id}`,
           vehicleId: v.id,
@@ -372,7 +434,7 @@ export default function DispatchPage() {
     });
 
     return itemsList;
-  }, [vehiclesList, dispatchRecords, dateQueryParams]);
+  }, [vehiclesList, dispatchRecords, vehicleMap, dateQueryParams]);
 
   // Dynamic unique OEMs list (aggregates defaults, vehicles DB, custom saved, and dispatches)
   const uniqueOems = useMemo(() => {
@@ -767,11 +829,33 @@ export default function DispatchPage() {
         header: "",
         accessor: (d: DispatchRecord) => {
           if (!canEdit) return null;
+          const v = vehicleMap[String(d.vehicleId)];
+          const truckNo = d.truckNumber || v?.truckNumber;
+          const driver = d.driverName || (d as any).driver_name || v?.driverName;
+          const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber;
+          const invoice = d.invoiceNumber || v?.invoiceNumber;
+          const hasMissingDetails = !truckNo || !driver || (!challan && !invoice);
+
           return (
-            <div onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 justify-end" onClick={(e) => e.stopPropagation()}>
+              <Button
+                size="sm"
+                variant={hasMissingDetails ? "default" : "outline"}
+                className={cn(
+                  "h-7 px-2 text-xs flex items-center gap-1 cursor-pointer font-medium",
+                  hasMissingDetails
+                    ? "bg-amber-600 hover:bg-amber-700 text-white shadow-xs"
+                    : "text-primary border-primary/30 hover:bg-primary/10"
+                )}
+                onClick={() => setTimeout(() => setEditRecord(d), 0)}
+                title="Edit / Add Dispatch Details"
+              >
+                <Edit size={12} />
+                <span>{hasMissingDetails ? "Add Details" : "Edit"}</span>
+              </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button size="sm" variant="outline" className="h-7 w-7 p-0"><ChevronDown size={14} /></Button>
+                  <Button size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer"><ChevronDown size={14} /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>Actions</DropdownMenuLabel>
@@ -814,6 +898,15 @@ export default function DispatchPage() {
         icon={<Truck className="w-5 h-5 text-primary" />}
         actions={
           <div className="flex items-center gap-2 flex-wrap">
+            {canEdit && (
+              <Button
+                type="button"
+                onClick={() => setShowSelectVehicleModal(true)}
+                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold cursor-pointer"
+              >
+                <Truck size={14} /> Dispatch Vehicle
+              </Button>
+            )}
             <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
               <button
                 type="button"
@@ -1177,7 +1270,7 @@ export default function DispatchPage() {
                     <th className="px-3.5 py-3">Dispatch Date</th>
                     <th className="px-3.5 py-3">Status</th>
                     <th className="px-3.5 py-3">Doc</th>
-                    <th className="px-3.5 py-3 text-right">Actions</th>
+                    <th className="px-3.5 py-3 text-right sticky right-0 bg-muted/95 backdrop-blur-xs z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/60">
@@ -1201,9 +1294,10 @@ export default function DispatchPage() {
                       const invoice = d.invoiceNumber || v?.invoiceNumber;
                       const dateStr = d.scheduledDate || (d as any).dispatchDate;
                       const docUrl = (d as any).documentsUrl || v?.documentsUrl;
+                      const hasMissingDetails = truckNo === "-" || driver === "-" || (!challan && !invoice);
 
                       return (
-                        <tr key={d.id} className="hover:bg-muted/30 transition-colors">
+                        <tr key={d.id} className="hover:bg-muted/30 transition-colors group">
                           <td className="px-3.5 py-2.5 font-mono text-muted-foreground">
                             {(safeCurrentPage - 1) * pageSize + idx + 1}
                           </td>
@@ -1216,13 +1310,61 @@ export default function DispatchPage() {
                           <td className="px-3.5 py-2.5 font-medium text-foreground">{oem}</td>
                           <td className="px-3.5 py-2.5 font-semibold text-foreground">{vModel}</td>
                           <td className="px-3.5 py-2.5 text-muted-foreground">{carrierName}</td>
-                          <td className="px-3.5 py-2.5 font-mono text-foreground">{truckNo}</td>
-                          <td className="px-3.5 py-2.5 font-medium text-foreground">{driver}</td>
-                          <td className="px-3.5 py-2.5 font-mono text-muted-foreground">{phone}</td>
+                          <td className="px-3.5 py-2.5 font-mono text-foreground">
+                            {truckNo !== "-" ? (
+                              truckNo
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditRecord(d)}
+                                className="text-muted-foreground/60 hover:text-primary hover:underline cursor-pointer font-medium"
+                                title="Click to add Truck #"
+                              >
+                                -
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-2.5 font-medium text-foreground">
+                            {driver !== "-" ? (
+                              driver
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditRecord(d)}
+                                className="text-muted-foreground/60 hover:text-primary hover:underline cursor-pointer"
+                                title="Click to add Driver Name"
+                              >
+                                -
+                              </button>
+                            )}
+                          </td>
+                          <td className="px-3.5 py-2.5 font-mono text-muted-foreground">
+                            {phone !== "-" ? (
+                              phone
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditRecord(d)}
+                                className="text-muted-foreground/60 hover:text-primary hover:underline cursor-pointer"
+                                title="Click to add Driver Mobile"
+                              >
+                                -
+                              </button>
+                            )}
+                          </td>
                           <td className="px-3.5 py-2.5 font-mono text-xs">
                             {challan && <div>C: {challan}</div>}
                             {invoice && <div className="text-[10px] text-muted-foreground">I: {invoice}</div>}
-                            {!challan && !invoice && "-"}
+                            {!challan && !invoice && (
+                              <button
+                                type="button"
+                                onClick={() => setEditRecord(d)}
+                                className="text-muted-foreground/60 hover:text-primary hover:underline cursor-pointer"
+                                title="Click to add Challan / Invoice"
+                              >
+                                -
+                              </button>
+                            )}
                           </td>
                           <td className="px-3.5 py-2.5 font-medium text-foreground">{d.destination || "-"}</td>
                           <td className="px-3.5 py-2.5 font-mono text-muted-foreground text-xs whitespace-nowrap">
@@ -1246,8 +1388,8 @@ export default function DispatchPage() {
                               <span className="text-muted-foreground text-[11px]">-</span>
                             )}
                           </td>
-                          <td className="px-3.5 py-2.5 text-right">
-                            <div className="flex items-center justify-end gap-1.5">
+                          <td className="px-3.5 py-2.5 text-right sticky right-0 bg-card/95 backdrop-blur-xs z-10 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                            <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                               {((d.status || "").toLowerCase() === "pending" || (d.status || "").toLowerCase() === "scheduled") && (
                                 <button
                                   type="button"
@@ -1265,9 +1407,26 @@ export default function DispatchPage() {
                                 </button>
                               )}
                               {canEdit && (
+                                <Button
+                                  size="sm"
+                                  variant={hasMissingDetails ? "default" : "outline"}
+                                  onClick={() => setEditRecord(d)}
+                                  className={cn(
+                                    "h-7 px-2.5 text-xs font-semibold flex items-center gap-1 cursor-pointer transition-colors shadow-xs",
+                                    hasMissingDetails
+                                      ? "bg-amber-600 hover:bg-amber-700 text-white"
+                                      : "hover:bg-primary/10 text-primary border-primary/30"
+                                  )}
+                                  title="Edit / Add Dispatch Details"
+                                >
+                                  <Edit size={12} />
+                                  <span>{hasMissingDetails ? "Add Details" : "Edit"}</span>
+                                </Button>
+                              )}
+                              {canEdit && (
                                 <DropdownMenu>
                                   <DropdownMenuTrigger asChild>
-                                    <Button size="sm" variant="outline" className="h-7 w-7 p-0"><ChevronDown size={14} /></Button>
+                                    <Button size="sm" variant="outline" className="h-7 w-7 p-0 cursor-pointer"><ChevronDown size={14} /></Button>
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent align="end">
                                     <DropdownMenuLabel>Actions</DropdownMenuLabel>
@@ -1454,64 +1613,26 @@ export default function DispatchPage() {
 
       {/* EDIT RECORD DIALOG */}
       <EditRecordDialog
+        key={editRecord?.id ?? "empty"}
         open={!!editRecord}
         onOpenChange={(open) => !open && setEditRecord(null)}
-        title={`Edit Dispatch Record #${editRecord?.id}`}
+        title={
+          editRecord
+            ? `Dispatch Details: ${
+                editRecord.chassisNumber ||
+                (editRecord as any).chassis_number ||
+                vehicleMap[String(editRecord.vehicleId)]?.chassisNumber ||
+                editRecord.trackingNumber ||
+                `#${editRecord.id}`
+              }`
+            : "Edit Dispatch Details"
+        }
         fields={
           editRecord
             ? [
                 {
-                  name: "chassisNumber",
-                  label: "Chassis / VIN Number",
-                  type: "text",
-                  defaultValue: editRecord.chassisNumber || (editRecord as any).chassis_number || vehicleMap[String(editRecord.vehicleId)]?.chassisNumber || "",
-                },
-                {
-                  name: "vehicleNumber",
-                  label: "Vehicle Number",
-                  type: "text",
-                  defaultValue: editRecord.vehicleNumber || (editRecord as any).vehicle_number || vehicleMap[String(editRecord.vehicleId)]?.vehicleNumber || "",
-                },
-                {
-                  name: "oemName",
-                  label: "OEM Name",
-                  type: "select",
-                  defaultValue: editRecord.oemName || (editRecord as any).oem_name || vehicleMap[String(editRecord.vehicleId)]?.oemName || "",
-                  options: ["EULER MOTORS", "MONTRA ELECTRIC", "BAJAJ AUTO", "PIAGGIO", "JUPITER ELECTRIC MOBILITY", "TVS MOTORS", "E NEXT MOBILITY", "TATA MOTORS", "MAHINDRA"],
-                },
-                {
-                  name: "dispatchChallanNumber",
-                  label: "Dispatch Challan Number",
-                  type: "text",
-                  defaultValue: editRecord.dispatchChallanNumber || vehicleMap[String(editRecord.vehicleId)]?.dispatchChallanNumber || "",
-                },
-                {
-                  name: "invoiceNumber",
-                  label: "Invoice Number",
-                  type: "text",
-                  defaultValue: editRecord.invoiceNumber || vehicleMap[String(editRecord.vehicleId)]?.invoiceNumber || "",
-                },
-                {
-                  name: "lrNumber",
-                  label: "LR Number",
-                  type: "text",
-                  defaultValue: editRecord.lrNumber || vehicleMap[String(editRecord.vehicleId)]?.lrNumber || "",
-                },
-                {
-                  name: "trackingNumber",
-                  label: "Tracking ID / Number",
-                  type: "text",
-                  defaultValue: editRecord.trackingNumber || editRecord.trackingId || vehicleMap[String(editRecord.vehicleId)]?.trackingId || "",
-                },
-                {
-                  name: "carrier",
-                  label: "Carrier / Transporter",
-                  type: "text",
-                  defaultValue: editRecord.carrier || "",
-                },
-                {
                   name: "truckNumber",
-                  label: "Truck Number",
+                  label: "Truck # (Transport / Carrier Truck)",
                   type: "text",
                   defaultValue: editRecord.truckNumber || vehicleMap[String(editRecord.vehicleId)]?.truckNumber || "",
                 },
@@ -1528,10 +1649,59 @@ export default function DispatchPage() {
                   defaultValue: editRecord.driverPhone || (editRecord as any).driver_phone || vehicleMap[String(editRecord.vehicleId)]?.driverMobileNumber || "",
                 },
                 {
-                  name: "destination",
-                  label: "Destination / Location",
+                  name: "dispatchChallanNumber",
+                  label: "Dispatch Challan Number",
                   type: "text",
-                  defaultValue: editRecord.destination || "",
+                  defaultValue: editRecord.dispatchChallanNumber || vehicleMap[String(editRecord.vehicleId)]?.dispatchChallanNumber || "",
+                },
+                {
+                  name: "invoiceNumber",
+                  label: "Invoice Number",
+                  type: "text",
+                  defaultValue: editRecord.invoiceNumber || vehicleMap[String(editRecord.vehicleId)]?.invoiceNumber || "",
+                },
+                {
+                  name: "carrier",
+                  label: "Transporter / Carrier Company",
+                  type: "text",
+                  defaultValue: editRecord.carrier || vehicleMap[String(editRecord.vehicleId)]?.transportCompany || "Self Transport",
+                },
+                {
+                  name: "destination",
+                  label: "Destination / Dealer",
+                  type: "text",
+                  defaultValue: editRecord.destination || vehicleMap[String(editRecord.vehicleId)]?.dealerName || "",
+                },
+                {
+                  name: "lrNumber",
+                  label: "LR Number",
+                  type: "text",
+                  defaultValue: editRecord.lrNumber || vehicleMap[String(editRecord.vehicleId)]?.lrNumber || "",
+                },
+                {
+                  name: "trackingNumber",
+                  label: "Tracking ID / LR",
+                  type: "text",
+                  defaultValue: editRecord.trackingNumber || editRecord.trackingId || vehicleMap[String(editRecord.vehicleId)]?.trackingId || "",
+                },
+                {
+                  name: "chassisNumber",
+                  label: "Chassis / VIN Number",
+                  type: "text",
+                  defaultValue: editRecord.chassisNumber || (editRecord as any).chassis_number || vehicleMap[String(editRecord.vehicleId)]?.chassisNumber || "",
+                },
+                {
+                  name: "vehicleNumber",
+                  label: "Vehicle Registration #",
+                  type: "text",
+                  defaultValue: editRecord.vehicleNumber || (editRecord as any).vehicle_number || vehicleMap[String(editRecord.vehicleId)]?.vehicleNumber || "",
+                },
+                {
+                  name: "oemName",
+                  label: "OEM Name",
+                  type: "select",
+                  defaultValue: editRecord.oemName || (editRecord as any).oem_name || vehicleMap[String(editRecord.vehicleId)]?.oemName || "",
+                  options: ["EULER MOTORS", "MONTRA ELECTRIC", "BAJAJ AUTO", "PIAGGIO", "JUPITER ELECTRIC MOBILITY", "TVS MOTORS", "E NEXT MOBILITY", "TATA MOTORS", "MAHINDRA"],
                 },
                 {
                   name: "scheduledDate",
@@ -1551,16 +1721,16 @@ export default function DispatchPage() {
               ]
             : []
         }
-        onSubmit={(data) => {
+        onSubmit={(data, reason) => {
           if (!editRecord) return;
           updateDispatchMutation.mutate(
             {
               id: editRecord.id,
-              data: { ...data, reason: data.reason },
+              data: { ...data, reason: reason || "Dispatch details updated" },
             },
             {
               onSuccess: () => {
-                toast.success(`Dispatch record #${editRecord.id} updated successfully`);
+                toast.success(`Dispatch details for #${editRecord.chassisNumber || editRecord.trackingNumber || editRecord.id} updated successfully!`);
                 setEditRecord(null);
               },
               onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update dispatch record"),
@@ -1583,8 +1753,287 @@ export default function DispatchPage() {
         onOpenChange={(open) => !open && setPendingDispatchVehicle(null)}
         vehicle={pendingDispatchVehicle}
         onSubmit={handleFinalDispatchSubmit}
-        isSubmitting={updateStageMutation.isPending}
+        isSubmitting={updateVehicleMutation.isPending}
       />
+
+      {/* SELECT VEHICLE TO DISPATCH MODAL */}
+      <Dialog open={showSelectVehicleModal} onOpenChange={setShowSelectVehicleModal}>
+        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-6">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Truck className="w-5 h-5 text-emerald-600" />
+              Select Vehicle to Dispatch
+            </DialogTitle>
+          </DialogHeader>
+
+          {/* Search Bar */}
+          <div className="relative my-2">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search by Chassis / VIN (e.g. 4434), Tracking ID, OEM, Model, Dealer..."
+              value={vehicleSearchQuery}
+              onChange={(e) => setVehicleSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-8 py-2 text-xs bg-muted/50 border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+              autoFocus
+            />
+            {vehicleSearchQuery && (
+              <button
+                type="button"
+                onClick={() => setVehicleSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs p-0.5 rounded cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Stage Filter Pills */}
+          {(() => {
+            const availableVehicles = vehiclesList.filter((v: Vehicle) => {
+              const stage = (v.currentStage || (v as any).current_stage || "").toLowerCase();
+              return stage !== "delivered";
+            });
+            const recCount = vehiclesList.filter((v) => (v.currentStage || (v as any).current_stage || "").toLowerCase() === "received").length;
+            const rtdCount = vehiclesList.filter((v) => {
+              const s = (v.currentStage || (v as any).current_stage || "").toLowerCase();
+              return s === "rtd" || s.includes("ready");
+            }).length;
+            const dispCount = vehiclesList.filter((v) => (v.currentStage || (v as any).current_stage || "").toLowerCase() === "dispatch").length;
+
+            return (
+              <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setModalStageFilter("all")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer border",
+                    modalStageFilter === "all"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  All Available ({availableVehicles.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalStageFilter("received")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer border",
+                    modalStageFilter === "received"
+                      ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                      : "bg-muted/50 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/10"
+                  )}
+                >
+                  📥 Received ({recCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalStageFilter("rtd")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer border",
+                    modalStageFilter === "rtd"
+                      ? "bg-blue-600 text-white border-blue-600 shadow-xs"
+                      : "bg-muted/50 text-blue-700 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/10"
+                  )}
+                >
+                  Ready to Dispatch ({rtdCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalStageFilter("dispatch")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer border",
+                    modalStageFilter === "dispatch"
+                      ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                      : "bg-muted/50 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                  )}
+                >
+                  In Dispatch ({dispCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setModalStageFilter("all_system")}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors cursor-pointer border",
+                    modalStageFilter === "all_system"
+                      ? "bg-slate-700 text-white border-slate-700 shadow-xs"
+                      : "bg-muted/50 text-muted-foreground border-border hover:bg-muted"
+                  )}
+                >
+                  All in System ({vehiclesList.length})
+                </button>
+              </div>
+            );
+          })()}
+
+          <div className="flex-1 overflow-y-auto space-y-2 max-h-[380px] pr-1">
+            {(() => {
+              const q = vehicleSearchQuery.toLowerCase().trim();
+              const qClean = q.replace(/[\s\-_]/g, "");
+
+              const eligible = vehiclesList
+                .filter((v: Vehicle) => {
+                  const stage = (v.currentStage || (v as any).current_stage || "").toLowerCase();
+
+                  // When user is searching (e.g. chassis no. "4434"), search across ALL vehicles
+                  if (q) return true;
+
+                  if (modalStageFilter === "received") {
+                    return stage === "received";
+                  }
+                  if (modalStageFilter === "rtd") {
+                    return stage === "rtd" || stage === "ready_to_dispatch" || stage === "readytodispatch";
+                  }
+                  if (modalStageFilter === "dispatch") {
+                    return stage === "dispatch";
+                  }
+                  if (modalStageFilter === "all_system") {
+                    return true;
+                  }
+                  // Default "all": show all available vehicles (not delivered)
+                  return stage !== "delivered";
+                })
+                .filter((v: Vehicle) => {
+                  if (!q) return true;
+                  const chassis = `${v.chassisNumber || (v as any).chassis_number || ""} ${v.vin || ""}`.toLowerCase();
+                  const chassisClean = chassis.replace(/[\s\-_]/g, "");
+                  const stage = (v.currentStage || (v as any).current_stage || "").toLowerCase();
+                  const tracking = `${v.trackingId || (v as any).tracking_id || ""}`.toLowerCase();
+                  const trackingClean = tracking.replace(/[\s\-_]/g, "");
+                  const dealer = `${v.dealerName || (v as any).dealer_name || ""}`.toLowerCase();
+                  const oem = `${v.oemName || (v as any).oem_name || ""}`.toLowerCase();
+                  const model = `${v.vehicleModel || (v as any).modelName || (v as any).vehicle_model || ""}`.toLowerCase();
+                  const vehNum = `${v.vehicleNumber || (v as any).vehicle_number || ""}`.toLowerCase();
+                  const challan = `${v.dispatchChallanNumber || (v as any).dispatch_challan_number || ""}`.toLowerCase();
+                  const truck = `${v.truckNumber || (v as any).truck_number || ""}`.toLowerCase();
+                  const driver = `${v.driverName || (v as any).driver_name || ""}`.toLowerCase();
+
+                  // Flexible stage matching for received / recived / rtd
+                  const matchesStageSearch =
+                    (q.includes("rec") && stage === "received") ||
+                    (q.includes("rtd") && (stage === "rtd" || stage.includes("ready"))) ||
+                    (q.includes("disp") && (stage === "dispatch" || stage === "dispatched"));
+
+                  return (
+                    chassis.includes(q) ||
+                    chassisClean.includes(qClean) ||
+                    tracking.includes(q) ||
+                    trackingClean.includes(qClean) ||
+                    dealer.includes(q) ||
+                    oem.includes(q) ||
+                    model.includes(q) ||
+                    vehNum.includes(q) ||
+                    challan.includes(q) ||
+                    truck.includes(q) ||
+                    driver.includes(q) ||
+                    stage.includes(q) ||
+                    matchesStageSearch
+                  );
+                })
+                .sort((a, b) => {
+                  if (q) {
+                    const chassisA = `${a.chassisNumber || (a as any).chassis_number || ""}`.toLowerCase();
+                    const chassisB = `${b.chassisNumber || (b as any).chassis_number || ""}`.toLowerCase();
+                    const matchA = chassisA.includes(qClean) || chassisA.includes(q);
+                    const matchB = chassisB.includes(qClean) || chassisB.includes(q);
+                    if (matchA && !matchB) return -1;
+                    if (!matchA && matchB) return 1;
+                  }
+                  const stageA = (a.currentStage || (a as any).current_stage || "").toLowerCase();
+                  const stageB = (b.currentStage || (b as any).current_stage || "").toLowerCase();
+                  if (stageA === "received" && stageB !== "received") return -1;
+                  if (stageB === "received" && stageA !== "received") return 1;
+                  if (stageA === "rtd" && stageB !== "rtd") return -1;
+                  if (stageB === "rtd" && stageA !== "rtd") return 1;
+                  return (Number(b.id) || 0) - (Number(a.id) || 0);
+                });
+
+              if (eligible.length === 0) {
+                return (
+                  <div className="p-8 text-center text-muted-foreground text-xs">
+                    No vehicles found matching {vehicleSearchQuery ? `"${vehicleSearchQuery}"` : "the selected filter"}.
+                  </div>
+                );
+              }
+
+              return eligible.map((v) => {
+                const stage = (v.currentStage || (v as any).current_stage || "").toLowerCase();
+                const isDispatched = stage === "dispatched" || stage === "delivered";
+
+                return (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between p-3 rounded-xl border border-border/70 hover:border-emerald-500/40 bg-card hover:bg-muted/30 transition-all gap-3"
+                  >
+                    <div className="flex flex-col min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono font-bold text-xs text-primary">{v.trackingId}</span>
+                        <span className="text-[11px] font-mono text-muted-foreground font-semibold">
+                          Chassis: {v.chassisNumber || v.vin || "-"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                        <span className="font-medium text-foreground">{v.oemName}</span>
+                        <span>•</span>
+                        <span>{v.vehicleModel || (v as any).modelName || "N/A"}</span>
+                        <span>•</span>
+                        <span
+                          className={cn(
+                            "capitalize px-1.5 py-0.5 rounded text-[10px] font-semibold border",
+                            stage === "received"
+                              ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30"
+                              : stage === "rtd" || stage.includes("ready")
+                              ? "bg-blue-500/10 text-blue-600 border-blue-500/30"
+                              : stage === "dispatch"
+                              ? "bg-amber-500/10 text-amber-600 border-amber-500/30"
+                              : stage === "dispatched" || stage === "delivered"
+                              ? "bg-purple-500/10 text-purple-600 border-purple-500/30"
+                              : "bg-muted text-muted-foreground border-border"
+                          )}
+                        >
+                          {v.currentStage || "Received"}
+                        </span>
+                        {v.dealerName && (
+                          <>
+                            <span>•</span>
+                            <span className="text-[11px] text-muted-foreground truncate max-w-[180px]">
+                              {v.dealerName}
+                            </span>
+                          </>
+                        )}
+                        {v.dispatchChallanNumber && (
+                          <>
+                            <span>•</span>
+                            <span className="text-[10px] font-mono text-foreground font-medium">
+                              Challan: {v.dispatchChallanNumber}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        setPendingDispatchVehicle(v);
+                        setShowSelectVehicleModal(false);
+                      }}
+                      className={cn(
+                        "gap-1 shrink-0 text-xs font-semibold cursor-pointer shadow-xs",
+                        isDispatched
+                          ? "bg-slate-700 hover:bg-slate-800 text-white"
+                          : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      )}
+                    >
+                      <Truck size={12} /> {isDispatched ? "Re-Dispatch / Update" : "Dispatch"}
+                    </Button>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

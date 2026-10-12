@@ -8,7 +8,7 @@ import {
   Bell, Menu, Search, X, Sun, Moon, 
   LayoutDashboard, BarChart3, Factory, Package, Trash2, 
   Users, Clock, Banknote, CheckCircle2, Truck, Boxes, 
-  FileBarChart, Activity, Building2, Settings 
+  FileBarChart, Activity, Building2, Settings, Inbox 
 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
@@ -26,14 +26,9 @@ const navGroups = [
   {
     title: "Production",
     items: [
-      { label: "All Vehicles", href: "/production?category=All+Categories", icon: Factory },
-      { label: "Cargo Box", href: "/production?category=Cargo+Box", icon: Package },
-      { label: "Cargo Box / Air Cutter / Battery Box", href: "/production?category=Cargo+Box+%2F+Air+Cutter+%2F+Battery+Box", icon: Package },
-      { label: "Cargo Box / Air Cutter", href: "/production?category=Cargo+Box+%2F+Air+Cutter", icon: Package },
-      { label: "Cargo Box / Battery Box", href: "/production?category=Cargo+Box+%2F+Battery+Box", icon: Package },
-      { label: "Garbage Body", href: "/production?category=Garbage+Body", icon: Trash2 },
-      { label: "Grocery Cart", href: "/production?category=Grocery+Cart", icon: Package },
-      { label: "Food Cart", href: "/production?category=Food+Cart", icon: Package },
+      { label: "All Vehicles", href: "/production", icon: Factory },
+      { label: "Received", href: "/production/received", icon: Inbox },
+      { label: "Dispatch", href: "/dispatch", icon: Truck },
     ]
   },
   {
@@ -49,7 +44,6 @@ const navGroups = [
     title: "Quality & Delivery",
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2 },
-      { label: "Dispatch", href: "/dispatch", icon: Truck },
       { label: "Sales Invoices", href: "/revenue", icon: Banknote },
       { label: "Purchase Invoices", href: "/invoices", icon: Banknote },
     ]
@@ -288,6 +282,8 @@ export function MobileTopBar() {
                         let isActive = false;
                         if (item.href === "/") {
                           isActive = pathname === "/";
+                        } else if (item.href === "/production") {
+                          isActive = pathname === "/production";
                         } else if (item.href.includes("?")) {
                           isActive = typeof window !== 'undefined' && window.location.search.includes(item.href.split("?")[1]);
                         } else {

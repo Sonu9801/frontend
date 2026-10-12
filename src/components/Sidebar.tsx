@@ -34,7 +34,8 @@ import {
   Banknote,
   FileBarChart,
   Activity,
-  Bell
+  Bell,
+  Inbox
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
@@ -51,14 +52,9 @@ const navGroups = [
   {
     title: "Production",
     items: [
-      { label: "All Vehicles", href: "/production?category=All+Categories", icon: Factory, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Cargo Box", href: "/production?category=Cargo+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Cargo Box / Air Cutter / Battery Box", href: "/production?category=Cargo+Box+%2F+Air+Cutter+%2F+Battery+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Cargo Box / Air Cutter", href: "/production?category=Cargo+Box+%2F+Air+Cutter", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Cargo Box / Battery Box", href: "/production?category=Cargo+Box+%2F+Battery+Box", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Garbage Body", href: "/production?category=Garbage+Body", icon: Trash2, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Grocery Cart", href: "/production?category=Grocery+Cart", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
-      { label: "Food Cart", href: "/production?category=Food+Cart", icon: Package, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "All Vehicles", href: "/production", icon: Factory, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Received", href: "/production/received", icon: Inbox, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
+      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
     ]
   },
   {
@@ -74,7 +70,6 @@ const navGroups = [
     title: "Quality & Delivery",
     items: [
       { label: "Quality Control", href: "/quality-control", icon: CheckCircle2, roles: ["admin", "manager", "owner", "supervisor"] },
-      { label: "Dispatch", href: "/dispatch", icon: Truck, roles: ["admin", "manager", "owner", "supervisor", "dispatcher", "dispatch"] },
       { label: "Sales Invoices", href: "/revenue", icon: Banknote, roles: ["admin", "manager", "owner", "finance"] },
       { label: "Purchase Invoices", href: "/invoices", icon: Banknote, roles: ["admin", "manager", "owner", "finance", "supervisor"] },
     ]
@@ -214,6 +209,8 @@ export function Sidebar() {
 
                       if (itemPath === "/") {
                         isActive = pathname === "/";
+                      } else if (itemPath === "/production") {
+                        isActive = pathname === "/production";
                       } else if (itemQuery) {
                         if (pathname === itemPath) {
                           const params = new URLSearchParams(itemQuery);

@@ -697,8 +697,9 @@ export default function ProductionPage() {
           invoice_number: values.invoiceNumber,
           lr_number: values.lrNumber,
           dealer_name: values.destination,
-          dispatch_date_time: values.dispatchDateTime,
+          dispatch_date_time: values.dispatchDateTime || undefined,
           remarks: values.remarks,
+          documents_url: values.documentsUrl,
         },
       },
       {

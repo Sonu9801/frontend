@@ -428,46 +428,58 @@ export default function EmployeeMonthlyAttendanceModal({
                       const dateObj = new Date(dayItem.date);
                       const formattedDate = format(dateObj, "dd MMM (EEE)");
 
+                      const isPastOrEvening = (() => {
+                        const todayStr = new Date().toISOString().slice(0, 10);
+                        if (dayItem.date < todayStr) return true;
+                        if (dayItem.date === todayStr && new Date().getHours() >= 17) return true;
+                        return false;
+                      })();
+
+                      const effectiveStatus = 
+                        (dayItem.status === "Not Punched" || dayItem.status === "Not Punched In") && isPastOrEvening
+                          ? "Absent"
+                          : dayItem.status;
+
                       let statusBadge = (
                         <Badge variant="outline" className="bg-muted text-muted-foreground">
-                          {dayItem.status}
+                          {effectiveStatus}
                         </Badge>
                       );
 
-                      if (dayItem.status === "Present") {
+                      if (effectiveStatus === "Present") {
                         statusBadge = (
                           <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30 font-bold">
                             Present
                           </Badge>
                         );
-                      } else if (dayItem.status === "Absent") {
+                      } else if (effectiveStatus === "Absent") {
                         statusBadge = (
                           <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/30 font-bold">
                             Absent
                           </Badge>
                         );
-                      } else if (dayItem.status === "Half Day") {
+                      } else if (effectiveStatus === "Half Day") {
                         statusBadge = (
                           <Badge variant="outline" className="bg-warning/10 text-warning border-warning/30 font-bold">
                             Half Day
                           </Badge>
                         );
-                      } else if (dayItem.status === "Sunday Work") {
+                      } else if (effectiveStatus === "Sunday Work") {
                         statusBadge = (
                           <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-purple-500/30 font-bold">
                             Sunday Work
                           </Badge>
                         );
-                      } else if (dayItem.status === "Festival Work" || dayItem.status === "Holiday Work") {
+                      } else if (effectiveStatus === "Festival Work" || effectiveStatus === "Holiday Work") {
                         statusBadge = (
                           <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30 font-bold">
                             Festival Work
                           </Badge>
                         );
-                      } else if (dayItem.status === "Holiday" || dayItem.status.startsWith("Holiday") || (isSunday && (dayItem.status === "Sunday" || !dayItem.has_record))) {
+                      } else if (effectiveStatus === "Holiday" || effectiveStatus.startsWith("Holiday") || (isSunday && (effectiveStatus === "Sunday" || !dayItem.has_record))) {
                         statusBadge = (
                           <Badge variant="outline" className="bg-indigo-500/10 text-indigo-600 border-indigo-500/30 font-bold">
-                            {dayItem.status.startsWith("Holiday") ? dayItem.status : "Holiday"}
+                            {effectiveStatus.startsWith("Holiday") ? effectiveStatus : "Holiday"}
                           </Badge>
                         );
                       }
