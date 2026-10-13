@@ -62,6 +62,26 @@ export default function WorkforceOrchestrator() {
             }
           }
 
+          // Fetch latest worker profile in background so shift timings and details are always up to date
+          try {
+            const token = localStorage.getItem("worker_token") || info.access_token;
+            if (token) {
+              const meRes = await axios.get("/api/auth/me", {
+                headers: { 
+                  Authorization: `Bearer ${token}`,
+                  "ngrok-skip-browser-warning": "true"
+                },
+                timeout: 5000
+              });
+              if (meRes.data) {
+                Object.assign(info, meRes.data);
+                localStorage.setItem("worker_info", JSON.stringify(info));
+              }
+            }
+          } catch {
+            // Proceed with cached info if offline or network error
+          }
+
           setWorker(info);
           setLoading(false);
           return;

@@ -176,7 +176,7 @@ function TimeInput12h({ value24, onChange }: TimeInput12hProps) {
   );
 }
 
-const calcOtAndWorking = (in24: string, out24: string) => {
+const calcOtAndWorking = (in24: string, out24: string, otStartStr: string = "18:30", shiftEndStr: string = "18:00") => {
   if (!in24 || !out24 || !in24.includes(":") || !out24.includes(":")) {
     return { workingHours: 8.0, otHours: 0.0 };
   }
@@ -189,14 +189,17 @@ const calcOtAndWorking = (in24: string, out24: string) => {
 
   if (outMins <= inMins) return { workingHours: 8.0, otHours: 0.0 };
 
-  // OT ONLY calculates if checkout is at or after 18:00 (6:00 PM threshold - 30m buffer after 17:30 shift end)
-  const minOtMins = 18 * 60; // 18:00 (6:00 PM)
-  const shiftEndMins = 17 * 60 + 30; // 17:30 (5:30 PM)
+  // OT ONLY calculates if checkout is at or after 18:30 (OT Start Time threshold)
+  const [otH, otM] = (otStartStr || "18:30").split(":").map(Number);
+  const minOtMins = (otH || 18) * 60 + (otM !== undefined ? otM : 30);
+  const [seH, seM] = (shiftEndStr || "18:00").split(":").map(Number);
+  const shiftEndMins = (seH || 18) * 60 + (seM || 0);
 
   let otHrs = 0.0;
   if (outMins >= minOtMins) {
     const otMins = outMins - shiftEndMins;
-    otHrs = Math.max(0, Math.round((otMins / 60.0) * 10) / 10);
+    const rawOt = Math.max(0, Math.round((otMins / 60.0) * 10) / 10);
+    otHrs = Math.min(rawOt, 8.0); // max 8 hours OT per day
   }
 
   return {

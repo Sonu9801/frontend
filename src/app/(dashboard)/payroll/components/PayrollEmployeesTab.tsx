@@ -29,7 +29,7 @@ import { ReasonPromptDialog } from "@/components/shared/ReasonPromptDialog";
 import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
 import { useEmployeePayroll, useUpdateEmployeePayroll, useGeneratePayroll, useDeletePayroll } from "@/hooks/useQueries";
 import { useAuthStore } from "@/store/authStore";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { jsPDF } from "jspdf";
@@ -909,13 +909,24 @@ function EditPayrollModal({
   const [isCustomOt, setIsCustomOt] = useState<boolean>(false);
   const [isCustomSunday, setIsCustomSunday] = useState<boolean>(false);
 
+  const { data: attendanceSettings } = useQuery({
+    queryKey: ["attendanceSettings"],
+    queryFn: async () => {
+      const res = await api.get("/settings/attendance");
+      return res.data;
+    }
+  });
+
+  const otMultiplier = attendanceSettings?.enableOt ? (attendanceSettings?.otRateMultiplier || 1.5) : 0.0;
+  const sundayMultiplier = attendanceSettings?.enableSundayTracking ? (attendanceSettings?.sundayRateMultiplier || 2.0) : 1.0;
+
   React.useEffect(() => {
     if (record && open) {
       const b = record.baseSalary || 0;
       setBaseSalary(b);
       const rate = b > 0 ? (b / 30) / 8 : 0;
-      const expectedOt = Number(((record.otHours || 0) * rate).toFixed(2));
-      const expectedSun = Number(((record.sundayHours || 0) * rate).toFixed(2));
+      const expectedOt = Number(((record.otHours || 0) * rate * otMultiplier).toFixed(2));
+      const expectedSun = Number(((record.sundayHours || 0) * rate * sundayMultiplier).toFixed(2));
 
       setOtAmount(record.otAmount !== undefined ? record.otAmount : expectedOt);
       setSundayAmount(record.sundayAmount !== undefined ? record.sundayAmount : expectedSun);
@@ -926,23 +937,23 @@ function EditPayrollModal({
       setIsCustomOt(false);
       setIsCustomSunday(false);
     }
-  }, [record, open]);
+  }, [record, open, otMultiplier, sundayMultiplier]);
 
   const otHours = record?.otHours || 0;
   const sundayHours = record?.sundayHours || 0;
   const hourlyRate = baseSalary > 0 ? (baseSalary / 30) / 8 : 0;
-  const autoOt = Number((otHours * hourlyRate).toFixed(2));
-  const autoSunday = Number((sundayHours * hourlyRate).toFixed(2));
+  const autoOt = Number((otHours * hourlyRate * otMultiplier).toFixed(2));
+  const autoSunday = Number((sundayHours * hourlyRate * sundayMultiplier).toFixed(2));
 
   const handleBaseChange = (valStr: string) => {
     const val = parseFloat(valStr) || 0;
     setBaseSalary(val);
     const newRate = val > 0 ? (val / 30) / 8 : 0;
     if (!isCustomOt) {
-      setOtAmount(Number((otHours * newRate).toFixed(2)));
+      setOtAmount(Number((otHours * newRate * otMultiplier).toFixed(2)));
     }
     if (!isCustomSunday) {
-      setSundayAmount(Number((sundayHours * newRate).toFixed(2)));
+      setSundayAmount(Number((sundayHours * newRate * sundayMultiplier).toFixed(2)));
     }
   };
 
@@ -1053,7 +1064,7 @@ function EditPayrollModal({
                 className="bg-background font-mono font-semibold text-orange-600 h-9"
               />
               <span className="text-[10px] text-muted-foreground block font-mono">
-                Auto: {otHours}h × ₹{hourlyRate.toFixed(2)} = ₹{autoOt}
+                Auto: {otHours}h × ₹{hourlyRate.toFixed(2)} × {otMultiplier}x = ₹{autoOt}
               </span>
             </div>
 
@@ -1088,7 +1099,7 @@ function EditPayrollModal({
                 className="bg-background font-mono font-semibold text-purple-600 h-9"
               />
               <span className="text-[10px] text-muted-foreground block font-mono">
-                Auto: {sundayHours}h × ₹{hourlyRate.toFixed(2)} = ₹{autoSunday}
+                Auto: {sundayHours}h × ₹{hourlyRate.toFixed(2)} × {sundayMultiplier}x = ₹{autoSunday}
               </span>
             </div>
           </div>

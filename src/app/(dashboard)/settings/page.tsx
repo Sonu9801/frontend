@@ -384,11 +384,12 @@ function FactorySection() {
 
   useEffect(() => {
     if (data) {
-      setFacilityName(data.facility_name);
-      setAddress(data.address);
-      setHours(data.operating_hours);
-      setTimezone(data.timezone);
-      setDepartments(data.departments || []);
+      setFacilityName(data.facilityName ?? data.facility_name ?? "");
+      setAddress(data.address ?? "");
+      setHours(data.operatingHours ?? data.operating_hours ?? "");
+      const tz = data.timezone ?? "Asia/Kolkata";
+      setTimezone(TIMEZONES.includes(tz) ? tz : "Asia/Kolkata");
+      setDepartments(Array.isArray(data.departments) ? data.departments : []);
     }
   }, [data]);
 
@@ -419,8 +420,10 @@ function FactorySection() {
   const save = () => {
     updateMutation.mutate({
       facility_name: facilityName,
+      facilityName: facilityName,
       address,
       operating_hours: hours,
+      operatingHours: hours,
       timezone,
       departments
     });
@@ -437,7 +440,7 @@ function FactorySection() {
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Facility Name</Label>
           <Input
-            value={facilityName}
+            value={facilityName ?? ""}
             onChange={(e) => setFacilityName(e.target.value)}
             className="h-8 text-sm"
             data-ocid="settings.factory.name_input"
@@ -446,7 +449,7 @@ function FactorySection() {
         <div className="space-y-1.5">
           <Label className="text-xs text-muted-foreground">Address</Label>
           <Input
-            value={address}
+            value={address ?? ""}
             onChange={(e) => setAddress(e.target.value)}
             className="h-8 text-sm"
             data-ocid="settings.factory.address_input"
@@ -458,7 +461,7 @@ function FactorySection() {
               Operating Hours
             </Label>
             <Input
-              value={hours}
+              value={hours ?? ""}
               onChange={(e) => setHours(e.target.value)}
               className="h-8 text-sm"
               data-ocid="settings.factory.hours_input"
@@ -466,7 +469,7 @@ function FactorySection() {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs text-muted-foreground">Time Zone</Label>
-            <Select value={timezone} onValueChange={setTimezone}>
+            <Select value={timezone || "Asia/Kolkata"} onValueChange={setTimezone}>
               <SelectTrigger
                 className="h-8 text-sm text-left"
                 data-ocid="settings.factory.timezone_select"
@@ -506,7 +509,7 @@ function FactorySection() {
           <div className="flex gap-2 max-w-sm">
             <Input
               placeholder="Add department…"
-              value={newDept}
+              value={newDept ?? ""}
               onChange={(e) => setNewDept(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && addDept()}
               className="h-8 text-xs"

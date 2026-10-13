@@ -47,6 +47,7 @@ export default function SettingsTab() {
   
   const [showHolidayModal, setShowHolidayModal] = useState(false);
   const [holidayForm, setHolidayForm] = useState<any>({ date: "", name: "", type: "National" });
+  const [isApplyingWorkers, setIsApplyingWorkers] = useState(false);
   
   useEffect(() => {
     if (settings) {
@@ -76,6 +77,27 @@ export default function SettingsTab() {
 
   const handleChange = (key: string, value: any) => {
     setForm((prev: any) => ({ ...prev, [key]: value }));
+  };
+
+  const handleApplyToAllWorkers = async () => {
+    try {
+      setIsApplyingWorkers(true);
+      const res = await api.post("/settings/attendance/apply-to-all-workers", {
+        shift_start: form.defaultShiftStart || "09:00",
+        shift_end: form.defaultShiftEnd || "17:30",
+        present_window_end: form.presentWindowEnd,
+        half_day_start: form.halfDayStart,
+        update_global_settings: true
+      });
+      queryClient.invalidateQueries({ queryKey: ["attendanceSettings"] });
+      queryClient.invalidateQueries({ queryKey: ["teamMembers"] });
+      queryClient.invalidateQueries({ queryKey: ["workers"] });
+      toast.success(res.data.message || "Shift timings updated for all workers!");
+    } catch (error: any) {
+      toast.error(error.response?.data?.detail || "Failed to update shift for workers");
+    } finally {
+      setIsApplyingWorkers(false);
+    }
   };
 
   const handleSaveShift = async (e: React.FormEvent) => {
@@ -247,6 +269,27 @@ export default function SettingsTab() {
                       <Label>Half Day Starts At</Label>
                       <Input type="time" value={form.halfDayStart || "13:00"} onChange={(e) => handleChange("halfDayStart", e.target.value)} className="mt-1" />
                     </div>
+                  </div>
+
+                  <div className="p-4 rounded-xl border border-primary/20 bg-primary/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mt-6">
+                    <div>
+                      <h4 className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                        <UserCheck className="w-4 h-4 text-primary" />
+                        Apply These Timings to All Workers
+                      </h4>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Bulk update all active workers to ({form.defaultShiftStart || "09:00"} - {form.defaultShiftEnd || "17:30"}). Shows up immediately on workers' app and updates punch calculations.
+                      </p>
+                    </div>
+                    <Button 
+                      type="button" 
+                      size="sm" 
+                      disabled={isApplyingWorkers}
+                      onClick={handleApplyToAllWorkers}
+                      className="shrink-0 shadow-sm"
+                    >
+                      {isApplyingWorkers ? "Applying..." : "Sync & Apply to All Workers"}
+                    </Button>
                   </div>
                 </div>
               )}
