@@ -84,6 +84,133 @@ function CustomModelSelect({ value, onChange }: { value: string, onChange: (v: s
   );
 }
 
+function ChassisCombobox({
+  value,
+  onChange,
+  vehiclesList,
+  placeholder = "Enter or select Chassis / VIN",
+  inputCls = "",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  vehiclesList: Vehicle[];
+  placeholder?: string;
+  inputCls?: string;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, []);
+
+  const query = (value || "").trim().toLowerCase();
+
+  const filteredVehicles = React.useMemo(() => {
+    if (!query) return vehiclesList.slice(0, 15);
+    return vehiclesList.filter((v) => {
+      const chassis = (v.chassisNumber || v.vin || "").toLowerCase();
+      const tracking = (v.trackingId || "").toLowerCase();
+      const oem = (v.oemName || "").toLowerCase();
+      const dealer = (v.dealerName || "").toLowerCase();
+      return (
+        chassis.includes(query) ||
+        tracking.includes(query) ||
+        oem.includes(query) ||
+        dealer.includes(query)
+      );
+    }).slice(0, 20);
+  }, [vehiclesList, query]);
+
+  return (
+    <div ref={dropdownRef} className="relative w-full">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder={placeholder}
+          value={value}
+          onFocus={() => setIsOpen(true)}
+          onChange={(e) => {
+            onChange(e.target.value);
+            setIsOpen(true);
+          }}
+          className={cn(inputCls, "font-mono text-xs md:text-sm pr-7")}
+          required
+        />
+        <ChevronDown 
+          size={13} 
+          className={cn(
+            "absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none transition-transform duration-200",
+            isOpen && "rotate-180"
+          )} 
+        />
+      </div>
+
+      {isOpen && (
+        <div 
+          className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-popover text-popover-foreground border border-border rounded-xl shadow-2xl max-h-60 overflow-y-auto p-1.5 space-y-1 w-full min-w-[260px]"
+        >
+          {filteredVehicles.length > 0 ? (
+            filteredVehicles.map((v) => {
+              const chassis = v.chassisNumber || v.vin || "";
+              if (!chassis) return null;
+              return (
+                <div
+                  key={v.id}
+                  onClick={() => {
+                    onChange(chassis);
+                    setIsOpen(false);
+                  }}
+                  className="p-2 sm:p-2.5 hover:bg-muted/80 active:bg-primary/10 rounded-lg cursor-pointer transition-colors text-left"
+                >
+                  <div className="flex items-center justify-between gap-1.5">
+                    <span className="font-mono font-bold text-xs sm:text-sm text-foreground break-all">
+                      {chassis}
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                      {v.currentStage || "vehicle"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1 text-[11px] text-muted-foreground">
+                    {v.trackingId && (
+                      <span className="font-semibold text-primary">
+                        {v.trackingId}
+                      </span>
+                    )}
+                    {v.oemName && (
+                      <span>• {v.oemName}</span>
+                    )}
+                    {v.dealerName && (
+                      <span className="truncate max-w-[120px] sm:max-w-none">({v.dealerName})</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-3 text-center text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">No matching vehicle found</p>
+              <p className="text-[11px] mt-0.5 text-muted-foreground/80">
+                You can still type and submit custom VIN &quot;{value}&quot;
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const DEFAULT_OEM_OPTIONS = [
   "EULER MOTORS",
   "MONTRA ELECTRIC",
@@ -891,9 +1018,6 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                           {dispatchChassisList.length} {dispatchChassisList.length > 1 ? "Vehicles" : "Vehicle"} (Same Challan)
                         </span>
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5">
-                        Same Challan No. pe multiple chassis add kar sakte hain. Dispatch list mein har chassis alag-alag show hogi.
-                      </p>
                     </div>
                     <button
                       type="button"
@@ -911,14 +1035,13 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                         <span className="text-xs font-semibold text-muted-foreground/80 w-6 text-center shrink-0">
                           #{idx + 1}
                         </span>
-                        <div className="flex-1 relative">
-                          <input
-                            list="dispatch-chassis-list"
-                            placeholder={idx === 0 ? "Enter or select Chassis / VIN (e.g. MD9EAAAD26J217032)" : `Chassis / VIN #${idx + 1}`}
+                        <div className="flex-1">
+                          <ChassisCombobox
                             value={chassisVal}
-                            onChange={(e) => handleChassisChange(idx, e.target.value)}
-                            className={cn(inputCls, "font-mono text-xs md:text-sm")}
-                            required
+                            onChange={(val) => handleChassisChange(idx, val)}
+                            vehiclesList={vehiclesList}
+                            placeholder={idx === 0 ? "Enter or select Chassis / VIN (e.g. MD9EAAAD26J217032)" : `Chassis / VIN #${idx + 1}`}
+                            inputCls={inputCls}
                           />
                         </div>
                         {dispatchChassisList.length > 1 && (
@@ -934,18 +1057,6 @@ export function AddVehicleDialog({ onClose, onAdd, isOemSubmission = false, init
                       </div>
                     ))}
                   </div>
-
-                  <datalist id="dispatch-chassis-list">
-                    {vehiclesList.map((v) => {
-                      const chassis = v.chassisNumber || v.vin;
-                      if (!chassis) return null;
-                      return (
-                        <option key={v.id} value={chassis}>
-                          {v.trackingId} - {v.oemName} ({v.dealerName || "Direct"}) [{v.currentStage}]
-                        </option>
-                      );
-                    })}
-                  </datalist>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

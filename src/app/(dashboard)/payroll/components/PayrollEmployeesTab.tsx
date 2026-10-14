@@ -429,26 +429,27 @@ export default function PayrollEmployeesTab() {
     <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
       
       {/* TOOLBAR */}
-      <div className="p-3.5 sm:p-4 border-b border-border flex flex-wrap items-center justify-between bg-muted/10 gap-3">
-        <div className="flex flex-wrap items-center gap-2.5 flex-1 min-w-0">
-          <div className="relative w-full sm:w-56 shrink-0">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
+      <div className="p-3 sm:p-3.5 border-b border-border bg-muted/10 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+        {/* Left: Search + Month + Actions (In-line flex) */}
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
             <Input 
               placeholder="Search employees..." 
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 h-9 bg-background rounded-xl border-input w-full text-xs"
+              className="pl-8 h-8.5 bg-background rounded-xl border-input w-full text-xs shadow-2xs"
             />
           </div>
 
           {/* Month Selector */}
-          <div className="flex items-center gap-2 bg-background border border-input rounded-xl px-2.5 h-9 shrink-0">
-            <CalendarDays size={14} className="text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-1.5 bg-background border border-input rounded-xl px-2.5 h-8.5 shrink-0 shadow-2xs">
+            <CalendarDays size={13} className="text-emerald-500 shrink-0" />
             <span className="text-xs font-semibold text-muted-foreground shrink-0">Month:</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer"
+              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1"
             >
               {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
                 const now = new Date();
@@ -464,78 +465,79 @@ export default function PayrollEmployeesTab() {
             </select>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              className="rounded-xl h-9 px-3 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
-              onClick={() => {
-                generatePayroll.mutate(selectedMonth, {
-                  onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
-                });
-              }}
-            >
-              <Calculator size={14} /> Generate Payroll
-            </Button>
-
-            {canEdit && (
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="rounded-xl h-9 px-3 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
-                onClick={() => {
-                  if (filteredEmployees.length > 0) {
-                    openAdvanceDeduct(filteredEmployees[0]);
-                  } else {
-                    toast.error("No employee found in current view");
-                  }
-                }}
-              >
-                <MinusCircle size={14} /> Deduct Advance
-              </Button>
-            )}
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="rounded-xl h-9 px-3 border-border hover:bg-muted text-foreground font-semibold text-xs whitespace-nowrap cursor-pointer shadow-xs gap-1.5"
-              onClick={() => {
-                queryClient.invalidateQueries({ queryKey: ["employeePayroll"] });
-                queryClient.invalidateQueries({ queryKey: ["payrollSummary"] });
-                toast.success("Payroll and OT/Sunday calculations re-synced successfully");
-              }}
-              title="Refresh and sync all payroll, OT, and Sunday calculations"
-            >
-              <RefreshCw size={13} className="text-primary" /> Recalculate
-            </Button>
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-2 shrink-0">
+          {/* Generate Payroll */}
           <Button 
             variant="outline" 
             size="sm"
-            className="rounded-xl h-9 px-3 gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs shadow-xs cursor-pointer whitespace-nowrap"
+            className="rounded-xl h-8.5 px-3 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+            onClick={() => {
+              generatePayroll.mutate(selectedMonth, {
+                onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
+              });
+            }}
+          >
+            <Calculator size={13} /> Generate Payroll
+          </Button>
+
+          {/* Recalculate */}
+          <Button
+            variant="outline"
+            size="sm"
+            className="rounded-xl h-8.5 px-3 border-border hover:bg-muted text-foreground font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+            onClick={() => {
+              queryClient.invalidateQueries({ queryKey: ["employeePayroll"] });
+              queryClient.invalidateQueries({ queryKey: ["payrollSummary"] });
+              toast.success("Payroll and OT/Sunday calculations re-synced successfully");
+            }}
+            title="Refresh and sync all payroll, OT, and Sunday calculations"
+          >
+            <RefreshCw size={13} className="text-primary" /> Recalculate
+          </Button>
+
+          {canEdit && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              className="rounded-xl h-8.5 px-3 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+              onClick={() => {
+                if (filteredEmployees.length > 0) {
+                  openAdvanceDeduct(filteredEmployees[0]);
+                } else {
+                  toast.error("No employee found in current view");
+                }
+              }}
+            >
+              <MinusCircle size={13} /> Deduct Advance
+            </Button>
+          )}
+        </div>
+        
+        {/* Right: Export Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button 
+            variant="outline" 
+            size="sm"
+            className="rounded-xl h-8.5 px-3 gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
             onClick={exportToExcel}
             title="Download full payroll summary in Excel (.xlsx) format"
           >
-            <FileSpreadsheet size={15} className="text-emerald-600" /> Export Excel
+            <FileSpreadsheet size={14} className="text-emerald-600" /> Export Excel
           </Button>
 
           <Button 
             variant="outline" 
             size="sm"
-            className="rounded-xl h-9 px-3 gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-semibold text-xs shadow-xs cursor-pointer whitespace-nowrap"
+            className="rounded-xl h-8.5 px-3 gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
             onClick={exportToPDFReport}
             title="Download landscape PDF payroll report with totals"
           >
-            <FileText size={15} className="text-red-600" /> Download PDF
+            <FileText size={14} className="text-red-600" /> Download PDF
           </Button>
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="rounded-xl h-9 w-9 p-0 border-border cursor-pointer shadow-xs" title="More Export Options">
-                <Download size={14} />
+              <Button variant="outline" size="sm" className="rounded-xl h-8.5 w-8.5 p-0 border-border cursor-pointer shadow-2xs" title="More Export Options">
+                <Download size={13} />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
@@ -560,7 +562,6 @@ export default function PayrollEmployeesTab() {
         <DataTable 
           columns={columns} 
           data={filteredEmployees} 
-          searchKey={(row) => row.employeeName} 
           rowId={(row) => row.id.toString()}
         />
       </div>

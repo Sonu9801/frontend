@@ -258,7 +258,7 @@ export default function ReportsPage() {
       <div className="flex-1 overflow-y-auto p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
           <Tabs defaultValue={isWorker ? "attendance" : "executive"} className="w-full">
-            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 overflow-x-auto flex-nowrap rounded-xl border border-border/50 no-scrollbar">
+            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 flex flex-wrap gap-1 rounded-xl border border-border/50">
               {!isWorker && (
                 <TabsTrigger value="executive" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Executive Dashboard</TabsTrigger>
               )}

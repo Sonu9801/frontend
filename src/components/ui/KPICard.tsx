@@ -128,25 +128,25 @@ export function KPICard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "bg-card border border-border rounded-xl p-4 shadow-xs flex flex-col justify-between gap-2.5 hover:shadow-subtle hover:border-border/80 transition-smooth cursor-default",
+        "bg-card border border-border rounded-xl p-2.5 sm:p-3 md:p-4 shadow-2xs flex flex-col justify-between gap-1.5 sm:gap-2 hover:shadow-subtle hover:border-border/80 transition-smooth cursor-default",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider truncate">
+      <div className="flex items-center justify-between gap-1.5">
+        <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
           {title}
         </span>
         {icon && (
-          <div className="w-7 h-7 rounded-lg bg-muted/60 border border-border/50 flex items-center justify-center text-muted-foreground flex-shrink-0">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-md sm:rounded-lg bg-muted/60 border border-border/50 flex items-center justify-center text-muted-foreground flex-shrink-0 [&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-4 sm:[&>svg]:h-4">
             {icon}
           </div>
         )}
       </div>
 
-      <div className="flex items-baseline justify-between gap-2 mt-1">
+      <div className="flex items-baseline justify-between gap-1.5 mt-0.5 sm:mt-1">
         <span
           className={cn(
-            "text-2xl sm:text-3xl font-bold font-display tabular-nums tracking-tight",
+            "text-xl sm:text-2xl md:text-3xl font-bold font-display tabular-nums tracking-tight",
             semanticAccentClass,
           )}
         >
@@ -155,19 +155,19 @@ export function KPICard({
         {trendValue && (
           <span
             className={cn(
-              "text-[11px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 flex-shrink-0",
+              "text-[10px] sm:text-[11px] font-semibold px-1.5 py-0.5 rounded flex items-center gap-0.5 flex-shrink-0",
               trendColorClass,
             )}
           >
-            <TrendIcon size={12} />
+            <TrendIcon size={11} />
             {trendValue}
           </span>
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-2 min-h-[16px]">
+      <div className="flex items-center justify-between gap-1.5 min-h-[14px] sm:min-h-[16px]">
         {helperText ? (
-          <p className="text-[11px] text-muted-foreground truncate leading-tight">
+          <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate leading-tight">
             {helperText}
           </p>
         ) : (

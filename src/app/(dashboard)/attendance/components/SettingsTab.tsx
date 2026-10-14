@@ -172,17 +172,17 @@ export default function SettingsTab() {
       <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
         {/* Sidebar / Tabs Navigation */}
         <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-border bg-card flex-shrink-0">
-          <div className="md:hidden w-full overflow-x-auto no-scrollbar">
-            <div className="flex gap-1 p-2 w-max">
-              <NavButton active={activeTab === "location"} onClick={() => setActiveTab("location")} icon={MapPin} label="Company Location" />
-              <NavButton active={activeTab === "rules"} onClick={() => setActiveTab("rules")} icon={Clock} label="Attendance Rules" />
-              <NavButton active={activeTab === "ot"} onClick={() => setActiveTab("ot")} icon={Briefcase} label="Overtime Rules" />
-              <NavButton active={activeTab === "sunday"} onClick={() => setActiveTab("sunday")} icon={Calendar} label="Sunday Rules" />
-              <NavButton active={activeTab === "face"} onClick={() => setActiveTab("face")} icon={Camera} label="Face Verification" />
-              <NavButton active={activeTab === "device"} onClick={() => setActiveTab("device")} icon={Smartphone} label="Device Policy" />
-              <NavButton active={activeTab === "notifications"} onClick={() => setActiveTab("notifications")} icon={Bell} label="Notifications" />
-              <NavButton active={activeTab === "shifts"} onClick={() => setActiveTab("shifts")} icon={Clock} label="Shift Management" />
-              <NavButton active={activeTab === "holidays"} onClick={() => setActiveTab("holidays")} icon={Calendar} label="Holiday Management" />
+          <div className="md:hidden w-full p-2 bg-muted/30 border-b border-border">
+            <div className="grid grid-cols-3 gap-1 w-full">
+              <NavButton active={activeTab === "location"} onClick={() => setActiveTab("location")} icon={MapPin} label="Location" />
+              <NavButton active={activeTab === "rules"} onClick={() => setActiveTab("rules")} icon={Clock} label="Rules" />
+              <NavButton active={activeTab === "ot"} onClick={() => setActiveTab("ot")} icon={Briefcase} label="Overtime" />
+              <NavButton active={activeTab === "sunday"} onClick={() => setActiveTab("sunday")} icon={Calendar} label="Sunday" />
+              <NavButton active={activeTab === "face"} onClick={() => setActiveTab("face")} icon={Camera} label="Face Verif" />
+              <NavButton active={activeTab === "device"} onClick={() => setActiveTab("device")} icon={Smartphone} label="Device" />
+              <NavButton active={activeTab === "notifications"} onClick={() => setActiveTab("notifications")} icon={Bell} label="Alerts" />
+              <NavButton active={activeTab === "shifts"} onClick={() => setActiveTab("shifts")} icon={Clock} label="Shifts" />
+              <NavButton active={activeTab === "holidays"} onClick={() => setActiveTab("holidays")} icon={Calendar} label="Holidays" />
             </div>
           </div>
           <ScrollArea className="hidden md:block w-full h-full">

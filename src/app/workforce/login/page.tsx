@@ -56,10 +56,16 @@ export default function WorkerKioskLogin() {
 
       const data = await res.json();
       
-      // Store tokens appropriately
+      // Store tokens appropriately across both general and worker keys
+      const actualRole = (data.role || "worker").toLowerCase();
       localStorage.setItem("worker_token", data.access_token);
-      localStorage.setItem("worker_refreshToken", data.refresh_token);
+      localStorage.setItem("token", data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem("worker_refreshToken", data.refresh_token);
+        localStorage.setItem("refreshToken", data.refresh_token);
+      }
       localStorage.setItem("worker_info", JSON.stringify(data));
+      localStorage.setItem("role", actualRole);
 
       // Sync authStore state
       useAuthStore.getState().login(
@@ -67,7 +73,7 @@ export default function WorkerKioskLogin() {
         data.refresh_token || "",
         data.email || `${data.employee_id || 'worker'}@foxflow.internal`,
         data.name || "Worker",
-        data.role || "worker"
+        actualRole
       );
 
       toast.success(`Welcome back to the floor, ${data.name || 'Worker'}!`);

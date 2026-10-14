@@ -107,13 +107,13 @@ export default function SalesInvoiceDetailsPage({ params }: { params: Promise<{ 
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="mb-6 w-full justify-start overflow-x-auto h-auto p-1 bg-muted/50">
-          <TabsTrigger value="overview" className="flex items-center gap-2"><Activity size={16} /> Overview</TabsTrigger>
-          <TabsTrigger value="ocr" className="flex items-center gap-2"><Search size={16} /> OCR Data</TabsTrigger>
-          <TabsTrigger value="customer" className="flex items-center gap-2"><User size={16} /> Customer</TabsTrigger>
-          <TabsTrigger value="payment" className="flex items-center gap-2"><CreditCard size={16} /> Payment</TabsTrigger>
-          <TabsTrigger value="attachments" className="flex items-center gap-2"><FileImage size={16} /> Attachments</TabsTrigger>
-          <TabsTrigger value="audit" className="flex items-center gap-2"><Clock size={16} /> Audit & Timeline</TabsTrigger>
+        <TabsList className="mb-6 w-full grid grid-cols-3 sm:grid-cols-6 h-auto p-1 bg-muted/50 border border-border rounded-xl gap-1">
+          <TabsTrigger value="overview" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><Activity size={14} className="shrink-0" /> <span className="truncate">Overview</span></TabsTrigger>
+          <TabsTrigger value="ocr" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><Search size={14} className="shrink-0" /> <span className="truncate">OCR Data</span></TabsTrigger>
+          <TabsTrigger value="customer" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><User size={14} className="shrink-0" /> <span className="truncate">Customer</span></TabsTrigger>
+          <TabsTrigger value="payment" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><CreditCard size={14} className="shrink-0" /> <span className="truncate">Payment</span></TabsTrigger>
+          <TabsTrigger value="attachments" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><FileImage size={14} className="shrink-0" /> <span className="truncate">Attachments</span></TabsTrigger>
+          <TabsTrigger value="audit" className="flex items-center justify-center gap-1 sm:gap-2 px-1 py-2 text-[11px] sm:text-xs font-semibold truncate"><Clock size={14} className="shrink-0" /> <span className="truncate">Audit</span></TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">

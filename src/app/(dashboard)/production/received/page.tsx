@@ -13,7 +13,6 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { KPICard } from "@/components/ui/KPICard";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
@@ -44,7 +43,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Package,
-  RotateCcw
+  RotateCcw,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -85,13 +85,49 @@ export default function ReceivedVehiclesPage() {
   const [dealerFilter, setDealerFilter] = useState("All Dealers");
   const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
   const [statusFilter, setStatusFilter] = useState<"All Statuses" | "Pending Only" | "Dispatched Only">("All Statuses");
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showOemDropdown, setShowOemDropdown] = useState(false);
+  const [showDealerDropdown, setShowDealerDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
-  // Date Filter State
-  const [dateFilter, setDateFilter] = useState("All");
-  const [customMonth, setCustomMonth] = useState("");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
+  // Date Presets State
+  const [selectedDatePreset, setSelectedDatePreset] = useState("All Time");
+  const [dateRange, setDateRange] = useState("All Time");
+  const [customMonth, setCustomMonth] = useState(
+    () => new Date().toISOString().slice(0, 7)
+  );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const handleDatePresetChange = (preset: string) => {
+    setSelectedDatePreset(preset);
+    if (preset === "Custom Month") {
+      setDateRange(`Month: ${customMonth}`);
+    } else if (preset === "Custom Range") {
+      if (startDate && endDate) {
+        setDateRange(`Custom: ${startDate} to ${endDate}`);
+      } else {
+        setDateRange("All Time");
+      }
+    } else {
+      setDateRange(preset);
+    }
+  };
+
+  const handleCustomMonthChange = (monthVal: string) => {
+    setCustomMonth(monthVal);
+    if (selectedDatePreset === "Custom Month") {
+      setDateRange(`Month: ${monthVal}`);
+    }
+  };
+
+  const handleCustomDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    if (selectedDatePreset === "Custom Range" && start && end) {
+      setDateRange(`Custom: ${start} to ${end}`);
+    }
+  };
 
   // All received vehicles in system
   const receivedVehicles = useMemo(() => {
@@ -120,66 +156,6 @@ export default function ReceivedVehiclesPage() {
     return v.receivedAt || (v as any).received_at || v.arrivalTime || (v as any).arrival_time || v.gateEntryTime || (v as any).gate_entry_time || (v as any).submittedAt || (v as any).createdAt || (v as any).created_at;
   };
 
-  const matchesDateFilter = useCallback((vDateRaw: string | undefined | null): boolean => {
-    if (dateFilter === "All") return true;
-    if (!vDateRaw) return false;
-
-    try {
-      const d = new Date(vDateRaw);
-      if (isNaN(d.getTime())) return false;
-
-      const now = new Date();
-
-      if (dateFilter === "Today") {
-        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-        const dStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-        return dStr === todayStr;
-      }
-
-      if (dateFilter === "This Month") {
-        return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
-      }
-
-      if (dateFilter === "Last Month") {
-        const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-        return d.getFullYear() === lm.getFullYear() && d.getMonth() === lm.getMonth();
-      }
-
-      if (dateFilter === "This Quarter") {
-        const currentQ = Math.floor(now.getMonth() / 3);
-        const dQ = Math.floor(d.getMonth() / 3);
-        return d.getFullYear() === now.getFullYear() && dQ === currentQ;
-      }
-
-      if (dateFilter === "Last Quarter") {
-        const currentQ = Math.floor(now.getMonth() / 3);
-        const targetQ = currentQ === 0 ? 3 : currentQ - 1;
-        const targetYear = currentQ === 0 ? now.getFullYear() - 1 : now.getFullYear();
-        const dQ = Math.floor(d.getMonth() / 3);
-        return d.getFullYear() === targetYear && dQ === targetQ;
-      }
-
-      if (dateFilter === "This Year") {
-        return d.getFullYear() === now.getFullYear();
-      }
-
-      if (dateFilter === "Month" && customMonth) {
-        const [y, m] = customMonth.split("-").map(Number);
-        return d.getFullYear() === y && (d.getMonth() + 1) === m;
-      }
-
-      if (dateFilter === "Custom" && customStartDate && customEndDate) {
-        const sd = new Date(`${customStartDate}T00:00:00`);
-        const ed = new Date(`${customEndDate}T23:59:59.999`);
-        return d >= sd && d <= ed;
-      }
-
-      return true;
-    } catch {
-      return false;
-    }
-  }, [dateFilter, customMonth, customStartDate, customEndDate]);
-
   // Filtered List
   const filteredVehicles = useMemo(() => {
     return receivedVehicles.filter((v) => {
@@ -197,8 +173,8 @@ export default function ReceivedVehiclesPage() {
       ].some((val) => (val || "").toLowerCase().includes(q));
 
       const matchCategory = categoryFilter === "All Categories" || v.productCategory === categoryFilter;
-      const matchOem = oemFilter === "All OEMs" || (v.oemName || "").toLowerCase() === oemFilter.toLowerCase();
-      const matchDealer = dealerFilter === "All Dealers" || (v.dealerName || "").toLowerCase() === dealerFilter.toLowerCase();
+      const matchOem = oemFilter === "All OEMs" || (v.oemName || "").toLowerCase().trim() === oemFilter.toLowerCase().trim();
+      const matchDealer = dealerFilter === "All Dealers" || (v.dealerName || "").toLowerCase().trim() === dealerFilter.toLowerCase().trim();
       const matchPriority = priorityFilter === "all" || (v.priority || "Normal").toLowerCase() === priorityFilter.toLowerCase();
 
       const normStage = (v.currentStage || (v as any).current_stage || "received").toLowerCase().trim();
@@ -209,7 +185,7 @@ export default function ReceivedVehiclesPage() {
         (statusFilter === "Dispatched Only" && isDispatched);
 
       const vDateRaw = getVehicleDate(v);
-      const matchDate = matchesDateFilter(vDateRaw);
+      const matchDate = isDateInFilterRange(vDateRaw, dateRange);
 
       return matchSearch && matchCategory && matchOem && matchDealer && matchPriority && matchStatus && matchDate;
     }).sort((a, b) => {
@@ -228,17 +204,25 @@ export default function ReceivedVehiclesPage() {
       if (dateA !== dateB) return dateB - dateA;
       return (Number(b.id) || 0) - (Number(a.id) || 0);
     });
-  }, [receivedVehicles, search, categoryFilter, oemFilter, dealerFilter, priorityFilter, statusFilter, matchesDateFilter]);
+  }, [receivedVehicles, search, categoryFilter, oemFilter, dealerFilter, priorityFilter, statusFilter, dateRange]);
 
   const isFiltered = Boolean(
     search || 
-    dateFilter !== "All" || 
+    dateRange !== "All Time" || 
     categoryFilter !== "All Categories" || 
     oemFilter !== "All OEMs" || 
     dealerFilter !== "All Dealers" || 
     priorityFilter !== "all" || 
     statusFilter !== "All Statuses"
   );
+
+  const urgentCount = useMemo(() => {
+    return receivedVehicles.filter(v => (v.priority || "").toLowerCase() === "urgent").length;
+  }, [receivedVehicles]);
+
+  const highCount = useMemo(() => {
+    return receivedVehicles.filter(v => (v.priority || "").toLowerCase() === "high").length;
+  }, [receivedVehicles]);
 
   // Dynamic KPIs strictly calculated from the filtered dataset
   const stats = useMemo(() => {
@@ -324,320 +308,506 @@ export default function ReceivedVehiclesPage() {
   };
 
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="received_vehicles.page">
-      {/* Top Header */}
-      <PageHeader
-        title="Received Vehicles"
-        description="Incoming vehicle intake, verification inventory, gate entry, and production staging"
-        icon={<Inbox className="w-5 h-5 text-primary" />}
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            {canEdit && (
-              <>
-                <Button
-                  type="button"
-                  onClick={() => setShowAddModal(true)}
-                  className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs font-semibold cursor-pointer"
-                >
-                  <Plus size={14} /> Receive Vehicle
-                </Button>
-                <Button
-                  type="button"
-                  onClick={() => setShowSelectDispatchModal(true)}
-                  className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold cursor-pointer"
-                >
-                  <Truck size={14} /> Dispatch Vehicle
-                </Button>
-              </>
+    <div className="flex flex-col min-h-full bg-background" data-ocid="received_vehicles.page">
+      {/* Top bar */}
+      <div className="flex-shrink-0 p-3 sm:p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card space-y-3 sm:space-y-4">
+        {/* Header with PageHeader and Actions */}
+        <PageHeader
+          title="Received Vehicles"
+          className="mb-0 pb-0 gap-3"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span>{receivedVehicles.length} total vehicles tracked through inward staging</span>
+              {urgentCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  {urgentCount} urgent
+                </span>
+              )}
+              {highCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  {highCount} high priority
+                </span>
+              )}
+            </span>
+          }
+          actions={
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {canEdit && (
+                <>
+                  <Button
+                    type="button"
+                    onClick={() => setShowAddModal(true)}
+                    className="flex-1 sm:flex-initial gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                  >
+                    <Plus size={14} /> Receive Vehicle
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="success"
+                    onClick={() => setShowSelectDispatchModal(true)}
+                    className="flex-1 sm:flex-initial gap-1.5 shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                  >
+                    <Truck size={14} /> Dispatch Vehicle
+                  </Button>
+                </>
+              )}
+            </div>
+          }
+        />
+
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
+          {/* Search Input */}
+          <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="text"
+              placeholder="Search tracking ID, vehicle, OEM…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 h-9 text-xs bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all shadow-2xs"
+              data-ocid="received.search_input"
+            />
+          </div>
+
+          {/* Date Range & Custom Month Filter Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto">
+            <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
+            <select 
+              value={selectedDatePreset}
+              onChange={(e) => handleDatePresetChange(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer w-full sm:w-auto"
+            >
+              <option value="All Time">All Time (All Dates)</option>
+              <option value="Today">Today</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="This Week">This Week</option>
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="This Month">This Month</option>
+              <option value="Last Month">Last Month</option>
+              <option value="Custom Month">Select Month (Custom)</option>
+              <option value="Custom Range">Custom Date Range</option>
+            </select>
+
+            {selectedDatePreset === "Custom Month" && (
+              <input 
+                type="month"
+                value={customMonth}
+                onChange={(e) => handleCustomMonthChange(e.target.value)}
+                className="bg-background border border-input rounded px-2 py-0.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              />
+            )}
+
+            {selectedDatePreset === "Custom Range" && (
+              <div className="flex items-center gap-1">
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-[10px] text-muted-foreground">to</span>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
             )}
           </div>
-        }
-      />
 
-      {/* Global Date Filter Bar */}
-      <GlobalDateFilterBar
-        dateFilter={dateFilter}
-        setDateFilter={setDateFilter}
-        customMonth={customMonth}
-        setCustomMonth={setCustomMonth}
-        customStartDate={customStartDate}
-        setCustomStartDate={setCustomStartDate}
-        customEndDate={customEndDate}
-        setCustomEndDate={setCustomEndDate}
-      />
+          {/* Priority Tabs */}
+          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border">
+            {(["all", "normal", "high", "urgent"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setPriorityFilter(f as any)}
+                data-ocid={`received.priority.${f}.tab`}
+                className={cn(
+                  "px-1.5 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all duration-150 whitespace-nowrap text-center truncate",
+                  priorityFilter === f
+                    ? f === "urgent"
+                      ? "bg-destructive text-white shadow-xs"
+                      : f === "high"
+                        ? "bg-warning text-white shadow-xs"
+                        : "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {f === "all" ? `All (${receivedVehicles.length})` : f}
+              </button>
+            ))}
+          </div>
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard
-          title="Total Received"
-          value={stats.total}
-          description={isFiltered ? `Matching filter (${stats.total} of ${vehicles.length})` : "Inward vehicles in stock"}
-          icon={<Inbox size={14} />}
-          semantic="primary"
-        />
-        <KPICard
-          title="Received Today"
-          value={stats.todayCount}
-          description={isFiltered ? "Filtered today intake" : "Today's gate intake"}
-          icon={<CheckCircle2 size={14} />}
-          semantic="success"
-        />
-        <KPICard
-          title="Urgent Priority"
-          value={stats.urgent}
-          description={isFiltered ? "Filtered urgent vehicles" : "Immediate attention required"}
-          icon={<AlertTriangle size={14} />}
-          semantic={stats.urgent > 0 ? "destructive" : "neutral"}
-        />
-        <KPICard
-          title="High Priority"
-          value={stats.high}
-          description={isFiltered ? "Filtered high priority" : "Fast-track production"}
-          icon={<Clock size={14} />}
-          semantic={stats.high > 0 ? "warning" : "neutral"}
-        />
+          {/* Dropdown Filters: Clean 2x2 Grid on Mobile, Inline Flex on Desktop */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Category Filter */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCategoryDropdown((v) => !v);
+                  setShowOemDropdown(false);
+                  setShowDealerDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="received.category.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 shadow-2xs"
+              >
+                <span className="truncate">{categoryFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showCategoryDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showCategoryDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="received.category.dropdown_menu"
+                  >
+                    {PRODUCT_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(cat);
+                          setShowCategoryDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors",
+                          categoryFilter === cat
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* OEM Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOemDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowDealerDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="received.oem.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">{oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showOemDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showOemDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="received.oem.dropdown_menu"
+                  >
+                    {allOemOptions.map((oem) => (
+                      <button
+                        key={oem}
+                        type="button"
+                        onClick={() => {
+                          setOemFilter(oem);
+                          setShowOemDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          oemFilter === oem
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {oem}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Dealer Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDealerDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowOemDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="received.dealer.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">{dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showDealerDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showDealerDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="received.dealer.dropdown_menu"
+                  >
+                    {allDealerOptions.map((dealer) => (
+                      <button
+                        key={dealer}
+                        type="button"
+                        onClick={() => {
+                          setDealerFilter(dealer);
+                          setShowDealerDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          dealerFilter === dealer
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {dealer}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Status Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStatusDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowOemDropdown(false);
+                  setShowDealerDropdown(false);
+                }}
+                data-ocid="received.status.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">
+                  {statusFilter === "All Statuses" ? "All Statuses" : statusFilter === "Pending Only" ? "⏳ Pending" : "✅ Dispatched"}
+                </span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showStatusDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showStatusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="received.status.dropdown_menu"
+                  >
+                    {[
+                      { id: "All Statuses", label: "All Statuses" },
+                      { id: "Pending Only", label: "⏳ Pending Vehicles Only" },
+                      { id: "Dispatched Only", label: "✅ Dispatched Only" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(item.id as any);
+                          setShowStatusDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          statusFilter === item.id
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </div>
+
+          {isFiltered && (
+            <span className="text-[11px] text-muted-foreground w-full sm:w-auto text-center">
+              {filteredVehicles.length} / {receivedVehicles.length} shown
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Table Action Header Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border shadow-xs">
-        <div className="flex items-center gap-2.5">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20">
-            <FileSpreadsheet size={20} />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-foreground">Received Vehicles Master Table</h3>
-            <p className="text-xs text-muted-foreground">Real-time table view ({filteredVehicles.length} of {receivedVehicles.length} vehicles matching filter)</p>
-          </div>
-        </div>
-
-        {/* Export Buttons */}
-        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
-              const tableRows = filteredVehicles.map((v) => ({
-                "Tracking ID": v.trackingId,
-                "Chassis / VIN": v.chassisNumber || v.vin || "-",
-                "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
-                "OEM Name": v.oemName,
-                "Model Name": v.vehicleModel || (v as any).modelName || "-",
-                "Dealer Name": v.dealerName || "-",
-                "Category": v.productCategory,
-                "Priority": v.priority || "Normal",
-                "Stage": v.currentStage || "received"
-              }));
-              exportToExcel("Received_Vehicles_Master", headers, tableRows);
-            }}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs cursor-pointer"
-          >
-            <Download size={13} /> Export Excel (.xlsx)
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            onClick={() => {
-              const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
-              const tableRows = filteredVehicles.map((v) => ({
-                "Tracking ID": v.trackingId,
-                "Chassis / VIN": v.chassisNumber || v.vin || "-",
-                "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
-                "OEM Name": v.oemName,
-                "Model Name": v.vehicleModel || (v as any).modelName || "-",
-                "Dealer Name": v.dealerName || "-",
-                "Category": v.productCategory,
-                "Priority": v.priority || "Normal",
-                "Stage": v.currentStage || "received"
-              }));
-              exportToPDF("Received_Vehicles_Master", "Received Vehicles Report", headers, tableRows, {
-                summary: `Total ${filteredVehicles.length} received vehicles shown.`
-              });
-            }}
-            className="bg-rose-600 hover:bg-rose-700 text-white text-xs cursor-pointer"
-          >
-            <FileText size={13} /> Export PDF (.pdf)
-          </Button>
-
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => {
-              const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
-              const tableRows = filteredVehicles.map((v) => ({
-                "Tracking ID": v.trackingId,
-                "Chassis / VIN": v.chassisNumber || v.vin || "-",
-                "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
-                "OEM Name": v.oemName,
-                "Model Name": v.vehicleModel || (v as any).modelName || "-",
-                "Dealer Name": v.dealerName || "-",
-                "Category": v.productCategory,
-                "Priority": v.priority || "Normal",
-                "Stage": v.currentStage || "received"
-              }));
-              exportToCSV("Received_Vehicles_Master", headers, tableRows);
-            }}
-            className="text-xs cursor-pointer"
-          >
-            <Download size={13} /> CSV
-          </Button>
-        </div>
-      </div>
-
-      {/* Filters Bar */}
-      <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2.5">
-        <div className="relative w-full sm:flex-1 sm:min-w-[200px] sm:max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search tracking ID, chassis, OEM, dealer..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-muted/50 border border-input rounded-lg text-foreground focus:outline-none focus:ring-2 focus:ring-primary/40"
+      {/* Content Area */}
+      <div className="flex-1 p-3 sm:p-4 md:p-6 bg-muted/10 space-y-4 pb-28 md:pb-6">
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+          <KPICard
+            title="Total Received"
+            value={stats.total}
+            description={isFiltered ? `Matching filter (${stats.total} of ${receivedVehicles.length})` : "Inward vehicles in stock"}
+            icon={<Inbox size={14} />}
+            semantic="primary"
+          />
+          <KPICard
+            title="Received Today"
+            value={stats.todayCount}
+            description={isFiltered ? "Filtered today intake" : "Today's gate intake"}
+            icon={<CheckCircle2 size={14} />}
+            semantic="success"
+          />
+          <KPICard
+            title="Urgent Priority"
+            value={stats.urgent}
+            description={isFiltered ? "Filtered urgent vehicles" : "Immediate attention required"}
+            icon={<AlertTriangle size={14} />}
+            semantic={stats.urgent > 0 ? "destructive" : "neutral"}
+          />
+          <KPICard
+            title="High Priority"
+            value={stats.high}
+            description={isFiltered ? "Filtered high priority" : "Fast-track production"}
+            icon={<Clock size={14} />}
+            semantic={stats.high > 0 ? "warning" : "neutral"}
           />
         </div>
 
-        {/* Category Filter */}
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="h-9 text-xs font-medium bg-muted/50 border border-input rounded-lg px-2 text-foreground focus:outline-none"
-        >
-          {PRODUCT_CATEGORIES.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat === "All Categories" ? "📦 All Categories" : cat}
-            </option>
-          ))}
-        </select>
+        {/* Table Action Header Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border border-border shadow-xs">
+          <div className="flex items-center gap-2.5 w-full sm:w-auto">
+            <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shrink-0">
+              <FileSpreadsheet size={18} />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">Received Vehicles Master List (Excel View)</h3>
+              <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{filteredVehicles.length} vehicles matching filter</p>
+            </div>
+          </div>
 
-        {/* OEM Filter */}
-        <select
-          value={oemFilter}
-          onChange={(e) => setOemFilter(e.target.value)}
-          className="h-9 text-xs font-medium bg-muted/50 border border-input rounded-lg px-2 text-foreground focus:outline-none"
-        >
-          {allOemOptions.map((oem) => (
-            <option key={oem} value={oem}>
-              {oem === "All OEMs" ? "🏭 All OEMs" : oem}
-            </option>
-          ))}
-        </select>
+          {/* Export Buttons */}
+          <div className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const tableRows = filteredVehicles.map((v) => ({
+                  "Tracking ID": v.trackingId,
+                  "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                  "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
+                  "OEM Name": v.oemName,
+                  "Model Name": v.vehicleModel || (v as any).modelName || "-",
+                  "Dealer Name": v.dealerName || "-",
+                  "Category": v.productCategory,
+                  "Priority": v.priority || "Normal",
+                  "Stage": v.currentStage || "received"
+                }));
+                exportToExcel("Received_Vehicles_Master", headers, tableRows);
+              }}
+              className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Download size={13} className="shrink-0" />
+              <span className="hidden sm:inline">Export </span>Excel
+            </button>
 
-        {/* Dealer Filter */}
-        <select
-          value={dealerFilter}
-          onChange={(e) => setDealerFilter(e.target.value)}
-          className="h-9 text-xs font-medium bg-muted/50 border border-input rounded-lg px-2 text-foreground focus:outline-none"
-        >
-          {allDealerOptions.map((dealer) => (
-            <option key={dealer} value={dealer}>
-              {dealer === "All Dealers" ? "🏪 All Dealers" : dealer}
-            </option>
-          ))}
-        </select>
+            <button
+              type="button"
+              onClick={() => {
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const tableRows = filteredVehicles.map((v) => ({
+                  "Tracking ID": v.trackingId,
+                  "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                  "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
+                  "OEM Name": v.oemName,
+                  "Model Name": v.vehicleModel || (v as any).modelName || "-",
+                  "Dealer Name": v.dealerName || "-",
+                  "Category": v.productCategory,
+                  "Priority": v.priority || "Normal",
+                  "Stage": v.currentStage || "received"
+                }));
+                exportToPDF("Received_Vehicles_Master", "Received Vehicles Report", headers, tableRows, {
+                  summary: `Total ${filteredVehicles.length} received vehicles shown.`
+                });
+              }}
+              className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-xs transition-all cursor-pointer whitespace-nowrap"
+            >
+              <FileText size={13} className="shrink-0" />
+              <span className="hidden sm:inline">Export </span>PDF
+            </button>
 
-        {/* Priority Filter */}
-        <select
-          value={priorityFilter}
-          onChange={(e) => setPriorityFilter(e.target.value as any)}
-          className="h-9 text-xs font-medium bg-muted/50 border border-input rounded-lg px-2 text-foreground focus:outline-none"
-        >
-          <option value="all">⚡ All Priorities</option>
-          <option value="Normal">Normal</option>
-          <option value="High">High Priority</option>
-          <option value="Urgent">Urgent</option>
-        </select>
-
-        {/* Status Filter Dropdown (All Statuses, Pending, Dispatched) */}
-        <div className="relative w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => {
-              setShowStatusDropdown((v) => !v);
-            }}
-            data-ocid="received.status.select"
-            className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px] cursor-pointer h-9"
-          >
-            <span className="truncate">
-              {statusFilter === "All Statuses" ? "All Statuses" : statusFilter === "Pending Only" ? "⏳ Pending Only" : "✅ Dispatched Only"}
-            </span>
-            <ChevronDown
-              size={11}
-              className={cn(
-                "transition-transform",
-                showStatusDropdown && "rotate-180",
-              )}
-            />
-          </button>
-          <AnimatePresence>
-            {showStatusDropdown && (
-              <motion.div
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.15 }}
-                className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px]"
-                data-ocid="received.status.dropdown_menu"
-              >
-                {[
-                  { id: "All Statuses", label: "All Statuses" },
-                  { id: "Pending Only", label: "⏳ Pending Vehicles Only" },
-                  { id: "Dispatched Only", label: "✅ Dispatched Only" },
-                ].map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => {
-                      setStatusFilter(item.id as any);
-                      setShowStatusDropdown(false);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
-                      statusFilter === item.id
-                        ? "bg-primary/10 text-primary font-semibold"
-                        : "text-foreground hover:bg-muted",
-                    )}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </motion.div>
-            )}
-          </AnimatePresence>
+            <button
+              type="button"
+              onClick={() => {
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const tableRows = filteredVehicles.map((v) => ({
+                  "Tracking ID": v.trackingId,
+                  "Chassis / VIN": v.chassisNumber || v.vin || "-",
+                  "Received Date": formatReceivedDate((v as any).receivedAt || (v as any).createdAt),
+                  "OEM Name": v.oemName,
+                  "Model Name": v.vehicleModel || (v as any).modelName || "-",
+                  "Dealer Name": v.dealerName || "-",
+                  "Category": v.productCategory,
+                  "Priority": v.priority || "Normal",
+                  "Stage": v.currentStage || "received"
+                }));
+                exportToCSV("Received_Vehicles_Master", headers, tableRows);
+              }}
+              className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer whitespace-nowrap"
+            >
+              <Download size={13} className="shrink-0" />
+              CSV
+            </button>
+          </div>
         </div>
 
-        {/* Reset Filters button */}
-        {isFiltered && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setSearch("");
-              setDateFilter("All");
-              setCustomMonth("");
-              setCustomStartDate("");
-              setCustomEndDate("");
-              setCategoryFilter("All Categories");
-              setOemFilter("All OEMs");
-              setDealerFilter("All Dealers");
-              setPriorityFilter("all");
-              setStatusFilter("All Statuses");
-            }}
-            className="h-9 text-xs text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 gap-1.5 cursor-pointer font-semibold ml-auto sm:ml-0"
-          >
-            <RotateCcw size={12} /> Reset Filters
-          </Button>
-        )}
-      </div>
-
-      {/* Main Table View */}
-      <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">
+        {/* Main Table View */}
+        <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+          <div className="overflow-x-auto touch-pan-x [webkit-overflow-scrolling:touch]">
+            <table className="w-full min-w-[850px] text-xs text-left border-collapse">
+              <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">
               <tr>
                 <th className="px-4 py-3.5">#</th>
                 <th className="px-4 py-3.5">Tracking ID</th>
@@ -757,6 +927,7 @@ export default function ReceivedVehiclesPage() {
           </table>
         </div>
       </div>
+    </div>
 
       {/* ADD VEHICLE MODAL */}
       {showAddModal && (

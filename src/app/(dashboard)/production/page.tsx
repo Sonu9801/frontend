@@ -1148,14 +1148,15 @@ export default function ProductionPage() {
 
   return (
     <div
-      className="flex flex-col h-[calc(100vh-64px)] bg-background"
+      className="flex flex-col min-h-full md:h-[calc(100vh-64px)] bg-background"
       data-ocid="production.page"
     >
       {/* Top bar */}
-      <div className="flex-shrink-0 p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card space-y-4">
+      <div className="flex-shrink-0 p-3 sm:p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card space-y-3 sm:space-y-4">
         {/* Header with PageHeader and Actions */}
         <PageHeader
           title="Production Board"
+          className="mb-0 pb-0 gap-3"
           description={
             <span className="flex items-center gap-2 flex-wrap">
               <span>{vehicles.length} total vehicles tracked through manufacturing stages</span>
@@ -1172,13 +1173,13 @@ export default function ProductionPage() {
             </span>
           }
           actions={
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              <div className="grid grid-cols-4 sm:flex items-center bg-muted/60 p-1 rounded-xl border border-border w-full sm:w-auto gap-0.5">
                 <button
                   type="button"
                   onClick={() => setActiveTab("incoming")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    "px-1.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-colors whitespace-nowrap text-center truncate",
                     activeTab === "incoming" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
@@ -1188,57 +1189,59 @@ export default function ProductionPage() {
                   type="button"
                   onClick={() => setActiveTab("board")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    "px-1.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-colors whitespace-nowrap text-center truncate",
                     activeTab === "board" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Kanban Board
+                  Kanban
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("table")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5",
+                    "px-1.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center justify-center gap-1 text-center truncate",
                     activeTab === "table" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <FileSpreadsheet size={13} className="text-emerald-600" />
-                  Table View
+                  <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+                  <span className="truncate">Table</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("history")}
                   className={cn(
-                    "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap",
+                    "px-1.5 sm:px-3 py-1.5 text-[11px] sm:text-xs font-semibold rounded-lg transition-colors whitespace-nowrap text-center truncate",
                     activeTab === "history" ? "bg-card text-foreground shadow-xs" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Work History
+                  History
                 </button>
               </div>
 
-              <Button
-                type="button"
-                onClick={() => {
-                  setAddModalMode("received");
-                  setShowAddModal(true);
-                }}
-                className="gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs"
-              >
-                <Plus size={14} /> Received Vehicle
-              </Button>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setAddModalMode("received");
+                    setShowAddModal(true);
+                  }}
+                  className="flex-1 sm:flex-initial gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                >
+                  <Plus size={14} /> Received Vehicle
+                </Button>
 
-              <Button
-                type="button"
-                variant="success"
-                onClick={() => {
-                  setAddModalMode("dispatch");
-                  setShowAddModal(true);
-                }}
-                className="gap-1.5 shadow-xs"
-              >
-                <Truck size={14} /> Dispatch Vehicle
-              </Button>
+                <Button
+                  type="button"
+                  variant="success"
+                  onClick={() => {
+                    setAddModalMode("dispatch");
+                    setShowAddModal(true);
+                  }}
+                  className="flex-1 sm:flex-initial gap-1.5 shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                >
+                  <Truck size={14} /> Dispatch Vehicle
+                </Button>
+              </div>
             </div>
           }
         />
@@ -1254,18 +1257,18 @@ export default function ProductionPage() {
               placeholder="Search tracking ID, vehicle, OEM…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-sm bg-muted/50 border border-input rounded-lg text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all"
+              className="w-full pl-9 pr-3 h-9 text-xs bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all shadow-2xs"
               data-ocid="production.search_input"
             />
           </div>
 
           {/* Date Range & Custom Month Filter Selector */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 rounded-lg border border-border w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto">
             <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
             <select 
               value={selectedDatePreset}
               onChange={(e) => handleDatePresetChange(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer"
+              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer w-full sm:w-auto"
             >
               <option value="All Time">All Time (All Dates)</option>
               <option value="Today">Today</option>
@@ -1307,7 +1310,7 @@ export default function ProductionPage() {
             )}
           </div>
 
-          <div className="flex items-center w-full sm:w-auto overflow-x-auto no-scrollbar gap-1 bg-muted/50 rounded-lg p-0.5 border border-border">
+          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border">
             {(["all", "normal", "high", "urgent"] as const).map((f) => (
               <button
                 key={f}
@@ -1315,13 +1318,13 @@ export default function ProductionPage() {
                 onClick={() => setPriorityFilter(f)}
                 data-ocid={`production.priority.${f}.tab`}
                 className={cn(
-                  "px-2.5 py-1.5 rounded-md text-[11px] font-semibold capitalize transition-all duration-150 whitespace-nowrap flex-1 text-center",
+                  "px-1.5 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all duration-150 whitespace-nowrap text-center truncate",
                   priorityFilter === f
                     ? f === "urgent"
-                      ? "bg-destructive text-white shadow-sm"
+                      ? "bg-destructive text-white shadow-xs"
                       : f === "high"
-                        ? "bg-warning text-white shadow-sm"
-                        : "bg-card text-foreground shadow-sm border border-border"
+                        ? "bg-warning text-white shadow-xs"
+                        : "bg-card text-foreground shadow-xs border border-border"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
@@ -1330,227 +1333,233 @@ export default function ProductionPage() {
             ))}
           </div>
 
-          <div className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowCategoryDropdown((v) => !v);
-                setShowOemDropdown(false);
-                setShowDealerDropdown(false);
-              }}
-              data-ocid="production.category.select"
-              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full"
-            >
-              <span className="truncate">{categoryFilter}</span>
-              <ChevronDown
-                size={11}
-                className={cn(
-                  "transition-transform",
-                  showCategoryDropdown && "rotate-180",
+          {/* Dropdown Filters: Clean 2x2 Grid on Mobile, Inline Flex on Desktop */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Category Filter */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCategoryDropdown((v) => !v);
+                  setShowOemDropdown(false);
+                  setShowDealerDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="production.category.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 shadow-2xs"
+              >
+                <span className="truncate">{categoryFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showCategoryDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showCategoryDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="production.category.dropdown_menu"
+                  >
+                    {PRODUCT_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(cat);
+                          setShowCategoryDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors",
+                          categoryFilter === cat
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </motion.div>
                 )}
-              />
-            </button>
-            <AnimatePresence>
-              {showCategoryDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[170px]"
-                  data-ocid="production.category.dropdown_menu"
-                >
-                  {PRODUCT_CATEGORIES.map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => {
-                        setCategoryFilter(cat);
-                        setShowCategoryDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 text-xs transition-colors",
-                        categoryFilter === cat
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              </AnimatePresence>
+            </div>
 
-          {/* OEM Name Filter Dropdown */}
-          <div className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowOemDropdown((v) => !v);
-                setShowCategoryDropdown(false);
-                setShowDealerDropdown(false);
-              }}
-              data-ocid="production.oem.select"
-              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
-            >
-              <span className="truncate">{oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
-              <ChevronDown
-                size={11}
-                className={cn(
-                  "transition-transform",
-                  showOemDropdown && "rotate-180",
+            {/* OEM Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOemDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowDealerDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="production.oem.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">{oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showOemDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showOemDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="production.oem.dropdown_menu"
+                  >
+                    {allOemOptions.map((oem) => (
+                      <button
+                        key={oem}
+                        type="button"
+                        onClick={() => {
+                          setOemFilter(oem);
+                          setShowOemDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          oemFilter === oem
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {oem}
+                      </button>
+                    ))}
+                  </motion.div>
                 )}
-              />
-            </button>
-            <AnimatePresence>
-              {showOemDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[180px] max-h-60 overflow-y-auto"
-                  data-ocid="production.oem.dropdown_menu"
-                >
-                  {allOemOptions.map((oem) => (
-                    <button
-                      key={oem}
-                      type="button"
-                      onClick={() => {
-                        setOemFilter(oem);
-                        setShowOemDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
-                        oemFilter === oem
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {oem}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              </AnimatePresence>
+            </div>
 
-          {/* Dealer Name Filter Dropdown */}
-          <div className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowDealerDropdown((v) => !v);
-                setShowCategoryDropdown(false);
-                setShowOemDropdown(false);
-                setShowStatusDropdown(false);
-              }}
-              data-ocid="production.dealer.select"
-              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
-            >
-              <span className="truncate">{dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
-              <ChevronDown
-                size={11}
-                className={cn(
-                  "transition-transform",
-                  showDealerDropdown && "rotate-180",
+            {/* Dealer Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDealerDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowOemDropdown(false);
+                  setShowStatusDropdown(false);
+                }}
+                data-ocid="production.dealer.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">{dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showDealerDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showDealerDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="production.dealer.dropdown_menu"
+                  >
+                    {allDealerOptions.map((dealer) => (
+                      <button
+                        key={dealer}
+                        type="button"
+                        onClick={() => {
+                          setDealerFilter(dealer);
+                          setShowDealerDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          dealerFilter === dealer
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {dealer}
+                      </button>
+                    ))}
+                  </motion.div>
                 )}
-              />
-            </button>
-            <AnimatePresence>
-              {showDealerDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[180px] max-h-60 overflow-y-auto"
-                  data-ocid="production.dealer.dropdown_menu"
-                >
-                  {allDealerOptions.map((dealer) => (
-                    <button
-                      key={dealer}
-                      type="button"
-                      onClick={() => {
-                        setDealerFilter(dealer);
-                        setShowDealerDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
-                        dealerFilter === dealer
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {dealer}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+              </AnimatePresence>
+            </div>
 
-          {/* Status Filter Dropdown (Pending / Dispatched) */}
-          <div className="relative w-full sm:w-auto">
-            <button
-              type="button"
-              onClick={() => {
-                setShowStatusDropdown((v) => !v);
-                setShowCategoryDropdown(false);
-                setShowOemDropdown(false);
-                setShowDealerDropdown(false);
-              }}
-              data-ocid="production.status.select"
-              className="flex items-center justify-between gap-1.5 px-3 py-2 text-[11px] font-medium bg-muted/50 border border-border rounded-lg text-foreground hover:border-primary/40 transition-all w-full min-w-[130px]"
-            >
-              <span className="truncate">
-                {statusFilter === "All Statuses" ? "All Statuses" : statusFilter === "Pending Only" ? "⏳ Pending Only" : "✅ Dispatched Only"}
-              </span>
-              <ChevronDown
-                size={11}
-                className={cn(
-                  "transition-transform",
-                  showStatusDropdown && "rotate-180",
+            {/* Status Filter Dropdown */}
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowStatusDropdown((v) => !v);
+                  setShowCategoryDropdown(false);
+                  setShowOemDropdown(false);
+                  setShowDealerDropdown(false);
+                }}
+                data-ocid="production.status.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs"
+              >
+                <span className="truncate">
+                  {statusFilter === "All Statuses" ? "All Statuses" : statusFilter === "Pending Only" ? "⏳ Pending" : "✅ Dispatched"}
+                </span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showStatusDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showStatusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="production.status.dropdown_menu"
+                  >
+                    {[
+                      { id: "All Statuses", label: "All Statuses" },
+                      { id: "Pending Only", label: "⏳ Pending Vehicles Only" },
+                      { id: "Dispatched Only", label: "✅ Dispatched Only" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(item.id as any);
+                          setShowStatusDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate",
+                          statusFilter === item.id
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </motion.div>
                 )}
-              />
-            </button>
-            <AnimatePresence>
-              {showStatusDropdown && (
-                <motion.div
-                  initial={{ opacity: 0, y: -6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -6 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-20 py-1 min-w-[170px]"
-                  data-ocid="production.status.dropdown_menu"
-                >
-                  {[
-                    { id: "All Statuses", label: "All Statuses" },
-                    { id: "Pending Only", label: "⏳ Pending Vehicles Only" },
-                    { id: "Dispatched Only", label: "✅ Dispatched Only" },
-                  ].map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => {
-                        setStatusFilter(item.id as any);
-                        setShowStatusDropdown(false);
-                      }}
-                      className={cn(
-                        "w-full text-left px-3 py-2 text-xs transition-colors truncate",
-                        statusFilter === item.id
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted",
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              </AnimatePresence>
+            </div>
           </div>
 
           {isFiltered && (
@@ -1564,7 +1573,7 @@ export default function ProductionPage() {
       {/* Board area */}
       {activeTab === "board" && (
         <div
-          className="flex-1 overflow-x-auto overflow-y-hidden no-scrollbar pb-6"
+          className="flex-1 overflow-x-auto md:overflow-y-hidden no-scrollbar pb-24 md:pb-6"
           onClick={() => showCategoryDropdown && setShowCategoryDropdown(false)}
           onKeyDown={(e) => {
             if (e.key === "Escape") setShowCategoryDropdown(false);
@@ -1618,7 +1627,7 @@ export default function ProductionPage() {
 
       {/* Incoming Verification Tab Content */}
       {activeTab === "incoming" && (
-        <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
+        <div className="flex-1 md:overflow-y-auto p-4 sm:p-6 bg-muted/10 pb-28 md:pb-6">
           <div className="max-w-4xl mx-auto space-y-4">
             <h2 className="text-lg font-bold">Incoming Vehicles for Verification</h2>
             {(!byStage["oem"] || byStage["oem"].length === 0) ? (
@@ -1666,19 +1675,19 @@ export default function ProductionPage() {
 
       {/* Excel / Table List View Tab Content */}
       {activeTab === "table" && (
-        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-muted/10 space-y-4">
+        <div className="flex-1 p-3 sm:p-4 md:p-6 bg-muted/10 space-y-4 md:overflow-y-auto pb-28 md:pb-6">
           {/* Table Action Header Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <FileSpreadsheet size={20} />
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border border-border shadow-xs">
+            <div className="flex items-center gap-2.5 w-full sm:w-auto">
+              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 shrink-0">
+                <FileSpreadsheet size={18} />
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Vehicle Master List (Excel View)</h3>
-                <p className="text-xs text-muted-foreground">Real-time row and column table list ({filtered.length} vehicles matching filter)</p>
+              <div className="min-w-0">
+                <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">Vehicle Master List (Excel View)</h3>
+                <p className="text-[11px] sm:text-xs text-muted-foreground truncate">{filtered.length} vehicles matching filter</p>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+            <div className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -1700,9 +1709,10 @@ export default function ProductionPage() {
                   });
                   exportToExcel("Vehicle_Master_List", headers, tableRows);
                 }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
+                className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs transition-all cursor-pointer whitespace-nowrap"
               >
-                <Download size={13} /> Export Excel (.xlsx)
+                <Download size={13} className="shrink-0" />
+                <span className="hidden sm:inline">Export </span>Excel
               </button>
               <button
                 type="button"
@@ -1738,9 +1748,10 @@ export default function ProductionPage() {
                     }
                   );
                 }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
+                className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-xs transition-all cursor-pointer whitespace-nowrap"
               >
-                <FileText size={13} /> Export PDF (.pdf)
+                <FileText size={13} className="shrink-0" />
+                <span className="hidden sm:inline">Export </span>PDF
               </button>
               <button
                 type="button"
@@ -1763,17 +1774,18 @@ export default function ProductionPage() {
                   });
                   exportToCSV("Vehicle_Master_List", headers, tableRows);
                 }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
+                className="flex items-center justify-center gap-1 px-2.5 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer whitespace-nowrap"
               >
-                <Download size={13} /> Export CSV
+                <Download size={13} className="shrink-0" />
+                CSV
               </button>
             </div>
           </div>
 
           {/* Excel Style Data Table */}
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left border-collapse">
+          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+            <div className="overflow-x-auto touch-pan-x [webkit-overflow-scrolling:touch]">
+              <table className="w-full min-w-[850px] text-xs text-left border-collapse">
                 <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">
                   <tr>
                     <th className="px-4 py-3.5">#</th>
@@ -1907,7 +1919,7 @@ export default function ProductionPage() {
 
       {/* Work History Tab Content */}
       {activeTab === "history" && (
-        <div className="flex-1 overflow-y-auto p-6 bg-muted/10">
+        <div className="flex-1 md:overflow-y-auto p-4 sm:p-6 bg-muted/10 pb-28 md:pb-6">
           <div className="max-w-4xl mx-auto text-center py-10 bg-card rounded-xl border border-border">
              <p className="text-muted-foreground">Work history will appear here.</p>
           </div>

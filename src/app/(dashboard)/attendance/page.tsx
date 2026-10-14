@@ -28,23 +28,23 @@ export default function AttendancePage() {
       </div>
       <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
         <Tabs defaultValue="dashboard" className="w-full space-y-6">
-          <div className="w-full overflow-x-auto pb-1 no-scrollbar">
-            <TabsList className="inline-flex justify-start sm:justify-center min-w-full sm:min-w-0 sm:w-auto p-1 bg-muted/60 border border-border rounded-xl gap-1">
-              <TabsTrigger value="dashboard" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <Clock className="mr-2" size={15} />
-                Dashboard
+          <div className="w-full">
+            <TabsList className="w-full grid grid-cols-4 p-1 bg-muted/60 border border-border rounded-xl gap-1">
+              <TabsTrigger value="dashboard" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <Clock className="shrink-0" size={14} />
+                <span className="truncate">Dashboard</span>
               </TabsTrigger>
-              <TabsTrigger value="employees" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <Users className="mr-2" size={15} />
-                Employees
+              <TabsTrigger value="employees" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <Users className="shrink-0" size={14} />
+                <span className="truncate">Employees</span>
               </TabsTrigger>
-              <TabsTrigger value="logs" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <List className="mr-2" size={15} />
-                Logs
+              <TabsTrigger value="logs" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <List className="shrink-0" size={14} />
+                <span className="truncate">Logs</span>
               </TabsTrigger>
-              <TabsTrigger value="settings" className="flex-1 sm:flex-none whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <SettingsIcon className="mr-2" size={15} />
-                Settings
+              <TabsTrigger value="settings" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <SettingsIcon className="shrink-0" size={14} />
+                <span className="truncate">Settings</span>
               </TabsTrigger>
             </TabsList>
           </div>

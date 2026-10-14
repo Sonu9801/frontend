@@ -24,23 +24,23 @@ export default function PayrollPage() {
       </div>
       <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
         <Tabs defaultValue="dashboard" className="w-full space-y-6">
-          <div className="w-full overflow-x-auto pb-1 no-scrollbar">
-            <TabsList className="inline-flex min-w-full sm:min-w-0 sm:w-auto p-1 bg-muted/60 border border-border rounded-xl gap-1">
-              <TabsTrigger value="dashboard" className="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <Banknote size={15} className="mr-1.5" />
-                Dashboard
+          <div className="w-full">
+            <TabsList className="w-full grid grid-cols-4 p-1 bg-muted/60 border border-border rounded-xl gap-1">
+              <TabsTrigger value="dashboard" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <Banknote size={14} className="shrink-0" />
+                <span className="truncate">Dashboard</span>
               </TabsTrigger>
-              <TabsTrigger value="employees" className="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <Users size={15} className="mr-1.5" />
-                Employees
+              <TabsTrigger value="employees" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <Users size={14} className="shrink-0" />
+                <span className="truncate">Employees</span>
               </TabsTrigger>
-              <TabsTrigger value="advances" className="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <HandCoins size={15} className="mr-1.5" />
-                Advances
+              <TabsTrigger value="advances" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <HandCoins size={14} className="shrink-0" />
+                <span className="truncate">Advances</span>
               </TabsTrigger>
-              <TabsTrigger value="analytics" className="flex-1 whitespace-nowrap px-4 py-2 text-xs font-semibold">
-                <BarChart3 size={15} className="mr-1.5" />
-                Analytics
+              <TabsTrigger value="analytics" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <BarChart3 size={14} className="shrink-0" />
+                <span className="truncate">Analytics</span>
               </TabsTrigger>
             </TabsList>
           </div>

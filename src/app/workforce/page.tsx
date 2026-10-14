@@ -31,55 +31,73 @@ export default function WorkforceOrchestrator() {
         try {
           const info = JSON.parse(workerInfoStr);
 
-          // Attempt a silent token refresh to ensure the session is still valid
-          if (refreshToken) {
-            try {
-              const res = await axios.post(
-                "/api/auth/refresh",
-                { refresh_token: refreshToken },
-                { 
-                  withCredentials: true, 
-                  timeout: 10000,
-                  headers: { "ngrok-skip-browser-warning": "true" }
-                }
-              );
-              const newToken = res.data.access_token;
-              if (newToken) {
-                info.access_token = newToken;
-                localStorage.setItem("worker_token", newToken);
-                localStorage.setItem("worker_info", JSON.stringify(info));
-              }
-            } catch (refreshErr: any) {
-              // If refresh fails with auth error, session is truly expired
-              if (refreshErr.response?.status === 401 || refreshErr.response?.status === 403) {
-                console.warn("[WorkforceAuth] Session expired. Redirecting to login.");
-                localStorage.clear();
-                router.replace("/workforce/login");
-                return;
-              }
-              // Network errors are transient — proceed with existing token
-              console.warn("[WorkforceAuth] Refresh failed (network), proceeding with cached token.");
-            }
+          // Ensure token is synced across keys
+          const token = localStorage.getItem("worker_token") || localStorage.getItem("token") || info.access_token;
+          if (token) {
+            localStorage.setItem("worker_token", token);
+            localStorage.setItem("token", token);
           }
 
-          // Fetch latest worker profile in background so shift timings and details are always up to date
+          // Fetch latest worker profile in background so shift timings, role, and details are always up to date
           try {
-            const token = localStorage.getItem("worker_token") || info.access_token;
-            if (token) {
+            const currentToken = localStorage.getItem("worker_token") || localStorage.getItem("token") || info.access_token;
+            if (currentToken) {
               const meRes = await axios.get("/api/auth/me", {
                 headers: { 
-                  Authorization: `Bearer ${token}`,
+                  Authorization: `Bearer ${currentToken}`,
                   "ngrok-skip-browser-warning": "true"
                 },
-                timeout: 5000
+                timeout: 5000,
+                validateStatus: (status) => status < 500 // Prevent Turbopack console AxiosError popups
               });
-              if (meRes.data) {
+
+              if (meRes.status === 200 && meRes.data) {
                 Object.assign(info, meRes.data);
+                const actualRole = (meRes.data.role || info.role || "").toLowerCase();
+                if (actualRole) {
+                  info.role = actualRole;
+                  localStorage.setItem("role", actualRole);
+                }
                 localStorage.setItem("worker_info", JSON.stringify(info));
+              } else if (meRes.status === 401 && refreshToken) {
+                // If token expired, perform silent refresh quietly
+                const refreshRes = await axios.post(
+                  "/api/auth/refresh",
+                  { refresh_token: refreshToken },
+                  { 
+                    withCredentials: true, 
+                    timeout: 5000,
+                    headers: { "ngrok-skip-browser-warning": "true" },
+                    validateStatus: (status) => status < 500
+                  }
+                );
+                if (refreshRes.status === 200 && refreshRes.data?.access_token) {
+                  const newToken = refreshRes.data.access_token;
+                  info.access_token = newToken;
+                  localStorage.setItem("worker_token", newToken);
+                  localStorage.setItem("token", newToken);
+                  localStorage.setItem("worker_info", JSON.stringify(info));
+                } else if (refreshRes.status === 401 || refreshRes.status === 403) {
+                  console.warn("[WorkforceAuth] Session expired. Redirecting to login.");
+                  localStorage.clear();
+                  router.replace("/workforce/login");
+                  return;
+                }
               }
             }
           } catch {
             // Proceed with cached info if offline or network error
+          }
+
+          // Fallback check: if user is admin Sonu (id=1 or skhjp2000@gmail.com) or role in localStorage is admin/supervisor
+          const storedRole = (localStorage.getItem("role") || "").toLowerCase();
+          if (["admin", "owner", "manager", "supervisor", "dispatcher"].includes(storedRole)) {
+            info.role = storedRole;
+          }
+          if (info.id === 1 || info.email === "skhjp2000@gmail.com") {
+            info.role = "admin";
+            localStorage.setItem("role", "admin");
+            localStorage.setItem("worker_info", JSON.stringify(info));
           }
 
           setWorker(info);
@@ -149,7 +167,13 @@ export default function WorkforceOrchestrator() {
 
   if (!worker) return null;
 
-  const role = worker.role?.toLowerCase() || "worker";
+  let role = (worker.role || localStorage.getItem("role") || "").toLowerCase();
+  if (worker.id === 1 || worker.email === "skhjp2000@gmail.com") {
+    role = "admin";
+  }
+  if (!role) {
+    role = "worker";
+  }
 
   switch (role) {
     case "admin":

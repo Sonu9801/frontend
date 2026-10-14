@@ -620,31 +620,31 @@ export default function VehicleDetailPage() {
           className="w-full"
           data-ocid="vehicle_detail.tabs"
         >
-          <TabsList className="mb-5 h-9" data-ocid="vehicle_detail.tab_list">
+          <TabsList className="mb-5 w-full grid grid-cols-4 h-auto p-1 bg-muted/60 border border-border rounded-xl gap-1" data-ocid="vehicle_detail.tab_list">
             <TabsTrigger
               value="overview"
-              className="text-xs"
+              className="text-[11px] sm:text-xs font-semibold px-1 sm:px-3 py-2 whitespace-nowrap text-center truncate"
               data-ocid="vehicle_detail.tab.overview"
             >
               Overview
             </TabsTrigger>
             <TabsTrigger
               value="qc"
-              className="text-xs"
+              className="text-[11px] sm:text-xs font-semibold px-1 sm:px-3 py-2 whitespace-nowrap text-center truncate"
               data-ocid="vehicle_detail.tab.qc"
             >
-              QC Records {vehicleQC.length > 0 && `(${vehicleQC.length})`}
+              QC {vehicleQC.length > 0 && `(${vehicleQC.length})`}
             </TabsTrigger>
             <TabsTrigger
               value="activity"
-              className="text-xs"
+              className="text-[11px] sm:text-xs font-semibold px-1 sm:px-3 py-2 whitespace-nowrap text-center truncate"
               data-ocid="vehicle_detail.tab.activity"
             >
               Activity Log
             </TabsTrigger>
             <TabsTrigger
               value="dispatch"
-              className="text-xs"
+              className="text-[11px] sm:text-xs font-semibold px-1 sm:px-3 py-2 whitespace-nowrap text-center truncate"
               data-ocid="vehicle_detail.tab.dispatch"
             >
               Dispatch

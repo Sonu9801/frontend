@@ -17,7 +17,8 @@ import {
   File, Settings, Phone, Building, Briefcase, Download, QrCode,
   ChevronRight, ChevronLeft, ArrowRight, Activity, Loader2,
   Wifi, WifiOff, Camera, MapPinOff, UserCheck, ShieldCheck, Grid, CalendarCheck, HelpCircle, Menu,
-  Sun, Clipboard, Megaphone, Coffee, Home, ClipboardList
+  Sun, Clipboard, Megaphone, Coffee, Home, ClipboardList,
+  Factory, Truck, Users, Receipt, FileBarChart, LayoutGrid, LayoutDashboard
 } from "lucide-react";
 import { motion, AnimatePresence, useAnimation } from "motion/react";
 import { Button } from "@/components/ui/button";
@@ -46,6 +47,16 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
   const router = useRouter();
   const queryClient = useQueryClient();
   const [currentTime, setCurrentTime] = useState(new Date());
+
+  const isAdmin = 
+    worker?.role?.toLowerCase() === "admin" || 
+    worker?.role?.toLowerCase() === "owner" || 
+    worker?.role?.toLowerCase() === "manager" || 
+    worker?.role?.toLowerCase() === "supervisor" || 
+    worker?.id === 1 || 
+    worker?.worker_id === 1 || 
+    worker?.email === "skhjp2000@gmail.com" ||
+    (typeof window !== "undefined" && ["admin", "owner", "manager", "supervisor"].includes((localStorage.getItem("role") || "").toLowerCase()));
 
   // Enterprise session keep-alive: proactively refreshes token on app resume
   useSessionKeepAlive({
@@ -432,6 +443,28 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
       <motion.main 
         className="pt-[72px] px-4 pb-20 space-y-5 max-w-md mx-auto overflow-y-auto min-h-screen"
       >
+        {isAdmin && (
+          <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 rounded-2xl p-3.5 text-white flex items-center justify-between shadow-lg shadow-indigo-600/20 border border-white/20">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center font-bold text-base shrink-0 shadow-xs">
+                👑
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold leading-tight flex items-center gap-1.5 truncate">
+                  Admin Access Active
+                  <span className="text-[9px] px-1.5 py-0.5 bg-white/25 rounded-md font-extrabold uppercase shrink-0">ERP</span>
+                </p>
+                <p className="text-[11px] text-white/80 truncate mt-0.5">Switch to complete manufacturing portal</p>
+              </div>
+            </div>
+            <button
+              onClick={() => router.push("/")}
+              className="px-3.5 py-2 bg-white text-indigo-700 text-xs font-bold rounded-xl shadow-md active:scale-95 transition-all hover:bg-white/95 shrink-0 ml-2"
+            >
+              Open ERP
+            </button>
+          </div>
+        )}
         <AnimatePresence>
           {isRefreshing && (
             <motion.div 
@@ -580,7 +613,16 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
               <h3 className="text-[18px] font-[700] text-[#111827] dark:text-white mb-4 text-left tracking-tight">Quick Actions</h3>
               
               <div className="grid grid-cols-4 gap-x-2 gap-y-4">
-                {[
+                {(isAdmin ? [
+                  { id: 'erp', icon: LayoutDashboard, label: "Full ERP", color: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 font-bold", action: () => router.push("/") },
+                  { id: 'production', icon: Factory, label: "Production", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", action: () => router.push("/production") },
+                  { id: 'dispatch', icon: Truck, label: "Dispatch", color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300", action: () => router.push("/dispatch") },
+                  { id: 'workers', icon: Users, label: "Workers", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", action: () => router.push("/workers") },
+                  { id: 'attendance', icon: CalendarCheck, label: "Attendance", color: "bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300", action: () => handleTabChange("attendance") },
+                  { id: 'invoices', icon: Receipt, label: "Invoices", color: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300", action: () => router.push("/invoices") },
+                  { id: 'reports', icon: FileBarChart, label: "Reports", color: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300", action: () => router.push("/reports") },
+                  { id: 'more', icon: LayoutGrid, label: "All Modules", color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300", action: () => router.push("/") },
+                ] : [
                   { id: 'attendance', icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", action: () => handleTabChange("attendance") },
                   { id: 'ot', icon: Clock, label: "Overtime", color: "bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400", action: () => handleTabChange("ot") },
                   { id: 'sunday', icon: Sun, label: "Sunday / Festival", color: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400", action: () => handleTabChange("sunday") },
@@ -589,7 +631,7 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
                   { id: 'notice', icon: Megaphone, label: "Notices", color: "bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400", action: () => handleTabChange("notice") },
                   { id: 'requests', icon: FileText, label: "Requests", color: "bg-cyan-100 text-cyan-600 dark:bg-cyan-900/30 dark:text-cyan-400", action: () => setShowCorrectionModal(true) },
                   { id: 'more', icon: Grid, label: "More", color: "bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400", action: () => toast("More options coming soon") }
-                ].map((item) => (
+                ]).map((item) => (
                   <motion.button 
                     key={item.id} 
                     whileTap={{ scale: 0.9 }} 
@@ -1050,6 +1092,37 @@ export function WorkerDashboard({ worker, onLogout, setWorker }: { worker: any, 
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-2">
+                {isAdmin && (
+                  <div className="mb-2 pb-2 border-b border-gray-100 dark:border-zinc-800 space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 px-3 mb-1.5">
+                      Admin Modules
+                    </p>
+                    <button onClick={() => { setShowSidebar(false); router.push("/"); }} className="flex items-center gap-3.5 p-3 rounded-2xl bg-blue-50/70 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 transition-colors w-full text-left font-bold text-sm">
+                      <LayoutDashboard size={20} className="text-blue-600" />
+                      <span>Full ERP Dashboard</span>
+                    </button>
+                    <button onClick={() => { setShowSidebar(false); router.push("/production"); }} className="flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left font-semibold text-sm">
+                      <Factory size={20} className="text-amber-500" />
+                      <span>Production Hub</span>
+                    </button>
+                    <button onClick={() => { setShowSidebar(false); router.push("/dispatch"); }} className="flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left font-semibold text-sm">
+                      <Truck size={20} className="text-cyan-500" />
+                      <span>Dispatch Orders</span>
+                    </button>
+                    <button onClick={() => { setShowSidebar(false); router.push("/workers"); }} className="flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left font-semibold text-sm">
+                      <Users size={20} className="text-emerald-500" />
+                      <span>Workers Management</span>
+                    </button>
+                    <button onClick={() => { setShowSidebar(false); router.push("/invoices"); }} className="flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left font-semibold text-sm">
+                      <Receipt size={20} className="text-violet-500" />
+                      <span>Invoices & Accounts</span>
+                    </button>
+                    <button onClick={() => { setShowSidebar(false); router.push("/reports"); }} className="flex items-center gap-3.5 p-3 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left font-semibold text-sm">
+                      <FileBarChart size={20} className="text-sky-500" />
+                      <span>Reports & Exports</span>
+                    </button>
+                  </div>
+                )}
                 <button onClick={() => { setShowSidebar(false); handleTabChange("profile"); }} className="flex items-center gap-4 p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-zinc-900 text-gray-700 dark:text-gray-300 transition-colors w-full text-left">
                   <UserCircle size={22} className="text-blue-500" />
                   <span className="font-semibold">{getTranslation(langIndex, "My Profile")}</span>

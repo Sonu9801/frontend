@@ -167,11 +167,20 @@ function QCDetailsDrawer({
         </div>
 
         <Tabs defaultValue="checklist" className="w-full">
-          <div className="w-full overflow-x-auto no-scrollbar pb-1 mb-3">
-            <TabsList className="w-max sm:w-full inline-flex sm:grid sm:grid-cols-3 gap-1">
-              <TabsTrigger value="checklist" className="flex-1 whitespace-nowrap px-3"><CheckSquare className="mr-2 h-4 w-4 shrink-0" /> Checklist</TabsTrigger>
-              <TabsTrigger value="defects" className="flex-1 whitespace-nowrap px-3"><AlertCircle className="mr-2 h-4 w-4 shrink-0" /> Defects ({record.defects?.length || 0})</TabsTrigger>
-              <TabsTrigger value="photos" className="flex-1 whitespace-nowrap px-3"><Camera className="mr-2 h-4 w-4 shrink-0" /> Photos ({record.photos?.length || 0})</TabsTrigger>
+          <div className="w-full mb-3">
+            <TabsList className="w-full grid grid-cols-3 p-1 bg-muted/60 border border-border rounded-xl gap-1">
+              <TabsTrigger value="checklist" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <CheckSquare className="h-4 w-4 shrink-0" />
+                <span className="truncate">Checklist</span>
+              </TabsTrigger>
+              <TabsTrigger value="defects" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span className="truncate">Defects ({record.defects?.length || 0})</span>
+              </TabsTrigger>
+              <TabsTrigger value="photos" className="whitespace-nowrap px-1 sm:px-3 py-2 text-[11px] sm:text-xs font-semibold flex items-center justify-center gap-1 sm:gap-1.5">
+                <Camera className="h-4 w-4 shrink-0" />
+                <span className="truncate">Photos ({record.photos?.length || 0})</span>
+              </TabsTrigger>
             </TabsList>
           </div>
           

@@ -9,6 +9,7 @@ import { cn, parseUTCDate } from "@/lib/utils";
 import { useVehicles, useActivities } from "@/hooks/useQueries";
 import { useUIStore } from "@/store/uiStore";
 import Link from "next/link";
+import { useAuthStore } from "@/store/authStore";
 import {
   Activity,
   AlertTriangle,
@@ -18,9 +19,58 @@ import {
   Inbox,
   Truck,
   Zap,
+  Users,
+  Clock,
+  Boxes,
+  Banknote,
+  Receipt,
+  FileBarChart,
+  BarChart3,
+  Building2,
+  Bell,
+  Settings,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Vehicle, ActivityEvent, Stage } from "@/types";
+
+const adminSections = [
+  {
+    category: "Operations & Floor",
+    items: [
+      { label: "Production", href: "/production", icon: Factory, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+      { label: "Received", href: "/production/received", icon: Inbox, color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" },
+      { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
+      { label: "Dispatch", href: "/dispatch", icon: Truck, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
+    ],
+  },
+  {
+    category: "Workforce & Plant",
+    items: [
+      { label: "Workers", href: "/workers", icon: Users, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
+      { label: "Attendance", href: "/attendance", icon: Clock, color: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20" },
+      { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20" },
+      { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
+    ],
+  },
+  {
+    category: "Commercial & Finance",
+    items: [
+      { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" },
+      { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20" },
+      { label: "Reports", href: "/reports", icon: FileBarChart, color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20" },
+      { label: "Analytics", href: "/analytics", icon: BarChart3, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
+    ],
+  },
+  {
+    category: "Administration & System",
+    items: [
+      { label: "Activity Logs", href: "/activity-logs", icon: Activity, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
+      { label: "OEM Portal", href: "/oem-portal", icon: Building2, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20" },
+      { label: "Alerts", href: "/notifications", icon: Bell, color: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20" },
+      { label: "Settings", href: "/settings", icon: Settings, color: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20" },
+    ],
+  },
+];
 
 const STAGE_ORDER: Stage[] = [
   "received",
@@ -141,6 +191,8 @@ export default function DashboardPage() {
   const vehicles = vehiclesData?.items ?? [];
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
   const { searchQuery } = useUIStore();
+  const { name } = useAuthStore();
+  const adminName = name ? name.split(" ")[0] : "Admin";
 
   const isLoading = isLoadingVehicles || isLoadingActivities;
 
@@ -326,45 +378,135 @@ export default function DashboardPage() {
       className="flex md:h-[calc(100vh-3.5rem)] flex-col md:flex-row min-h-0 md:overflow-hidden"
     >
       {/* Main content */}
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6">
-        {/* Header */}
-        <PageHeader
-          title="Factory Command Center"
-          description={`Live manufacturing operations overview · ${new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-            day: "numeric",
-            month: "short",
-            year: "numeric",
-          })}`}
-          actions={
-            <>
+      <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6 pb-24 md:pb-6">
+        {/* DESKTOP PAGE HEADER */}
+        <div className="hidden md:block">
+          <PageHeader
+            title="Factory Command Center"
+            description={`Live manufacturing operations overview · ${new Date().toLocaleDateString("en-IN", {
+              weekday: "long",
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+            })}`}
+            actions={
+              <>
+                {stats.emergencyOrders > 0 && (
+                  <motion.div
+                    animate={{ scale: [1, 1.04, 1] }}
+                    transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg"
+                    data-ocid="dashboard.emergency_alert"
+                  >
+                    <Zap size={14} className="text-rose-600 dark:text-rose-400" />
+                    <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
+                      {stats.emergencyOrders} Emergency
+                    </span>
+                  </motion.div>
+                )}
+                {stats.delayedOrders > 0 && (
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                    <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
+                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                      {stats.delayedOrders} Delayed
+                    </span>
+                  </div>
+                )}
+              </>
+            }
+          />
+        </div>
+
+        {/* MOBILE NATIVE APP HEADER & MODULE SECTIONS */}
+        <div className="md:hidden mb-6">
+          {/* Executive Greeting Header */}
+          <div className="flex items-center justify-between mb-4 pt-1">
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Enterprise MES
+                </span>
+              </div>
+              <h1 className="text-xl font-bold text-foreground tracking-tight mt-0.5">
+                Hello, {adminName} 👋
+              </h1>
+            </div>
+            <div className="flex flex-col items-end">
+              <span className="text-[11px] font-medium text-muted-foreground">
+                {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+              </span>
+              <span className="text-[10.5px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 mt-0.5">
+                Admin Console
+              </span>
+            </div>
+          </div>
+
+          {/* Quick Alert Chips (if any) */}
+          {(stats.emergencyOrders > 0 || stats.delayedOrders > 0) && (
+            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-0.5 no-scrollbar">
               {stats.emergencyOrders > 0 && (
-                <motion.div
-                  animate={{ scale: [1, 1.04, 1] }}
-                  transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg"
-                  data-ocid="dashboard.emergency_alert"
-                >
-                  <Zap size={14} className="text-rose-600 dark:text-rose-400" />
-                  <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
-                    {stats.emergencyOrders} Emergency
-                  </span>
-                </motion.div>
-              )}
-              {stats.delayedOrders > 0 && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
-                  <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
-                  <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
-                    {stats.delayedOrders} Delayed
-                  </span>
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-500/10 border border-rose-500/25 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-semibold shrink-0">
+                  <Zap size={13} className="text-rose-500 animate-pulse" />
+                  <span>{stats.emergencyOrders} Emergency Orders</span>
                 </div>
               )}
-            </>
-          }
-        />
+              {stats.delayedOrders > 0 && (
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-semibold shrink-0">
+                  <AlertTriangle size={13} className="text-amber-500" />
+                  <span>{stats.delayedOrders} Delayed</span>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* KPI grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
+          {/* Categorized App Cards */}
+          <div className="space-y-3.5">
+            {adminSections.map((sec, sIdx) => (
+              <div
+                key={sIdx}
+                className="bg-card border border-border/70 rounded-2xl p-3 shadow-2xs"
+              >
+                <div className="flex items-center justify-between mb-2.5 px-1">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                    {sec.category}
+                  </span>
+                  <span className="text-[10px] font-semibold text-muted-foreground/60">
+                    {sec.items.length} Modules
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {sec.items.map((item, idx) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={idx}
+                        href={item.href}
+                        className="flex flex-col items-center justify-center gap-1.5 group cursor-pointer select-none py-1"
+                      >
+                        <div
+                          className={cn(
+                            "w-12 h-12 rounded-[16px] flex items-center justify-center transition-all duration-150 group-active:scale-95 shadow-2xs border",
+                            item.color
+                          )}
+                        >
+                          <Icon size={22} strokeWidth={2.3} />
+                        </div>
+                        <span className="text-[10px] font-semibold text-foreground/90 text-center leading-tight line-clamp-1 group-active:text-primary transition-colors">
+                          {item.label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* KPI grid (Desktop Web Only) */}
+        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
           {kpiCards.map((card, i) => (
             <motion.div
               key={card.title}
@@ -415,9 +557,9 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Stage Flow Pills */}
+        {/* Stage Flow Pills (Desktop Web Only) */}
         <div
-          className="bg-card border border-border rounded-xl shadow-subtle overflow-hidden mb-6"
+          className="hidden md:block bg-card border border-border rounded-xl shadow-subtle overflow-hidden mb-6"
           data-ocid="dashboard.stage_flow"
         >
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
@@ -475,9 +617,9 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Production Board Preview */}
+        {/* Production Board Preview (Desktop Web Only) */}
         <div
-          className="bg-card border border-border rounded-xl shadow-subtle overflow-hidden"
+          className="hidden md:block bg-card border border-border rounded-xl shadow-subtle overflow-hidden"
           data-ocid="dashboard.production_board"
         >
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
