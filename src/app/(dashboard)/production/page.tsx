@@ -8,7 +8,7 @@ import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { cn } from "@/lib/utils";
 import type { Priority, Stage, Vehicle } from "@/types";
 import { useUIStore } from "@/store/uiStore";
-import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table, Calendar as CalendarIcon, FileText } from "lucide-react";
+import { AlertTriangle, ChevronDown, Inbox, Plus, Search, X, CheckCircle2, XCircle, Edit, Tag, History, UserPlus, Truck, FileSpreadsheet, Download, ExternalLink, Table, Calendar as CalendarIcon, FileText, Clock, Wrench } from "lucide-react";
 import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
 import { isDateInFilterRange, formatFilterLabel } from "../reports/components/dateFilterUtils";
 import { toast } from "sonner";
@@ -25,6 +25,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/shared/PageHeader";
+import { KPICard } from "@/components/ui/KPICard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { Button } from "@/components/ui/button";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
@@ -440,6 +441,7 @@ interface KanbanColumnProps {
   canEdit?: boolean;
   onAction?: (action: string, vehicle: Vehicle) => void;
   onUpdateStage?: (id: string, stage: Stage) => void;
+  className?: string;
 }
 
 function KanbanColumn({
@@ -456,7 +458,8 @@ function KanbanColumn({
   onAssign,
   canEdit,
   onAction,
-  onUpdateStage
+  onUpdateStage,
+  className,
 }: KanbanColumnProps) {
   const cfg = STAGE_CONFIG[stage];
   const hasOverdue = vehicles.some((v) => {
@@ -468,7 +471,7 @@ function KanbanColumn({
     <div
       className={cn(
         "flex flex-col rounded-2xl border overflow-hidden transition-all duration-200",
-        "w-[280px] min-w-[260px] flex-shrink-0",
+        className ? className : "w-[280px] min-w-[260px] flex-shrink-0",
         isDragOver
           ? "border-primary border-dashed bg-primary/5 shadow-[0_0_0_2px_hsl(var(--primary)/0.3)]"
           : "border-border bg-muted/20",
@@ -630,6 +633,7 @@ export default function ProductionPage() {
   const setSearch = useUIStore(state => state.setSearchQuery);
   const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
   const [categoryFilter, setCategoryFilter] = useState(categoryParam || "All Categories");
+  const [mobileKanbanStage, setMobileKanbanStage] = useState<"all" | Stage>("all");
 
   // Date Filter State for Production Board
   const [selectedDatePreset, setSelectedDatePreset] = useState("All Time");
@@ -1131,6 +1135,21 @@ export default function ProductionPage() {
 
   const urgentCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "urgent").length, [vehicles]);
   const highCount = useMemo(() => vehicles.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "high").length, [vehicles]);
+  
+  const productionStats = useMemo(() => {
+    const total = filtered.length;
+    const rtdCount = filtered.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase();
+      return s === "rtd" || s === "readytodispatch";
+    }).length;
+    const urgent = filtered.filter((v: Vehicle) => (v.priority || "").toLowerCase() === "urgent").length;
+    const wip = filtered.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase();
+      return s === "fabrication" || s === "paint" || s === "quality";
+    }).length;
+    return { total, rtdCount, urgent, wip };
+  }, [filtered]);
+
   const isFiltered = search || priorityFilter !== "all" || categoryFilter !== "All Categories" || oemFilter !== "All OEMs" || dealerFilter !== "All Dealers" || statusFilter !== "All Statuses" || dateRange !== "All Time";
 
   if (isLoadingVehicles) {
@@ -1572,55 +1591,195 @@ export default function ProductionPage() {
 
       {/* Board area */}
       {activeTab === "board" && (
-        <div
-          className="flex-1 overflow-x-auto md:overflow-y-hidden no-scrollbar pb-24 md:pb-6"
-          onClick={() => showCategoryDropdown && setShowCategoryDropdown(false)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") setShowCategoryDropdown(false);
-          }}
-          data-ocid="production.board"
-        >
-          <div className="flex gap-4 p-4 sm:p-6 min-w-max h-full">
-            {STAGES.map((stage) => (
-              <KanbanColumn
-                key={stage}
-                stage={stage}
-                vehicles={byStage[stage]}
-                workerMap={workerMap}
-                isDragOver={dragOverStage === stage}
-                onDragOver={(e) => handleDragOver(e, stage)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, stage)}
-                onCardClick={(id) => handleCardClick(String(id))}
-                onDragStart={(e, id) => handleDragStart(e, String(id))}
-                onAddVehicle={
-                  stage === "received" ? () => setShowAddModal(true) : undefined
-                }
-                onAssign={(vId) => {
-                  const v = byStage[stage].find((v: Vehicle) => v.id === vId);
-                  if (v) setAssignJobState({ vehicle: v, stage });
-                }}
-                canEdit={canEdit}
-                onAction={handleAction}
-                onUpdateStage={(id, targetStage) => {
-                  if (targetStage === "dispatch" || targetStage === "delivered") {
-                    const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(id));
-                    if (vToDispatch) {
-                      setPendingDispatchVehicle(vToDispatch);
-                      return;
-                    }
-                  }
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Mobile Stage Selector Strip */}
+          <div className="md:hidden px-3 py-2 bg-card border-b border-border flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+            <button
+              type="button"
+              onClick={() => setMobileKanbanStage("all")}
+              className={cn(
+                "px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors",
+                mobileKanbanStage === "all"
+                  ? "bg-primary text-primary-foreground shadow-xs"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              All Columns ({filtered.length})
+            </button>
+            {STAGES.map((s) => {
+              const cfg = STAGE_CONFIG[s] || STAGE_CONFIG.received;
+              const count = byStage[s]?.length || 0;
+              const isSelected = mobileKanbanStage === s;
+              return (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setMobileKanbanStage(s)}
+                  className={cn(
+                    "px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-1.5",
+                    isSelected
+                      ? "bg-foreground text-background shadow-xs font-bold"
+                      : "bg-muted/70 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <span>{cfg.label}</span>
+                  <span
+                    className={cn(
+                      "px-1.5 py-0.2 rounded-full text-[10px] font-bold",
+                      isSelected
+                        ? "bg-background/20 text-background"
+                        : count > 0
+                        ? "bg-primary/15 text-primary"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
 
-                  let progress = 0;
-                  if (targetStage === "received") progress = 0;
-                  else if (targetStage === "fabrication") progress = 30;
-                  else if (targetStage === "paint") progress = 60;
-                  else if (targetStage === "rtd") progress = 90;
-                  else if (targetStage === "dispatch" || targetStage === "delivered") progress = 100;
-                  updateStageMutation.mutate({ id, stage: targetStage, progress });
-                }}
-              />
-            ))}
+          {/* Desktop Full Kanban Board */}
+          <div
+            className="hidden md:block flex-1 overflow-x-auto md:overflow-y-hidden no-scrollbar pb-24 md:pb-6"
+            onClick={() => showCategoryDropdown && setShowCategoryDropdown(false)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setShowCategoryDropdown(false);
+            }}
+            data-ocid="production.board"
+          >
+            <div className="flex gap-4 p-4 sm:p-6 min-w-max h-full">
+              {STAGES.map((stage) => (
+                <KanbanColumn
+                  key={stage}
+                  stage={stage}
+                  vehicles={byStage[stage]}
+                  workerMap={workerMap}
+                  isDragOver={dragOverStage === stage}
+                  onDragOver={(e) => handleDragOver(e, stage)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, stage)}
+                  onCardClick={(id) => handleCardClick(String(id))}
+                  onDragStart={(e, id) => handleDragStart(e, String(id))}
+                  onAddVehicle={
+                    stage === "received" ? () => setShowAddModal(true) : undefined
+                  }
+                  onAssign={(vId) => {
+                    const v = byStage[stage].find((v: Vehicle) => v.id === vId);
+                    if (v) setAssignJobState({ vehicle: v, stage });
+                  }}
+                  canEdit={canEdit}
+                  onAction={handleAction}
+                  onUpdateStage={(id, targetStage) => {
+                    if (targetStage === "dispatch" || targetStage === "delivered") {
+                      const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(id));
+                      if (vToDispatch) {
+                        setPendingDispatchVehicle(vToDispatch);
+                        return;
+                      }
+                    }
+
+                    let progress = 0;
+                    if (targetStage === "received") progress = 0;
+                    else if (targetStage === "fabrication") progress = 30;
+                    else if (targetStage === "paint") progress = 60;
+                    else if (targetStage === "rtd") progress = 90;
+                    else if (targetStage === "dispatch" || targetStage === "delivered") progress = 100;
+                    updateStageMutation.mutate({ id, stage: targetStage, progress });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Mobile Kanban View (Full Column or Swipe All) */}
+          <div className="md:hidden flex-1 overflow-y-auto p-3 pb-28">
+            {mobileKanbanStage === "all" ? (
+              <div className="flex gap-3 overflow-x-auto pb-4 no-scrollbar">
+                {STAGES.map((stage) => (
+                  <KanbanColumn
+                    key={stage}
+                    stage={stage}
+                    vehicles={byStage[stage]}
+                    workerMap={workerMap}
+                    isDragOver={dragOverStage === stage}
+                    onDragOver={(e) => handleDragOver(e, stage)}
+                    onDragLeave={handleDragLeave}
+                    onDrop={(e) => handleDrop(e, stage)}
+                    onCardClick={(id) => handleCardClick(String(id))}
+                    onDragStart={(e, id) => handleDragStart(e, String(id))}
+                    onAddVehicle={
+                      stage === "received" ? () => setShowAddModal(true) : undefined
+                    }
+                    onAssign={(vId) => {
+                      const v = byStage[stage].find((v: Vehicle) => v.id === vId);
+                      if (v) setAssignJobState({ vehicle: v, stage });
+                    }}
+                    canEdit={canEdit}
+                    onAction={handleAction}
+                    onUpdateStage={(id, targetStage) => {
+                      if (targetStage === "dispatch" || targetStage === "delivered") {
+                        const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(id));
+                        if (vToDispatch) {
+                          setPendingDispatchVehicle(vToDispatch);
+                          return;
+                        }
+                      }
+
+                      let progress = 0;
+                      if (targetStage === "received") progress = 0;
+                      else if (targetStage === "fabrication") progress = 30;
+                      else if (targetStage === "paint") progress = 60;
+                      else if (targetStage === "rtd") progress = 90;
+                      else if (targetStage === "dispatch" || targetStage === "delivered") progress = 100;
+                      updateStageMutation.mutate({ id, stage: targetStage, progress });
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="w-full">
+                <KanbanColumn
+                  stage={mobileKanbanStage}
+                  vehicles={byStage[mobileKanbanStage]}
+                  workerMap={workerMap}
+                  isDragOver={dragOverStage === mobileKanbanStage}
+                  onDragOver={(e) => handleDragOver(e, mobileKanbanStage)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, mobileKanbanStage)}
+                  onCardClick={(id) => handleCardClick(String(id))}
+                  onDragStart={(e, id) => handleDragStart(e, String(id))}
+                  onAddVehicle={
+                    mobileKanbanStage === "received" ? () => setShowAddModal(true) : undefined
+                  }
+                  onAssign={(vId) => {
+                    const v = byStage[mobileKanbanStage].find((v: Vehicle) => v.id === vId);
+                    if (v) setAssignJobState({ vehicle: v, stage: mobileKanbanStage });
+                  }}
+                  canEdit={canEdit}
+                  onAction={handleAction}
+                  className="w-full min-w-0"
+                  onUpdateStage={(id, targetStage) => {
+                    if (targetStage === "dispatch" || targetStage === "delivered") {
+                      const vToDispatch = vehicles.find((v: Vehicle) => String(v.id) === String(id));
+                      if (vToDispatch) {
+                        setPendingDispatchVehicle(vToDispatch);
+                        return;
+                      }
+                    }
+
+                    let progress = 0;
+                    if (targetStage === "received") progress = 0;
+                    else if (targetStage === "fabrication") progress = 30;
+                    else if (targetStage === "paint") progress = 60;
+                    else if (targetStage === "rtd") progress = 90;
+                    else if (targetStage === "dispatch" || targetStage === "delivered") progress = 100;
+                    updateStageMutation.mutate({ id, stage: targetStage, progress });
+                  }}
+                />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1676,6 +1835,38 @@ export default function ProductionPage() {
       {/* Excel / Table List View Tab Content */}
       {activeTab === "table" && (
         <div className="flex-1 p-3 sm:p-4 md:p-6 bg-muted/10 space-y-4 md:overflow-y-auto pb-28 md:pb-6">
+          {/* Metric Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+            <KPICard
+              title="Total In System"
+              value={productionStats.total}
+              description={isFiltered ? `Matching filter (${productionStats.total} of ${vehicles.length})` : "Active manufacturing vehicles"}
+              icon={<Inbox size={14} />}
+              semantic="primary"
+            />
+            <KPICard
+              title="Ready To Dispatch"
+              value={productionStats.rtdCount}
+              description="Passed QC, awaiting transit"
+              icon={<CheckCircle2 size={14} />}
+              semantic="success"
+            />
+            <KPICard
+              title="Urgent Priority"
+              value={productionStats.urgent}
+              description="Immediate attention required"
+              icon={<AlertTriangle size={14} />}
+              semantic={productionStats.urgent > 0 ? "destructive" : "neutral"}
+            />
+            <KPICard
+              title="WIP (Fab & Paint)"
+              value={productionStats.wip}
+              description="Under active assembly"
+              icon={<Wrench size={14} />}
+              semantic={productionStats.wip > 0 ? "warning" : "neutral"}
+            />
+          </div>
+
           {/* Table Action Header Bar */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border border-border shadow-xs">
             <div className="flex items-center gap-2.5 w-full sm:w-auto">
@@ -1782,8 +1973,122 @@ export default function ProductionPage() {
             </div>
           </div>
 
-          {/* Excel Style Data Table */}
-          <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+          {/* Mobile Cards View */}
+          <div className="md:hidden space-y-3">
+            {filtered.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
+                <Inbox size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No vehicles found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or date range.</p>
+              </div>
+            ) : (
+              filtered.map((v: Vehicle) => {
+                const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+                const vDateFormatted = formatReceivedDate(vDateRaw);
+
+                return (
+                  <div key={v.id} className="bg-card border border-border rounded-xl p-3.5 space-y-3 shadow-2xs">
+                    {/* Top Header */}
+                    <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/vehicle/${v.id}`)}
+                          className="font-mono text-xs font-bold text-primary hover:underline truncate"
+                        >
+                          {v.trackingId}
+                        </button>
+                        <span className="font-semibold px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20 capitalize shrink-0">
+                          {formatStageName(v.currentStage)}
+                        </span>
+                      </div>
+                      <PriorityBadge priority={v.priority} showLabel={true} />
+                    </div>
+
+                    {/* Body Info Grid */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OEM & Model</span>
+                        <span className="font-semibold text-foreground truncate block">{v.oemName}</span>
+                        <span className="text-muted-foreground text-[11px] truncate block">{v.vehicleModel || (v as any).modelName || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Chassis / VIN</span>
+                        <span className="font-mono text-muted-foreground font-medium truncate block">{v.chassisNumber || v.vin || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Dealer</span>
+                        <span className="text-foreground truncate block">{v.dealerName || "-"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Date</span>
+                        <span className="text-muted-foreground truncate block">{vDateFormatted}</span>
+                      </div>
+                    </div>
+
+                    {/* Progress Bar & Category */}
+                    <div className="pt-2 border-t border-border/40 space-y-1.5">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground truncate">{v.productCategory}</span>
+                        <span className="font-mono font-semibold text-foreground">{v.progressPercent}%</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all duration-300"
+                          style={{ width: `${v.progressPercent}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/vehicle/${v.id}`)}
+                        className="h-8 px-2.5 text-xs font-semibold cursor-pointer"
+                      >
+                        <Search size={12} className="mr-1" /> View Details
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditRecord(v)}
+                        className="h-8 px-2.5 text-xs font-semibold cursor-pointer"
+                      >
+                        <Edit size={12} className="mr-1" /> Edit
+                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 w-8 p-0 cursor-pointer"
+                          >
+                            <ChevronDown size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setAssignJobState({ vehicle: v, stage: (v.currentStage === "readytodispatch" ? "rtd" : v.currentStage) as Stage })}>
+                            <UserPlus className="mr-2 h-4 w-4" /> Reassign Job
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setHoldRecord(v)}>
+                            <XCircle className="mr-2 h-4 w-4 text-destructive" /> {v.currentStage === "hold" ? "Resume Vehicle" : "Hold Vehicle"}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setHistoryRecord(v)}>
+                            <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Excel Style Data Table (Desktop) */}
+          <div className="hidden md:block bg-card border border-border rounded-xl shadow-xs overflow-hidden">
             <div className="overflow-x-auto touch-pan-x [webkit-overflow-scrolling:touch]">
               <table className="w-full min-w-[850px] text-xs text-left border-collapse">
                 <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">

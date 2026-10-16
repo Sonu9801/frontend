@@ -6,6 +6,7 @@ import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, R
 import { Users, Truck, Clock, CheckCircle, AlertTriangle, ShieldCheck, Download } from "lucide-react";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
 
 import { isDateInFilterRange } from "./dateFilterUtils";
 
@@ -138,20 +139,27 @@ export function ExecutiveDashboardTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {kpis.map((kpi, i) => (
-          <div key={i} className="bg-card border border-border p-5 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-lg ${kpi.bg}`}>
-                <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
-                <h3 className="text-2xl font-bold mt-1">{kpi.value}</h3>
-              </div>
-            </div>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+        {kpis.map((kpi, i) => {
+          const semantic = kpi.title.includes("Delayed")
+            ? "destructive"
+            : kpi.title.includes("Ready") || kpi.title.includes("Delivered")
+            ? "success"
+            : kpi.title.includes("Production") || kpi.title.includes("Workforce")
+            ? "warning"
+            : "primary";
+
+          return (
+            <KPICard
+              key={i}
+              title={kpi.title}
+              value={kpi.value}
+              description={kpi.title}
+              icon={<kpi.icon size={14} />}
+              semantic={semantic}
+            />
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

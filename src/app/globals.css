@@ -267,3 +267,11 @@ select option {
     display: none !important;
   }
 }
+
+/* Hide floating home navigation whenever any modal, dialog, sheet or camera drawer is open */
+body:has([role="dialog"]) .floating-home-bar,
+body:has([data-slot="dialog-content"]) .floating-home-bar,
+body:has([data-slot="dialog-overlay"]) .floating-home-bar,
+body[data-scroll-locked] .floating-home-bar {
+  display: none !important;
+}

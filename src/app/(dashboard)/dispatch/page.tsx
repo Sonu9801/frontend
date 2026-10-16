@@ -15,6 +15,7 @@ import type { DispatchRecord, Vehicle } from "@/types";
 import { useAuthStore } from "@/store/authStore";
 import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
+import { useRouter } from "next/navigation";
 import { 
   Calendar as CalendarIcon, 
   ExternalLink, 
@@ -29,7 +30,8 @@ import {
   FileSpreadsheet,
   Download,
   FileText,
-  Search
+  Search,
+  Eye
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -166,6 +168,7 @@ function parseChallanNumber(d: any, v?: Vehicle): number | null {
 }
 
 export default function DispatchPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"standard" | "excel">("excel");
   const [showSelectVehicleModal, setShowSelectVehicleModal] = useState(false);
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState("");
@@ -969,22 +972,13 @@ export default function DispatchPage() {
           icon={<Clock size={14} />}
           semantic={stats.scheduled + stats.pending > 0 ? "warning" : "neutral"}
         />
-        <div className="bg-card border border-border rounded-xl p-4 flex flex-col justify-between gap-1.5 shadow-xs">
-          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-            OEM Summary
-          </span>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            {Object.keys(stats.oemCounts).length === 0 ? (
-              <span className="text-xs text-muted-foreground">No dispatches</span>
-            ) : (
-              Object.entries(stats.oemCounts).map(([oem, cnt]) => (
-                <span key={oem} className="text-[11px] font-semibold bg-muted px-2 py-0.5 rounded-md text-foreground border border-border/50">
-                  {oem}: <span className="text-primary font-bold">{cnt}</span>
-                </span>
-              ))
-            )}
-          </div>
-        </div>
+        <KPICard
+          title="OEMs Served"
+          value={Object.keys(stats.oemCounts).length}
+          description="Outbound partner brands"
+          icon={<Truck size={14} />}
+          semantic="neutral"
+        />
       </div>
 
       {/* TABLE VIEW SWITCHER */}
@@ -1250,8 +1244,190 @@ export default function DispatchPage() {
             </select>
           </div>
 
-          {/* Excel Grid Table */}
-          <div className="bg-card border border-border rounded-xl shadow-sm overflow-hidden">
+          {/* Mobile Cards View */}
+          <div className="md:hidden space-y-3">
+            {paginatedRecords.length === 0 ? (
+              <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
+                <Truck size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No dispatch records found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or date range.</p>
+              </div>
+            ) : (
+              paginatedRecords.map((d: DispatchRecord) => {
+                const v = vehicleMap[String(d.vehicleId)];
+                const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
+                const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
+                const vModel = v?.vehicleModel || (v as any)?.modelName || (v as any)?.model_name || (d as any)?.modelName || "-";
+                const category = v?.productCategory || (v as any)?.product_category || (d as any)?.productCategory || "Cargo Box";
+                const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
+                const truckNo = d.truckNumber || v?.truckNumber || "-";
+                const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
+                const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
+                const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber;
+                const invoice = d.invoiceNumber || v?.invoiceNumber;
+                const dateStr = d.scheduledDate || (d as any).dispatchDate;
+                const docUrl = (d as any).documentsUrl || v?.documentsUrl;
+                const hasMissingDetails = truckNo === "-" || driver === "-" || (!challan && !invoice);
+                const pNorm = ((v?.priority || "Normal") as string).toLowerCase();
+                const targetVehicleId = d.vehicleId || v?.id;
+
+                return (
+                  <div key={d.id} className="bg-card border border-border rounded-xl p-3.5 space-y-3 shadow-2xs">
+                    {/* Top Header */}
+                    <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {targetVehicleId ? (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/vehicle/${targetVehicleId}`)}
+                            className="font-mono text-xs font-bold text-primary hover:underline truncate cursor-pointer"
+                          >
+                            {d.trackingNumber || d.trackingId || `ID: ${d.id}`}
+                          </button>
+                        ) : (
+                          <span className="font-mono text-xs font-bold text-primary truncate">
+                            {d.trackingNumber || d.trackingId || `ID: ${d.id}`}
+                          </span>
+                        )}
+                        {d.destination && (
+                          <span className="text-[10px] text-muted-foreground truncate">
+                            📍 {d.destination}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span
+                          className={cn(
+                            "font-bold px-2 py-0.5 rounded-full text-[10px] shrink-0",
+                            pNorm === "urgent"
+                              ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
+                              : pNorm === "high"
+                              ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                              : "bg-muted text-muted-foreground"
+                          )}
+                        >
+                          {v?.priority || "Normal"}
+                        </span>
+                        <DispatchStatusBadge status={d.status} />
+                      </div>
+                    </div>
+
+                    {/* Body Info Grid (Admin Format) */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OEM & Model</span>
+                        <span className="font-semibold text-foreground truncate block">{oem}</span>
+                        <span className="text-muted-foreground text-[11px] truncate block">{vModel}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Chassis / VIN</span>
+                        <span className="font-mono text-foreground font-semibold truncate block bg-muted/40 px-1.5 py-0.5 rounded border border-border/60">
+                          {chassis}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Category</span>
+                        <span className="text-muted-foreground text-[11px] truncate block">{category}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Driver & Mobile</span>
+                        <span className="text-foreground truncate block">{driver !== "-" ? driver : "Unassigned"}</span>
+                        <span className="font-mono text-muted-foreground text-[11px] truncate block">{phone}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Truck & Carrier</span>
+                        <span className="font-mono text-foreground font-medium truncate block">{truckNo} • {carrierName}</span>
+                      </div>
+                    </div>
+
+                    {/* Challan & Date Row */}
+                    <div className="flex items-center justify-between pt-2 border-t border-border/40 text-xs">
+                      <div className="font-mono text-[11px] text-muted-foreground">
+                        {challan ? `Challan: ${challan}` : invoice ? `Inv: ${invoice}` : "No challan / invoice"}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                      </div>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/60">
+                      {targetVehicleId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => router.push(`/vehicle/${targetVehicleId}`)}
+                          className="h-8 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
+                        >
+                          <Eye size={12} /> View
+                        </Button>
+                      )}
+                      {docUrl && (
+                        <a
+                          href={docUrl.startsWith("http") || docUrl.startsWith("/") ? docUrl : "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="h-8 px-2.5 text-xs font-semibold rounded-lg border border-border bg-background hover:bg-muted inline-flex items-center gap-1 text-foreground transition-colors cursor-pointer"
+                        >
+                          <FileText size={12} /> Doc
+                        </a>
+                      )}
+                      {((d.status || "").toLowerCase() === "pending" || (d.status || "").toLowerCase() === "scheduled") && (
+                        <Button
+                          size="sm"
+                          onClick={() => {
+                            const matchingV = vehicleMap[String(d.vehicleId)];
+                            if (matchingV) {
+                              setPendingDispatchVehicle(matchingV);
+                            } else {
+                              setEditRecord(d);
+                            }
+                          }}
+                          className="h-8 px-2.5 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 cursor-pointer"
+                        >
+                          <Truck size={12} /> Dispatch
+                        </Button>
+                      )}
+                      {canEdit && (
+                        <Button
+                          size="sm"
+                          variant={hasMissingDetails ? "default" : "outline"}
+                          onClick={() => setEditRecord(d)}
+                          className={cn(
+                            "h-8 px-2.5 text-xs font-semibold gap-1 cursor-pointer",
+                            hasMissingDetails
+                              ? "bg-amber-600 hover:bg-amber-700 text-white"
+                              : "hover:bg-primary/10 text-primary border-primary/30"
+                          )}
+                        >
+                          <Edit size={12} />
+                          <span>{hasMissingDetails ? "Add Details" : "Edit"}</span>
+                        </Button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
+                          >
+                            <ChevronDown size={14} />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setHistoryRecord(d)}>
+                            <History className="w-3.5 h-3.5 mr-2" /> View Audit History
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Excel Grid Table (Desktop) */}
+          <div className="hidden md:block bg-card border border-border rounded-xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left border-collapse">
                 <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border whitespace-nowrap">

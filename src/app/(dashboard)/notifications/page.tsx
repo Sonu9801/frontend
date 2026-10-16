@@ -46,7 +46,7 @@ export default function NotificationsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="flex-shrink-0 px-6 py-5 border-b border-border bg-card">
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-5 border-b border-border bg-card">
         <PageHeader
           title="Notifications"
           subtitle="System alerts, workflow triggers, and production updates"
@@ -66,7 +66,7 @@ export default function NotificationsPage() {
         />
       </div>
       
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-6 pb-24 md:pb-6">
         <div className="max-w-4xl mx-auto space-y-3">
           {isLoading ? (
             <div className="space-y-3">
@@ -89,7 +89,7 @@ export default function NotificationsPage() {
                 type="button"
                 onClick={() => handleNotificationClick(notification)}
                 className={cn(
-                  "w-full text-left bg-card border rounded-xl p-5 transition-all hover:shadow-md",
+                  "w-full text-left bg-card border rounded-xl p-3.5 sm:p-5 transition-all hover:shadow-md",
                   !notification.read 
                     ? "border-primary/40 shadow-sm" 
                     : "border-border/60 shadow-none opacity-80 hover:opacity-100"

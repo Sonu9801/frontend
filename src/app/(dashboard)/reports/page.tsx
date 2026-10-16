@@ -117,7 +117,7 @@ export default function ReportsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="flex-shrink-0 p-4 md:px-6 md:py-5 border-b border-border bg-card">
+      <div className="flex-shrink-0 p-3 sm:p-4 md:px-6 md:py-5 border-b border-border bg-card">
         <PageHeader
           title="Reports & Analytics"
           subtitle={
@@ -255,10 +255,10 @@ export default function ReportsPage() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 md:p-6">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6">
         <div className="max-w-7xl mx-auto">
           <Tabs defaultValue={isWorker ? "attendance" : "executive"} className="w-full">
-            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 flex flex-wrap gap-1 rounded-xl border border-border/50">
+            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 flex flex-wrap sm:flex-nowrap sm:overflow-x-auto gap-1 rounded-xl border border-border/50 no-scrollbar">
               {!isWorker && (
                 <TabsTrigger value="executive" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Executive Dashboard</TabsTrigger>
               )}

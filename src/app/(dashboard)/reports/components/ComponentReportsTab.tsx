@@ -8,9 +8,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Loader2, Download, FileText, Eye, Image as ImageIcon, Search, User, Boxes, RotateCcw, X, Filter } from "lucide-react";
+import { Loader2, Download, FileText, Eye, Image as ImageIcon, Search, User, Boxes, RotateCcw, X, Filter, CheckCircle2, Clock } from "lucide-react";
 import { isDateInFilterRange } from "./dateFilterUtils";
 import { exportToCSV, exportToExcel, exportToPDF } from "./exportUtils";
+import { KPICard } from "@/components/ui/KPICard";
+import { cn } from "@/lib/utils";
 
 interface ComponentReportsTabProps {
   dateRange?: string;
@@ -370,35 +372,37 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Total Components & Jobs</h3>
-            <p className="text-3xl font-bold text-foreground">{filteredComponents.length}</p>
-          </CardContent>
-        </Card>
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">Completed</h3>
-            <p className="text-3xl font-bold text-emerald-600">
-              {filteredComponents.filter((c: any) => c.status === "completed").length}
-            </p>
-          </CardContent>
-        </Card>
-        <Card className="border border-border bg-card">
-          <CardContent className="p-5">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase mb-1">In Progress / Assigned</h3>
-            <p className="text-3xl font-bold text-amber-600">
-              {filteredComponents.filter((c: any) => c.status === "in_progress" || c.status === "assigned" || c.status === "not_started").length}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <KPICard
+          title="Total Operations"
+          value={filteredComponents.length}
+          description="Total tasks & PWA logs"
+          icon={<Boxes size={14} />}
+          semantic="neutral"
+        />
+        <KPICard
+          title="Completed Tasks"
+          value={filteredComponents.filter((c: any) => c.status === "completed").length}
+          description="Work finished"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Active Operations"
+          value={filteredComponents.filter((c: any) => c.status === "in_progress" || c.status === "assigned" || c.status === "not_started").length}
+          description="In progress or assigned"
+          icon={<Clock size={14} />}
+          semantic="warning"
+        />
       </div>
 
-      {/* Main Data Table */}
-      <Card className="border border-border bg-card overflow-hidden">
-        <CardHeader className="border-b border-border p-4 bg-muted/20">
+      {/* Main Data Table & Mobile Cards */}
+      <Card className="border border-border bg-card overflow-hidden shadow-2xs">
+        <CardHeader className="border-b border-border p-3.5 sm:p-4 bg-muted/20 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-semibold text-foreground">Component & Worker Production Log</CardTitle>
+          <span className="text-xs text-muted-foreground font-mono">
+            {filteredComponents.length} items
+          </span>
         </CardHeader>
         <CardContent className="p-0">
           {filteredComponents.length === 0 ? (
@@ -406,85 +410,194 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
               No component or worker tasks found for {dateRange}.
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="text-[10px] uppercase font-semibold text-muted-foreground bg-muted/50 border-b border-border">
-                  <tr>
-                    <th className="px-4 py-3">Type / Stage</th>
-                    <th className="px-4 py-3">Number/ID</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3">Workers</th>
-                    <th className="px-4 py-3">Start Time</th>
-                    <th className="px-4 py-3">End Time</th>
-                    <th className="px-4 py-3">Photo Proof</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/60">
-                  {filteredComponents.map((comp: any) => {
-                    const isCompleted = comp.status === "completed";
-                    const isInProgress = comp.status === "in_progress";
-                    return (
-                      <tr key={comp.id} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-foreground">
-                          {comp.component_type}
-                          <span className="block text-[10px] font-normal text-muted-foreground">{comp.source}</span>
-                        </td>
-                        <td className="px-4 py-3 font-mono font-semibold text-primary">{comp.component_number}</td>
-                        <td className="px-4 py-3">
-                          <Badge
-                            variant={isCompleted ? "secondary" : "default"}
-                            className={
-                              isCompleted
-                                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                                : isInProgress
-                                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                                : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
-                            }
-                          >
-                            {comp.status?.replace("_", " ")}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="flex flex-wrap gap-1">
-                            {comp.workers?.length > 0 ? (
-                              comp.workers.map((w: any) => (
-                                <span key={w.id} className="text-[10px] font-medium text-foreground bg-muted px-2 py-0.5 rounded-md">
-                                  {w.name}
-                                </span>
-                              ))
-                            ) : (
-                              <span className="text-muted-foreground text-xs">-</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(comp.start_time)}
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">
-                          {formatDate(comp.end_time)}
-                        </td>
-                        <td className="px-4 py-3">
-                          {comp.photo_proof_url ? (
-                            <button
-                              type="button"
-                              onClick={() => setSelectedPhoto({
-                                url: comp.photo_proof_url,
-                                title: `${comp.component_type} - ${comp.component_number}`
-                              })}
-                              className="text-primary hover:underline font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"
-                            >
-                              <Eye size={13} /> View Photo
-                            </button>
-                          ) : (
-                            <span className="text-muted-foreground text-xs">No Photo</span>
+            <>
+              {/* Mobile Responsive Cards (visible below md) */}
+              <div className="md:hidden space-y-3 p-3 bg-muted/10">
+                {filteredComponents.map((comp: any) => {
+                  const isCompleted = comp.status === "completed";
+                  const isInProgress = comp.status === "in_progress";
+
+                  return (
+                    <div
+                      key={comp.id}
+                      className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs hover:border-primary/30 transition-all"
+                    >
+                      {/* Top Header: Type/Stage + Source & Status Badge */}
+                      <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-bold text-xs text-foreground truncate">
+                            {comp.component_type}
+                          </span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                            {comp.source}
+                          </span>
+                        </div>
+
+                        <Badge
+                          variant={isCompleted ? "secondary" : "default"}
+                          className={cn(
+                            "text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0",
+                            isCompleted
+                              ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25"
+                              : isInProgress
+                              ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25"
+                              : "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/25"
                           )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        >
+                          {comp.status?.replace("_", " ")}
+                        </Badge>
+                      </div>
+
+                      {/* Number / ID & Photo Proof */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Number / ID</span>
+                          <span className="font-mono font-bold text-primary text-xs truncate block">
+                            {comp.component_number}
+                          </span>
+                        </div>
+
+                        {comp.photo_proof_url ? (
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPhoto({
+                              url: comp.photo_proof_url,
+                              title: `${comp.component_type} - ${comp.component_number}`
+                            })}
+                            className="h-7 px-2.5 text-xs font-semibold rounded-lg bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20 inline-flex items-center gap-1 cursor-pointer transition-all shrink-0"
+                          >
+                            <ImageIcon size={12} /> View Proof
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground/70 italic">No proof photo</span>
+                        )}
+                      </div>
+
+                      {/* Workers Assigned */}
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-1">
+                          Assigned Workers ({comp.workers?.length || 0})
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {comp.workers && comp.workers.length > 0 ? (
+                            comp.workers.map((w: any) => (
+                              <span
+                                key={w.id}
+                                className="inline-flex items-center gap-1 text-[11px] font-medium text-foreground bg-muted/80 border border-border/60 px-2 py-0.5 rounded-md"
+                              >
+                                <User size={10} className="text-muted-foreground" />
+                                {w.name}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="text-muted-foreground text-xs italic">No workers assigned</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Timings Matrix */}
+                      <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Start Time</span>
+                          <span className="text-xs font-medium text-foreground tabular-nums block">
+                            {formatDate(comp.start_time)}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">End Time</span>
+                          <span className="text-xs font-medium text-foreground tabular-nums block">
+                            {comp.end_time ? formatDate(comp.end_time) : (
+                              <span className="text-amber-600 dark:text-amber-400 font-medium">In Progress</span>
+                            )}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Desktop Main Table View (visible md and above) */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="text-[10px] uppercase font-semibold text-muted-foreground bg-muted/50 border-b border-border">
+                    <tr>
+                      <th className="px-4 py-3">Type / Stage</th>
+                      <th className="px-4 py-3">Number/ID</th>
+                      <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3">Workers</th>
+                      <th className="px-4 py-3">Start Time</th>
+                      <th className="px-4 py-3">End Time</th>
+                      <th className="px-4 py-3">Photo Proof</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {filteredComponents.map((comp: any) => {
+                      const isCompleted = comp.status === "completed";
+                      const isInProgress = comp.status === "in_progress";
+                      return (
+                        <tr key={comp.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-4 py-3 font-semibold text-foreground">
+                            {comp.component_type}
+                            <span className="block text-[10px] font-normal text-muted-foreground">{comp.source}</span>
+                          </td>
+                          <td className="px-4 py-3 font-mono font-semibold text-primary">{comp.component_number}</td>
+                          <td className="px-4 py-3">
+                            <Badge
+                              variant={isCompleted ? "secondary" : "default"}
+                              className={
+                                isCompleted
+                                  ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                                  : isInProgress
+                                  ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
+                                  : "bg-blue-500/15 text-blue-600 dark:text-blue-400"
+                              }
+                            >
+                              {comp.status?.replace("_", " ")}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1">
+                              {comp.workers?.length > 0 ? (
+                                comp.workers.map((w: any) => (
+                                  <span key={w.id} className="text-[10px] font-medium text-foreground bg-muted px-2 py-0.5 rounded-md">
+                                    {w.name}
+                                  </span>
+                                ))
+                              ) : (
+                                <span className="text-muted-foreground text-xs">-</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {formatDate(comp.start_time)}
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground">
+                            {formatDate(comp.end_time)}
+                          </td>
+                          <td className="px-4 py-3">
+                            {comp.photo_proof_url ? (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedPhoto({
+                                  url: comp.photo_proof_url,
+                                  title: `${comp.component_type} - ${comp.component_number}`
+                                })}
+                                className="text-primary hover:underline font-semibold text-xs inline-flex items-center gap-1 cursor-pointer"
+                              >
+                                <Eye size={13} /> View Photo
+                              </button>
+                            ) : (
+                              <span className="text-muted-foreground text-xs">No Photo</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </CardContent>
       </Card>

@@ -394,10 +394,10 @@ export default function VehicleDetailPage() {
 
   return (
     <div className="flex flex-col min-h-full" data-ocid="vehicle_detail.page">
-      <div className="px-6 pt-5 pb-0">
+      <div className="px-3 sm:px-6 pt-3 sm:pt-5 pb-0">
         {/* Breadcrumb */}
         <nav
-          className="flex items-center gap-1.5 text-xs text-muted-foreground mb-4"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3 sm:mb-4"
           data-ocid="vehicle_detail.breadcrumb"
         >
           <Link href="/" className="hover:text-foreground transition-colors">
@@ -420,11 +420,11 @@ export default function VehicleDetailPage() {
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col sm:flex-row sm:items-start justify-between gap-4 mb-5"
+          className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 mb-4 sm:mb-5"
         >
           <div className="flex-1 min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5 mb-1.5">
-              <h1 className="text-2xl font-bold font-display text-foreground tracking-tight">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <h1 className="text-xl sm:text-2xl font-bold font-display text-foreground tracking-tight">
                 {vehicle.vehicleNumber}
               </h1>
               <PriorityBadge priority={vehicle.priority} />
@@ -438,7 +438,7 @@ export default function VehicleDetailPage() {
                 </Badge>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs sm:text-sm text-muted-foreground">
               <span
                 className="font-mono text-xs bg-muted px-2 py-0.5 rounded"
                 data-ocid="vehicle_detail.tracking_id"
@@ -454,13 +454,13 @@ export default function VehicleDetailPage() {
             </div>
           </div>
           <div
-            className="flex items-center gap-2 flex-wrap"
+            className="grid grid-cols-2 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto"
             data-ocid="vehicle_detail.actions"
           >
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 sm:h-9"
               data-ocid="vehicle_detail.update_stage_button"
             >
               <Tag size={13} /> Update Stage
@@ -468,7 +468,7 @@ export default function VehicleDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 sm:h-9"
               data-ocid="vehicle_detail.add_worker_button"
             >
               <UserPlus size={13} /> Add Worker
@@ -476,7 +476,7 @@ export default function VehicleDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 sm:h-9"
               data-ocid="vehicle_detail.upload_photo_button"
             >
               <Upload size={13} /> Upload Photo
@@ -484,7 +484,7 @@ export default function VehicleDetailPage() {
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5 text-xs"
+              className="gap-1.5 text-xs h-8 sm:h-9"
               data-ocid="vehicle_detail.export_pdf_button"
             >
               <Download size={13} /> Export PDF
@@ -497,18 +497,18 @@ export default function VehicleDetailPage() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-card border border-border rounded-xl p-5 mb-5 shadow-subtle"
+          className="bg-card border border-border rounded-xl p-3.5 sm:p-5 mb-4 sm:mb-5 shadow-subtle"
           data-ocid="vehicle_detail.timeline"
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-sm font-semibold text-foreground">
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <h2 className="text-xs sm:text-sm font-semibold text-foreground">
               Manufacturing Progress
             </h2>
             <span className="text-xs text-muted-foreground">
               Stage {stats.currentStageIdx + 1} of {STAGES.length}
             </span>
           </div>
-          <div className="flex items-start overflow-x-auto pb-1">
+          <div className="flex items-start overflow-x-auto pb-2 no-scrollbar">
             {STAGES.map((stage, index) => {
               const isDone = index < stats.currentStageIdx;
               const isActive = index === stats.currentStageIdx;
@@ -614,7 +614,7 @@ export default function VehicleDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex-1 px-6 pb-6">
+      <div className="flex-1 px-3 sm:px-6 pb-24 md:pb-6">
         <Tabs
           defaultValue="overview"
           className="w-full"

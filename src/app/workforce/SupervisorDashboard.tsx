@@ -126,6 +126,25 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   // Initialize WebSocket for real-time updates across the dashboard
   useWebSocket();
 
+  // Track if any modal/dialog is open to hide floating Home button and prevent overlap
+  const [hasModalOpen, setHasModalOpen] = useState(false);
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const checkModal = () => {
+      const openDialog = document.querySelector('[role="dialog"], [data-slot="dialog-content"], [data-slot="dialog-overlay"], [data-radix-portal]');
+      const isScrollLocked = document.body.getAttribute('data-scroll-locked') !== null || document.body.style.pointerEvents === 'none';
+      setHasModalOpen(!!openDialog || isScrollLocked || showCameraModal || showLeaveModal || isAssignDialogOpen || showSidebar);
+    };
+
+    const observer = new MutationObserver(checkModal);
+    observer.observe(document.body, { childList: true, subtree: true, attributes: true });
+    checkModal();
+
+    return () => observer.disconnect();
+  }, [showCameraModal, showLeaveModal, isAssignDialogOpen, showSidebar]);
+
   // Fetch full user profile (only if worker prop is not provided)
   const { data: userProfile } = useQuery({
     queryKey: ["userProfile"],
@@ -136,6 +155,30 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
   // Use worker prop from workforce login session if available, fallback to fetched profile
   const activeUser = worker || userProfile || {};
+
+  // Check if current user is Dhruv or belongs to Dispatch team (preserve for Dilbaag supervisor)
+  const isDispatchUser = React.useMemo(() => {
+    const name = (activeUser?.name || worker?.name || userProfile?.name || "").toLowerCase().trim();
+    const dept = (activeUser?.department || worker?.department || userProfile?.department || "").toLowerCase().trim();
+    const role = (activeUser?.role || worker?.role || userProfile?.role || "").toLowerCase().trim();
+    const empId = String(activeUser?.employee_id || activeUser?.worker_id || worker?.employee_id || worker?.worker_id || userProfile?.employee_id || "").toLowerCase().trim();
+
+    // Dilbaag / Production supervisor must NOT have team attendance removed
+    if (name.includes("dilbaag") || name.includes("dilbag")) {
+      return false;
+    }
+
+    // Identify Dhruv or Dispatch department / dispatcher
+    return (
+      name.includes("dhruv") ||
+      empId.includes("fox-emp-001") ||
+      empId === "fox-emp-001" ||
+      dept === "dispatch" ||
+      dept.includes("dispatch") ||
+      role === "dispatcher" ||
+      role === "dispatch"
+    );
+  }, [activeUser, worker, userProfile]);
 
   const isValidId = (id: any) => id !== undefined && id !== null && id !== "undefined" && id !== "null" && id !== "";
   const managerId = isValidId(worker?.worker_id) 
@@ -591,13 +634,13 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     icon: Inbox, 
                     label: "Received", 
                     color: "bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400", 
-                    onClick: () => handleTabChange("production", "received", "table", "received") 
+                    onClick: () => handleTabChange("production", "received", "table", null) 
                   },
                   { 
                     icon: Truck, 
                     label: "Dispatch", 
                     color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", 
-                    onClick: () => handleTabChange("production", "dispatch", "table", "dispatch") 
+                    onClick: () => handleTabChange("production", "dispatch", "table", null) 
                   },
                   { icon: Receipt, label: "Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => handleTabChange('invoice') },
                   { icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => handleTabChange('my_attendance') },
@@ -716,36 +759,36 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
       {/* Attendance Tab (Personal & Team Attendance) */}
       {activeTab === "my_attendance" && (
         <div className="p-4 space-y-4 max-w-xl mx-auto pb-24">
-          <div className="flex bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl border border-gray-200 dark:border-zinc-700">
-            <button
-              type="button"
-              onClick={() => setAttSubTab("team")}
-              className={cn(
-                "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
-                attSubTab === "team"
-                  ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
-              )}
-            >
-              Team Attendance ({teamAttendanceList.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setAttSubTab("my")}
-              className={cn(
-                "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
-                attSubTab === "my"
-                  ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
-                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
-              )}
-            >
-              My Attendance Log
-            </button>
-          </div>
+          {!isDispatchUser && (
+            <div className="flex bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl border border-gray-200 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setAttSubTab("team")}
+                className={cn(
+                  "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
+                  attSubTab === "team"
+                    ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                )}
+              >
+                Team Attendance ({teamAttendanceList.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttSubTab("my")}
+                className={cn(
+                  "flex-1 py-2 text-xs font-bold rounded-lg transition-all text-center",
+                  attSubTab === "my"
+                    ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
+                    : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                )}
+              >
+                My Attendance Log
+              </button>
+            </div>
+          )}
 
-          {attSubTab === "my" ? (
-            <WorkerAttendanceTab history={history} workerId={managerId} />
-          ) : (
+          {(!isDispatchUser && attSubTab === "team") ? (
             <div className="space-y-4">
               {/* Team Attendance Analytics Summary */}
               <div className="grid grid-cols-3 gap-2 text-center">
@@ -828,6 +871,8 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                 </div>
               </div>
             </div>
+          ) : (
+            <WorkerAttendanceTab history={history} workerId={managerId} />
           )}
         </div>
       )}
@@ -884,18 +929,20 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
 
       </div>
 
-      {/* BOTTOM NAVIGATION (Simplified to Home Button only) */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 z-30 pointer-events-none flex justify-center">
-        <div className="bg-white dark:bg-zinc-900 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-zinc-800 p-2 flex items-center pointer-events-auto">
-          <button 
-            onClick={() => handleTabChange("home")} 
-            className={`flex items-center gap-2 px-6 py-3 rounded-full transition-colors ${activeTab === 'home' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600' : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800'}`}
-          >
-            <Home size={22} strokeWidth={2.5} />
-            <span className="text-[13px] font-bold">Home</span>
-          </button>
+      {/* BOTTOM NAVIGATION (Simplified to Home Button only - completely hidden on Home tab and whenever any modal/dialog is open) */}
+      {activeTab !== "home" && !hasModalOpen && (
+        <div className="floating-home-bar fixed bottom-0 left-0 right-0 p-4 z-30 pointer-events-none flex justify-center">
+          <div className="bg-white dark:bg-zinc-900 rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.12)] border border-gray-100 dark:border-zinc-800 p-2 flex items-center pointer-events-auto">
+            <button 
+              onClick={() => handleTabChange("home")} 
+              className="flex items-center gap-2 px-6 py-3 rounded-full transition-colors text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 cursor-pointer"
+            >
+              <Home size={22} strokeWidth={2.5} />
+              <span className="text-[13px] font-bold">Home</span>
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Sidebar Drawer */}
       <AnimatePresence>

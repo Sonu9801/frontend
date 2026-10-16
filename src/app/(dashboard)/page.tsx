@@ -1,12 +1,13 @@
 "use client";
 
+import React, { useState, useMemo } from "react";
 import { KPICard } from "@/components/ui/KPICard";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { cn, parseUTCDate } from "@/lib/utils";
-import { useVehicles, useActivities } from "@/hooks/useQueries";
+import { useVehicles, useActivities, useWorkers } from "@/hooks/useQueries";
 import { useUIStore } from "@/store/uiStore";
 import Link from "next/link";
 import { useAuthStore } from "@/store/authStore";
@@ -29,48 +30,110 @@ import {
   Building2,
   Bell,
   Settings,
+  ChevronRight,
+  Flame,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Vehicle, ActivityEvent, Stage } from "@/types";
 
-const adminSections = [
-  {
-    category: "Operations & Floor",
-    items: [
-      { label: "Production", href: "/production", icon: Factory, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
-      { label: "Received", href: "/production/received", icon: Inbox, color: "bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20" },
-      { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
-      { label: "Dispatch", href: "/dispatch", icon: Truck, color: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20" },
-    ],
-  },
-  {
-    category: "Workforce & Plant",
-    items: [
-      { label: "Workers", href: "/workers", icon: Users, color: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20" },
-      { label: "Attendance", href: "/attendance", icon: Clock, color: "bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20" },
-      { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20" },
-      { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
-    ],
-  },
-  {
-    category: "Commercial & Finance",
-    items: [
-      { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20" },
-      { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20" },
-      { label: "Reports", href: "/reports", icon: FileBarChart, color: "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-500/20" },
-      { label: "Analytics", href: "/analytics", icon: BarChart3, color: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20" },
-    ],
-  },
-  {
-    category: "Administration & System",
-    items: [
-      { label: "Activity Logs", href: "/activity-logs", icon: Activity, color: "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20" },
-      { label: "OEM Portal", href: "/oem-portal", icon: Building2, color: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20" },
-      { label: "Alerts", href: "/notifications", icon: Bell, color: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/20" },
-      { label: "Settings", href: "/settings", icon: Settings, color: "bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20" },
-    ],
-  },
+interface AdminTabItem {
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ size?: number; className?: string; strokeWidth?: number }>;
+  color: string;
+  category: "core" | "workforce" | "finance" | "system";
+  desc: string;
+}
+
+// 8 most-used modules as defined in Option D reference
+const mostUsedModules: AdminTabItem[] = [
+  { label: "Production", href: "/production", icon: Factory, color: "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/40", category: "core", desc: "Live shopfloor & Kanban" },
+  { label: "Received", href: "/production/received", icon: Inbox, color: "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/40", category: "core", desc: "Vehicle intake & checks" },
+  { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/40", category: "core", desc: "Quality inspection" },
+  { label: "Dispatch", href: "/dispatch", icon: Truck, color: "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/40", category: "core", desc: "Gate pass & delivery" },
+  { label: "Workers", href: "/workers", icon: Users, color: "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40", category: "workforce", desc: "Active staff & skills" },
+  { label: "Attendance", href: "/attendance", icon: Clock, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "workforce", desc: "Live biometric shifts" },
+  { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/40", category: "workforce", desc: "BOM inventory & parts" },
+  { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/40", category: "workforce", desc: "Wages & overtime" },
 ];
+
+const remainingModules: AdminTabItem[] = [
+  { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "finance", desc: "Customer tax invoices" },
+  { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "finance", desc: "Vendor invoices & bills" },
+  { label: "Reports", href: "/reports", icon: FileBarChart, color: "bg-cyan-50 text-cyan-600 border-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-900/40", category: "finance", desc: "Audit logs & exports" },
+  { label: "Analytics", href: "/analytics", icon: BarChart3, color: "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/40", category: "system", desc: "Performance metrics" },
+  { label: "Activity", href: "/activity-logs", icon: Activity, color: "bg-red-50 text-red-600 border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/40", category: "system", desc: "Real-time audit events" },
+  { label: "OEM Portal", href: "/oem-portal", icon: Building2, color: "bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40", category: "system", desc: "Client self-service" },
+  { label: "Alerts", href: "/notifications", icon: Bell, color: "bg-amber-50 text-amber-700 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/40", category: "system", desc: "Emergency notifications" },
+  { label: "Settings", href: "/settings", icon: Settings, color: "bg-zinc-100 text-zinc-700 border-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:border-zinc-700/40", category: "system", desc: "Plant & system config" },
+];
+
+const adminMainTabs: AdminTabItem[] = [...mostUsedModules, ...remainingModules];
+
+function getRelativeTime(timestamp: string) {
+  try {
+    const relTime = parseUTCDate(timestamp);
+    const mins = Math.floor((Date.now() - relTime.getTime()) / 60000);
+    if (isNaN(mins)) return timestamp;
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${mins} min ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs} hr ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days} d ago`;
+  } catch {
+    return timestamp;
+  }
+}
+
+function parseMobileActivity(event: ActivityEvent) {
+  const relTime = getRelativeTime(event.timestamp);
+  let title = "Factory Event";
+  let subtitle = event.description;
+  let badgeText = "Logged";
+  let badgeClass = "bg-muted text-muted-foreground border-border";
+  let icon = Activity;
+  let iconColor = "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/40";
+
+  const lowerDesc = (event.description || "").toLowerCase();
+  const lowerType = (event.eventType || "").toLowerCase();
+
+  if (lowerType.includes("received") || lowerDesc.includes("received") || lowerDesc.includes("intake")) {
+    title = "Vehicle Received";
+    badgeText = "Received";
+    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/40";
+    icon = Truck;
+    iconColor = "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/40";
+  } else if (lowerType.includes("worker") || lowerDesc.includes("worker") || lowerDesc.includes("started") || lowerDesc.includes("checked in")) {
+    title = "Worker Checked In";
+    badgeText = "Present";
+    badgeClass = "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/40";
+    icon = Users;
+    iconColor = "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40";
+  } else if (lowerType.includes("component") || lowerDesc.includes("component") || lowerDesc.includes("part")) {
+    title = "Component Used";
+    badgeText = "Issued";
+    badgeClass = "bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-900/40";
+    icon = Boxes;
+    iconColor = "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/40";
+  } else if (lowerType.includes("qc") || lowerDesc.includes("qc") || lowerDesc.includes("quality")) {
+    title = "QC Inspection";
+    badgeText = lowerType.includes("failed") ? "Failed" : "Passed";
+    badgeClass = lowerType.includes("failed")
+      ? "bg-rose-50 text-rose-600 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-900/40"
+      : "bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/40";
+    icon = CheckCircle2;
+    iconColor = "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/40";
+  } else if (lowerType.includes("dispatch") || lowerDesc.includes("dispatch")) {
+    title = "Vehicle Dispatched";
+    badgeText = "Delivered";
+    badgeClass = "bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/40";
+    icon = Truck;
+    iconColor = "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/40";
+  }
+
+  return { title, subtitle, badgeText, badgeClass, icon, iconColor, relTime };
+}
 
 const STAGE_ORDER: Stage[] = [
   "received",
@@ -190,9 +253,15 @@ export default function DashboardPage() {
   const { data: vehiclesData, isLoading: isLoadingVehicles } = useVehicles({ pageSize: 1000 });
   const vehicles = vehiclesData?.items ?? [];
   const { data: activities = [], isLoading: isLoadingActivities } = useActivities();
+  const { data: workersData } = useWorkers();
+  const workers = Array.isArray(workersData) ? workersData : (workersData?.items ?? []);
+  const totalWorkersCount = workers.length > 0 ? workers.length : 25;
+
   const { searchQuery } = useUIStore();
   const { name } = useAuthStore();
   const adminName = name ? name.split(" ")[0] : "Admin";
+
+  const [showAllModules, setShowAllModules] = useState(false);
 
   const isLoading = isLoadingVehicles || isLoadingActivities;
 
@@ -262,6 +331,10 @@ export default function DashboardPage() {
       }
     ).length,
   };
+
+  const onTimeRate = stats.vehiclesReceived > 0
+    ? Math.max(0, Math.round(((stats.vehiclesReceived - stats.delayedOrders) / stats.vehiclesReceived) * 100))
+    : 92;
 
   const kpiCards = [
     {
@@ -417,91 +490,307 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* MOBILE NATIVE APP HEADER & MODULE SECTIONS */}
-        <div className="md:hidden mb-6">
-          {/* Executive Greeting Header */}
-          <div className="flex items-center justify-between mb-4 pt-1">
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Enterprise MES
+        {/* MOBILE NATIVE APP VIEW (OPTION D COMPACT HOME UI REFERENCE) */}
+        <div className="md:hidden space-y-3.5 mb-8">
+          {/* 1. COMPACT WELCOME SECTION (OPTION D MATCH) */}
+          <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-blue-50/70 via-sky-50/40 to-blue-100/60 dark:from-card dark:via-card dark:to-blue-950/20 border border-blue-100/80 dark:border-border/80 p-3.5 shadow-2xs min-h-[126px]">
+            {/* Background Factory & Trucks Illustration - enlarged and strictly contained at bottom right */}
+            <div className="absolute right-0 bottom-0 pointer-events-none select-none opacity-95 dark:opacity-35">
+              <svg width="210" height="52" viewBox="0 0 168 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                {/* Ground Baseline */}
+                <line x1="0" y1="41" x2="168" y2="41" stroke="#CBD5E1" strokeWidth="1" />
+
+                {/* Left Pine Trees */}
+                <path d="M8 41 L12 32 L4 32 Z" fill="#059669" />
+                <path d="M8 34 L11 26 L5 26 Z" fill="#10B981" />
+                <path d="M16 41 L21 28 L11 28 Z" fill="#047857" />
+                <path d="M16 31 L20 20 L12 20 Z" fill="#059669" />
+
+                {/* Left Delivery Truck */}
+                <rect x="23" y="21" width="20" height="16" rx="1.5" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="0.8" />
+                <path d="M43 27 L49 27 L51 31 L51 37 L43 37 Z" fill="#60A5FA" />
+                <rect x="45" y="28" width="4" height="4" rx="0.5" fill="#DBEAFE" />
+                <circle cx="28" cy="38.5" r="2.5" fill="#1E293B" />
+                <circle cx="28" cy="38.5" r="1" fill="#94A3B8" />
+                <circle cx="47" cy="38.5" r="2.5" fill="#1E293B" />
+                <circle cx="47" cy="38.5" r="1" fill="#94A3B8" />
+
+                {/* Modern Factory Building (Fox Enterprises) */}
+                <rect x="52" y="9" width="76" height="32" rx="2" fill="#2563EB" />
+                <rect x="52" y="9" width="76" height="2" fill="#1D4ED8" />
+                <rect x="55" y="13" width="70" height="8" rx="1" fill="#1D4ED8" />
+                <text x="90" y="18.6" fontSize="4.3" fontWeight="900" fill="#FFFFFF" textAnchor="middle" letterSpacing="0.35" fontFamily="sans-serif">FOX ENTERPRISES</text>
+                {/* Factory Windows */}
+                <rect x="58" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="68" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="78" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="88" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="98" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="108" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+                <rect x="118" y="24" width="6" height="12" rx="1" fill="#93C5FD" fillOpacity="0.9" />
+
+                {/* Right Delivery Truck */}
+                <rect x="124" y="23" width="18" height="14" rx="1.5" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="0.8" />
+                <path d="M142 27 L147 27 L149 31 L149 37 L142 37 Z" fill="#3B82F6" />
+                <rect x="143.5" y="28" width="3.5" height="3.5" rx="0.5" fill="#DBEAFE" />
+                <circle cx="129" cy="38.5" r="2.5" fill="#1E293B" />
+                <circle cx="129" cy="38.5" r="1" fill="#94A3B8" />
+                <circle cx="145" cy="38.5" r="2.5" fill="#1E293B" />
+                <circle cx="145" cy="38.5" r="1" fill="#94A3B8" />
+
+                {/* Right Pine Trees */}
+                <path d="M152 41 L156 30 L148 30 Z" fill="#047857" />
+                <path d="M152 32 L155 22 L149 22 Z" fill="#059669" />
+                <path d="M160 41 L164 33 L156 33 Z" fill="#059669" />
+              </svg>
+            </div>
+
+            {/* Content Layer */}
+            <div className="relative z-10 flex flex-col justify-between h-full">
+              {/* Row 1: Enterprise MES tag + Date */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10.5px] font-extrabold text-muted-foreground uppercase tracking-wider">
+                    Enterprise MES
+                  </span>
+                </div>
+                <span className="text-[11px] font-medium text-muted-foreground">
+                  {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
                 </span>
               </div>
-              <h1 className="text-xl font-bold text-foreground tracking-tight mt-0.5">
-                Hello, {adminName} 👋
-              </h1>
-            </div>
-            <div className="flex flex-col items-end">
-              <span className="text-[11px] font-medium text-muted-foreground">
-                {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-              </span>
-              <span className="text-[10.5px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 mt-0.5">
-                Admin Console
-              </span>
+
+              {/* Row 2: Greeting & Admin Console Pill Button */}
+              <div className="flex items-center justify-between mt-1">
+                <h1 className="text-xl font-extrabold text-foreground tracking-tight">
+                  Hello, {adminName} <span className="inline-block animate-wave origin-bottom-right">👋</span>
+                </h1>
+                <Link
+                  href="/settings"
+                  className="text-[10.5px] font-bold text-primary bg-white/95 dark:bg-card hover:bg-primary/10 px-2.5 py-1 rounded-full border border-primary/25 flex items-center gap-1 active:scale-95 transition-all shadow-2xs"
+                >
+                  <span>Admin Console</span>
+                  <ArrowRight size={11} className="stroke-[2.5]" />
+                </Link>
+              </div>
+
+              {/* Row 3: Subtitle */}
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium max-w-[210px]">
+                Your factory is running smoothly.
+              </p>
             </div>
           </div>
 
-          {/* Quick Alert Chips (if any) */}
-          {(stats.emergencyOrders > 0 || stats.delayedOrders > 0) && (
-            <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-0.5 no-scrollbar">
-              {stats.emergencyOrders > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-rose-500/10 border border-rose-500/25 rounded-xl text-rose-600 dark:text-rose-400 text-xs font-semibold shrink-0">
-                  <Zap size={13} className="text-rose-500 animate-pulse" />
-                  <span>{stats.emergencyOrders} Emergency Orders</span>
-                </div>
-              )}
-              {stats.delayedOrders > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-amber-500/10 border border-amber-500/25 rounded-xl text-amber-600 dark:text-amber-400 text-xs font-semibold shrink-0">
-                  <AlertTriangle size={13} className="text-amber-500" />
-                  <span>{stats.delayedOrders} Delayed</span>
-                </div>
-              )}
-            </div>
-          )}
 
-          {/* Categorized App Cards */}
-          <div className="space-y-3.5">
-            {adminSections.map((sec, sIdx) => (
-              <div
-                key={sIdx}
-                className="bg-card border border-border/70 rounded-2xl p-3 shadow-2xs"
+
+
+
+          {/* 4. QUICK ACTIONS (8 MOST-USED MODULES) */}
+          <div>
+            <div className="flex items-center justify-between mb-3 px-0.5">
+              <h2 className="text-sm font-bold text-foreground tracking-tight">
+                Quick Actions
+              </h2>
+              <button
+                type="button"
+                onClick={() => setShowAllModules(!showAllModules)}
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 active:scale-95 transition-all"
               >
-                <div className="flex items-center justify-between mb-2.5 px-1">
-                  <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                    {sec.category}
-                  </span>
-                  <span className="text-[10px] font-semibold text-muted-foreground/60">
-                    {sec.items.length} Modules
-                  </span>
-                </div>
+                <span>{showAllModules ? "Show Less" : "View All 16"}</span>
+                <ArrowRight size={12} className={cn("transition-transform duration-200", showAllModules && "rotate-90")} />
+              </button>
+            </div>
 
-                <div className="grid grid-cols-4 gap-2">
-                  {sec.items.map((item, idx) => {
-                    const Icon = item.icon;
-                    return (
-                      <Link
-                        key={idx}
-                        href={item.href}
-                        className="flex flex-col items-center justify-center gap-1.5 group cursor-pointer select-none py-1"
-                      >
-                        <div
-                          className={cn(
-                            "w-12 h-12 rounded-[16px] flex items-center justify-center transition-all duration-150 group-active:scale-95 shadow-2xs border",
-                            item.color
-                          )}
-                        >
-                          <Icon size={22} strokeWidth={2.3} />
-                        </div>
-                        <span className="text-[10px] font-semibold text-foreground/90 text-center leading-tight line-clamp-1 group-active:text-primary transition-colors">
-                          {item.label}
-                        </span>
-                      </Link>
-                    );
-                  })}
+            <div className="grid grid-cols-4 gap-x-2 gap-y-3.5">
+              {(showAllModules ? [...mostUsedModules, ...remainingModules] : mostUsedModules).map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={idx}
+                    href={item.href}
+                    className="flex flex-col items-center justify-center gap-1.5 group cursor-pointer select-none"
+                  >
+                    <div
+                      className={cn(
+                        "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-150 group-active:scale-90 shadow-2xs border",
+                        item.color
+                      )}
+                    >
+                      <Icon size={24} strokeWidth={2.3} />
+                    </div>
+                    <span className="text-[10.5px] font-bold text-foreground text-center leading-tight line-clamp-1 group-active:text-primary transition-colors">
+                      {item.label}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5. PRODUCTION FLOW (TODAY) */}
+          <div className="p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
+                  <Activity size={14} />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-bold text-foreground">Production Flow</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">(Today)</span>
                 </div>
               </div>
-            ))}
+              <Link
+                href="/production"
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5"
+              >
+                <span>View Board</span>
+                <ArrowRight size={11} />
+              </Link>
+            </div>
+
+            <div className="flex items-center justify-between gap-1 pt-1">
+              {/* Stage 1: Received */}
+              <Link href="/production/received" className="flex flex-col items-center flex-1 group">
+                <div className="w-10 h-10 rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-600 border border-blue-100 dark:border-blue-900/40 flex items-center justify-center group-active:scale-95 transition-transform shadow-2xs">
+                  <Inbox size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
+                  Received
+                </span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
+                  {(vehiclesByStage.received || []).length}
+                </span>
+              </Link>
+
+              <div className="text-muted-foreground/30 text-xs shrink-0 mb-4 font-bold">→</div>
+
+              {/* Stage 2: Fabrication */}
+              <Link href="/production" className="flex flex-col items-center flex-1 group">
+                <div className="w-10 h-10 rounded-full bg-purple-50 dark:bg-purple-950/40 text-purple-600 border border-purple-100 dark:border-purple-900/40 flex items-center justify-center group-active:scale-95 transition-transform shadow-2xs">
+                  <Factory size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
+                  Fabrication
+                </span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
+                  {(vehiclesByStage.fabrication || []).length}
+                </span>
+              </Link>
+
+              <div className="text-muted-foreground/30 text-xs shrink-0 mb-4 font-bold">→</div>
+
+              {/* Stage 3: Paint */}
+              <Link href="/production" className="flex flex-col items-center flex-1 group">
+                <div className="w-10 h-10 rounded-full bg-rose-50 dark:bg-rose-950/40 text-rose-600 border border-rose-100 dark:border-rose-900/40 flex items-center justify-center group-active:scale-95 transition-transform shadow-2xs">
+                  <Flame size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
+                  Paint
+                </span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
+                  {(vehiclesByStage.paint || []).length}
+                </span>
+              </Link>
+
+              <div className="text-muted-foreground/30 text-xs shrink-0 mb-4 font-bold">→</div>
+
+              {/* Stage 4: Assembly */}
+              <Link href="/production" className="flex flex-col items-center flex-1 group">
+                <div className="w-10 h-10 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 border border-amber-100 dark:border-amber-900/40 flex items-center justify-center group-active:scale-95 transition-transform shadow-2xs">
+                  <Boxes size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
+                  Assembly
+                </span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
+                  {(vehiclesByStage.rtd || []).length}
+                </span>
+              </Link>
+
+              <div className="text-muted-foreground/30 text-xs shrink-0 mb-4 font-bold">→</div>
+
+              {/* Stage 5: Dispatch */}
+              <Link href="/dispatch" className="flex flex-col items-center flex-1 group">
+                <div className="w-10 h-10 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-100 dark:border-emerald-900/40 flex items-center justify-center group-active:scale-95 transition-transform shadow-2xs">
+                  <Truck size={18} strokeWidth={2.2} />
+                </div>
+                <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
+                  Dispatch
+                </span>
+                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
+                  {(vehiclesByStage.dispatch || []).length}
+                </span>
+              </Link>
+            </div>
+          </div>
+
+          {/* 6. RECENT ACTIVITY */}
+          <div className="p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-xs font-bold text-foreground">Recent Activity</span>
+              </div>
+              <Link
+                href="/activity-logs"
+                className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5"
+              >
+                <span>View All</span>
+                <ArrowRight size={11} />
+              </Link>
+            </div>
+
+            {activities.length === 0 ? (
+              <div className="py-6 text-center text-xs text-muted-foreground font-medium">
+                No recent manufacturing events
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {activities.slice(0, 3).map((event: ActivityEvent) => {
+                  const item = parseMobileActivity(event);
+                  const Icon = item.icon;
+                  return (
+                    <div
+                      key={event.id}
+                      className="flex items-center justify-between gap-2.5 p-2 rounded-xl hover:bg-muted/30 transition-colors"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border shadow-2xs",
+                            item.iconColor
+                          )}
+                        >
+                          <Icon size={18} strokeWidth={2.2} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h4 className="text-xs font-bold text-foreground truncate">
+                            {item.title}
+                          </h4>
+                          <p className="text-[10.5px] text-muted-foreground truncate leading-tight mt-0.5">
+                            {item.subtitle}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end shrink-0">
+                        <span className="text-[10px] text-muted-foreground font-medium whitespace-nowrap">
+                          {item.relTime}
+                        </span>
+                        <span
+                          className={cn(
+                            "px-2 py-0.5 rounded-full text-[9.5px] font-bold border mt-0.5 whitespace-nowrap",
+                            item.badgeClass
+                          )}
+                        >
+                          {item.badgeText}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
 

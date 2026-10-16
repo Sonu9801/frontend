@@ -23,11 +23,16 @@ import {
   FileBarChart,
   Activity,
   LogOut,
-  ChevronRight
+  ChevronRight,
+  User,
+  Sun,
+  Moon,
+  Laptop
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { authApi } from "@/lib/api";
+import { useTheme } from "next-themes";
 
 interface ModuleItem {
   label: string;
@@ -70,12 +75,15 @@ const allModulesList: ModuleItem[] = [
 export function MobileBottomNav() {
   const router = useRouter();
   const pathname = usePathname();
-  const { role, logout, name } = useAuthStore();
+  const { role, logout, name, email } = useAuthStore();
+  const { theme, setTheme } = useTheme();
   const currentRole = role?.toLowerCase() || "manager";
+  const [showProfileSheet, setShowProfileSheet] = useState(false);
   const [showModulesSheet, setShowModulesSheet] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
   const isAdminRole = ["admin", "manager", "owner"].includes(currentRole);
+  const displayName = name || "Sonu";
 
   let navItems = [];
 
@@ -83,23 +91,23 @@ export function MobileBottomNav() {
     navItems = [
       { label: "Home", href: "/workforce", icon: LayoutDashboard },
       { label: "Attendance", href: "/attendance", icon: Clock },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else if (currentRole === "oem") {
     navItems = [
       { label: "Portal", href: "/oem-portal", icon: Building2 },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else if (currentRole === "attendance" || currentRole === "attendance_only") {
     navItems = [
       { label: "Attendance", href: "/attendance", icon: Clock },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else if (currentRole === "dispatcher" || currentRole === "dispatch") {
     navItems = [
       { label: "Received", href: "/production?category=All+Categories", icon: Factory },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else if (currentRole === "supervisor") {
     navItems = [
@@ -107,7 +115,7 @@ export function MobileBottomNav() {
       { label: "Production", href: "/production", icon: Factory },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
       { label: "Workers", href: "/workers", icon: Users },
-      { label: "All Tabs", href: "#modules", icon: LayoutGrid, isAction: true },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else {
     // Manager, Owner, Admin
@@ -116,7 +124,7 @@ export function MobileBottomNav() {
       { label: "Production", href: "/production", icon: Factory },
       { label: "Workers", href: "/workers", icon: Users },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "All Tabs", href: "#modules", icon: LayoutGrid, isAction: true },
+      { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   }
 
@@ -148,12 +156,12 @@ export function MobileBottomNav() {
             const Icon = item.icon;
             
             if (item.isAction) {
-              const isActive = showModulesSheet;
+              const isActive = showProfileSheet || pathname === "/settings";
               return (
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setShowModulesSheet(!showModulesSheet)}
+                  onClick={() => setShowProfileSheet(!showProfileSheet)}
                   className={cn(
                     "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all select-none relative",
                     isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -164,10 +172,6 @@ export function MobileBottomNav() {
                     isActive ? "bg-primary/10 text-primary" : ""
                   )}>
                     <Icon size={21} strokeWidth={isActive ? 2.5 : 2} className={cn(isActive && "drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]")} />
-                    <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                    </span>
                   </div>
                   <span className={cn("text-[10px] tracking-wide", isActive ? "font-bold text-primary" : "font-medium")}>
                     {item.label}
@@ -189,7 +193,10 @@ export function MobileBottomNav() {
               <Link
                 key={item.label}
                 href={item.href}
-                onClick={() => setShowModulesSheet(false)}
+                onClick={() => {
+                  setShowProfileSheet(false);
+                  setShowModulesSheet(false);
+                }}
                 className={cn(
                   "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all select-none",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -204,6 +211,227 @@ export function MobileBottomNav() {
           })}
         </div>
       </nav>
+
+      {/* PROFILE BOTTOM SHEET MODAL */}
+      <AnimatePresence>
+        {showProfileSheet && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setShowProfileSheet(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden"
+            />
+
+            {/* Profile Bottom Sheet Modal */}
+            <motion.div
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed inset-x-0 bottom-0 max-h-[88vh] bg-card border-t border-border rounded-t-[28px] shadow-2xl z-[70] flex flex-col md:hidden pb-safe"
+            >
+              {/* Sheet Drag Handle & Header */}
+              <div className="pt-3 pb-3 px-5 flex flex-col border-b border-border/60">
+                <div className="w-12 h-1.5 bg-muted-foreground/30 rounded-full mx-auto mb-2.5" />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <User size={18} className="text-primary" />
+                    <h2 className="text-base font-bold text-foreground">User Profile</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowProfileSheet(false)}
+                    className="p-1.5 rounded-full bg-muted/60 text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  >
+                    <X size={18} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Sheet Body */}
+              <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 scrollbar-thin">
+                {/* User Info Card */}
+                <div className="flex items-center gap-3.5 p-3.5 rounded-2xl bg-gradient-to-br from-primary/10 via-sky-500/5 to-transparent border border-primary/20 shadow-2xs">
+                  <div className="relative">
+                    <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-lg font-black shadow-md">
+                      {displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-card" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-black text-foreground truncate">{displayName}</h3>
+                      <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-primary text-primary-foreground">
+                        {currentRole}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5 font-medium">
+                      {email || `${displayName.toLowerCase()}@foxenterprises.in`}
+                    </p>
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-primary mt-1">
+                      <Building2 size={12} />
+                      <span>FOX ENTERPRISES</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Account Links */}
+                <div className="space-y-1.5">
+                  <span className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider px-1">
+                    Account & System
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileSheet(false);
+                      router.push("/settings");
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/60 active:scale-[0.99] transition-all border border-border/60 text-left bg-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                        <User size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">My Profile & Security</p>
+                        <p className="text-[10px] text-muted-foreground">Personal details, password & access</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileSheet(false);
+                      router.push("/settings");
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/60 active:scale-[0.99] transition-all border border-border/60 text-left bg-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                        <Settings size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Factory Configuration</p>
+                        <p className="text-[10px] text-muted-foreground">Facility setup, team roles & rules</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileSheet(false);
+                      setShowModulesSheet(true);
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/60 active:scale-[0.99] transition-all border border-border/60 text-left bg-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+                        <LayoutGrid size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">All ERP Modules (16)</p>
+                        <p className="text-[10px] text-muted-foreground">Production, Workers, Dispatch & more</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowProfileSheet(false);
+                      router.push("/activity-logs");
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl hover:bg-muted/60 active:scale-[0.99] transition-all border border-border/60 text-left bg-card"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                        <Activity size={18} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-foreground">Activity & Audit Logs</p>
+                        <p className="text-[10px] text-muted-foreground">Recent actions across system</p>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} className="text-muted-foreground" />
+                  </button>
+                </div>
+
+                {/* Appearance / Theme Switcher */}
+                <div className="p-3.5 rounded-2xl bg-muted/40 border border-border/60">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-xs font-bold text-foreground">Theme & Appearance</span>
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase">{theme || "system"}</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setTheme("light")}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold border transition-all",
+                        theme === "light"
+                          ? "bg-card text-primary border-primary shadow-xs"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:text-foreground"
+                      )}
+                    >
+                      <Sun size={14} />
+                      <span>Light</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("dark")}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold border transition-all",
+                        theme === "dark"
+                          ? "bg-card text-primary border-primary shadow-xs"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:text-foreground"
+                      )}
+                    >
+                      <Moon size={14} />
+                      <span>Dark</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setTheme("system")}
+                      className={cn(
+                        "flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-semibold border transition-all",
+                        theme === "system"
+                          ? "bg-card text-primary border-primary shadow-xs"
+                          : "bg-muted/50 text-muted-foreground border-transparent hover:text-foreground"
+                      )}
+                    >
+                      <Laptop size={14} />
+                      <span>Auto</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Sign Out Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileSheet(false);
+                    handleSignOut();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-destructive/10 text-destructive border border-destructive/20 font-bold text-xs hover:bg-destructive/20 active:scale-[0.98] transition-all"
+                >
+                  <LogOut size={16} />
+                  <span>Sign Out of FOX ENTERPRISES</span>
+                </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
 
       {/* ALL MODULES BOTTOM SHEET MODAL (FOR ADMIN & SUPERVISOR EASY ACCESS) */}
       <AnimatePresence>

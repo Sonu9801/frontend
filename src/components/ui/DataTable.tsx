@@ -461,36 +461,38 @@ export function DataTable<T>({
               <div 
                 key={id}
                 className={cn(
-                  "border-b border-border/50 p-4 transition-colors",
-                  isSelected ? "bg-primary/5" : "bg-card hover:bg-muted/20"
+                  "border border-border/70 rounded-xl p-3 sm:p-3.5 m-2.5 shadow-2xs transition-colors space-y-2",
+                  isSelected ? "bg-primary/5 border-primary/40" : "bg-card hover:bg-muted/20"
                 )}
                 onClick={() => onRowClick?.(row)}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="mt-1" onClick={e => e.stopPropagation()}>
-                    <Checkbox
-                      checked={isSelected}
-                      onCheckedChange={() => toggleRow(id)}
-                      className="h-4 w-4"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0 flex flex-col gap-2">
-                    <div className="text-sm font-semibold text-foreground">
+                <div className="flex items-start justify-between gap-2.5 border-b border-border/50 pb-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div onClick={e => e.stopPropagation()} className="shrink-0">
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleRow(id)}
+                        className="h-3.5 w-3.5"
+                      />
+                    </div>
+                    <div className="text-xs font-bold text-primary truncate">
                       {primaryCol?.accessor(row)}
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-x-2 gap-y-3 mt-2">
-                      {secondaryCols.map(col => (
-                        <div key={col.id} className="flex flex-col gap-0.5">
-                          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-                            {col.header}
-                          </span>
-                          <div className="text-sm">
-                            {col.accessor(row)}
-                          </div>
-                        </div>
-                      ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-2 gap-y-2 pt-1 text-xs">
+                  {secondaryCols.map(col => (
+                    <div key={col.id} className="flex flex-col gap-0.5 min-w-0">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider truncate">
+                        {col.header}
+                      </span>
+                      <div className="text-xs text-foreground truncate">
+                        {col.accessor(row)}
+                      </div>
                     </div>
+                  ))}
+                </div>
                     
                     {expandable && (
                       <div className="mt-3 pt-3 border-t border-border/50">
@@ -518,8 +520,6 @@ export function DataTable<T>({
                         )}
                       </div>
                     )}
-                  </div>
-                </div>
               </div>
             );
           })

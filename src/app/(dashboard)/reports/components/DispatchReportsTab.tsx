@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import { DispatchRecord } from "@/types";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
+import { Truck, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 import { isDateInFilterRange } from "./dateFilterUtils";
@@ -85,23 +87,35 @@ export function DispatchReportsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Dispatched Today</span>
-          <span className="text-2xl font-black">{dispatchedToday}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Total Delivered</span>
-          <span className="text-2xl font-black text-green-500">{deliveredCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Pending Dispatch</span>
-          <span className="text-2xl font-black text-blue-500">{pendingCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Delayed Dispatch</span>
-          <span className="text-2xl font-black text-red-500">{delayedCount}</span>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <KPICard
+          title="Dispatched Today"
+          value={dispatchedToday}
+          description="Gate-out movements today"
+          icon={<Truck size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Total Delivered"
+          value={deliveredCount}
+          description="Destination confirmed"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Pending Dispatch"
+          value={pendingCount}
+          description="Awaiting pickup/carrier"
+          icon={<Clock size={14} />}
+          semantic={pendingCount > 0 ? "warning" : "neutral"}
+        />
+        <KPICard
+          title="Delayed Dispatch"
+          value={delayedCount}
+          description="Transit SLA breached"
+          icon={<AlertTriangle size={14} />}
+          semantic={delayedCount > 0 ? "destructive" : "neutral"}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

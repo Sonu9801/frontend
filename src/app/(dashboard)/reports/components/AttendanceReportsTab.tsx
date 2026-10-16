@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import { Worker } from "@/types";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
+import { UserCheck, UserX, Clock, Calendar, Zap } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 import { isDateInFilterRange } from "./dateFilterUtils";
@@ -98,27 +100,42 @@ export function AttendanceReportsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Present</span>
-          <span className="text-2xl font-black text-green-500">{presentCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Absent</span>
-          <span className="text-2xl font-black text-red-500">{absentCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Late</span>
-          <span className="text-2xl font-black text-orange-500">{lateCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Half Day</span>
-          <span className="text-2xl font-black text-blue-500">{halfDayCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">OT Records</span>
-          <span className="text-2xl font-black text-purple-500">{otCount}</span>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-2.5 sm:gap-3">
+        <KPICard
+          title="Present"
+          value={presentCount}
+          description="On duty today"
+          icon={<UserCheck size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Absent"
+          value={absentCount}
+          description="Not checked in"
+          icon={<UserX size={14} />}
+          semantic={absentCount > 0 ? "destructive" : "neutral"}
+        />
+        <KPICard
+          title="Late"
+          value={lateCount}
+          description="Grace window passed"
+          icon={<Clock size={14} />}
+          semantic={lateCount > 0 ? "warning" : "neutral"}
+        />
+        <KPICard
+          title="Half Day"
+          value={halfDayCount}
+          description="Partial shift logged"
+          icon={<Calendar size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="OT Records"
+          value={otCount}
+          description="Overtime shifts"
+          icon={<Zap size={14} />}
+          semantic="neutral"
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

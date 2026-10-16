@@ -803,8 +803,131 @@ export default function ReceivedVehiclesPage() {
           </div>
         </div>
 
-        {/* Main Table View */}
-        <div className="bg-card border border-border rounded-xl shadow-xs overflow-hidden">
+        {/* Mobile Cards View */}
+        <div className="md:hidden space-y-3">
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="h-40 rounded-xl bg-card border border-border animate-pulse p-4" />
+              ))}
+            </div>
+          ) : filteredVehicles.length === 0 ? (
+            <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
+              <Inbox size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-sm font-semibold text-foreground">No received vehicles found</p>
+              <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or date range.</p>
+            </div>
+          ) : (
+            filteredVehicles.map((v: Vehicle) => {
+              const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
+              const vDateFormatted = formatReceivedDate(vDateRaw);
+              const pNorm = (v.priority || "Normal").toLowerCase();
+
+              return (
+                <div key={v.id} className="bg-card border border-border rounded-xl p-3.5 space-y-3 shadow-2xs">
+                  {/* Top Header */}
+                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/vehicle/${v.id}`)}
+                        className="font-mono text-xs font-bold text-primary hover:underline truncate"
+                      >
+                        {v.trackingId}
+                      </button>
+                      <span className="font-semibold px-2 py-0.5 rounded-full text-[10px] bg-primary/10 text-primary border border-primary/20 capitalize shrink-0">
+                        {v.currentStage}
+                      </span>
+                    </div>
+                    <span
+                      className={cn(
+                        "font-bold px-2 py-0.5 rounded-full text-[10px] shrink-0",
+                        pNorm === "urgent"
+                          ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
+                          : pNorm === "high"
+                          ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                          : "bg-muted text-muted-foreground"
+                      )}
+                    >
+                      {v.priority || "Normal"}
+                    </span>
+                  </div>
+
+                  {/* Body Info Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OEM & Model</span>
+                      <span className="font-semibold text-foreground truncate block">{v.oemName}</span>
+                      <span className="text-muted-foreground text-[11px] truncate block">{v.vehicleModel || (v as any).modelName || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Chassis / VIN</span>
+                      <span className="font-mono text-muted-foreground font-medium truncate block">{v.chassisNumber || v.vin || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Dealer</span>
+                      <span className="text-foreground truncate block">{v.dealerName || "-"}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Received Date</span>
+                      <span className="text-muted-foreground truncate block">{vDateFormatted}</span>
+                    </div>
+                  </div>
+
+                  {/* Category */}
+                  <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
+                    <span className="truncate">{v.productCategory}</span>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => router.push(`/vehicle/${v.id}`)}
+                      className="h-8 px-2.5 text-xs font-semibold cursor-pointer"
+                    >
+                      View
+                    </Button>
+                    {canEdit && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setPendingDispatchVehicle(v)}
+                        className="h-8 px-2.5 text-xs font-semibold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-500/30 cursor-pointer"
+                      >
+                        <Truck size={12} /> Dispatch
+                      </Button>
+                    )}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
+                        >
+                          <ChevronDown size={14} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {canEdit && (
+                          <DropdownMenuItem onClick={() => setEditRecord(v)}>
+                            <Edit className="w-3.5 h-3.5 mr-2" /> Edit Details
+                          </DropdownMenuItem>
+                        )}
+                        <DropdownMenuItem onClick={() => setHistoryRecord(v)}>
+                          <History className="w-3.5 h-3.5 mr-2" /> View Audit History
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Main Table View */}
+        <div className="hidden md:block bg-card border border-border rounded-xl shadow-xs overflow-hidden">
           <div className="overflow-x-auto touch-pan-x [webkit-overflow-scrolling:touch]">
             <table className="w-full min-w-[850px] text-xs text-left border-collapse">
               <thead className="bg-muted/70 text-muted-foreground uppercase text-[11px] font-bold border-b border-border">

@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import { Worker } from "@/types";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
+import { Wallet, Zap, CheckCircle2, Clock } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 export function PayrollReportsTab({ 
@@ -80,23 +82,35 @@ export function PayrollReportsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Total Payroll Cost</span>
-          <span className="text-2xl font-black">₹{totalPayroll.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">OT Payments</span>
-          <span className="text-2xl font-black text-blue-500">₹{otPayments.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Paid Salary</span>
-          <span className="text-2xl font-black text-green-500">₹{paidSalary.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Pending Salary</span>
-          <span className="text-2xl font-black text-orange-500">₹{pendingSalary.toLocaleString(undefined, {maximumFractionDigits: 0})}</span>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <KPICard
+          title="Total Payroll"
+          value={`₹${totalPayroll.toLocaleString(undefined, {maximumFractionDigits: 0})}`}
+          description="Total gross payroll"
+          icon={<Wallet size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="OT Payments"
+          value={`₹${otPayments.toLocaleString(undefined, {maximumFractionDigits: 0})}`}
+          description="Overtime compensation"
+          icon={<Zap size={14} />}
+          semantic="neutral"
+        />
+        <KPICard
+          title="Paid Salary"
+          value={`₹${paidSalary.toLocaleString(undefined, {maximumFractionDigits: 0})}`}
+          description="Disbursed earnings"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Pending Salary"
+          value={`₹${pendingSalary.toLocaleString(undefined, {maximumFractionDigits: 0})}`}
+          description="Pending clearance"
+          icon={<Clock size={14} />}
+          semantic={pendingSalary > 0 ? "warning" : "neutral"}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

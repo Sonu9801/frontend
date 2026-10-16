@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { useWorkers, useVehicles, useUpdateWorker, useUpdateWorkerStatus, useArchiveWorker, useResetWorkerPassword, useCreateWorker, useDeleteWorker } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
 import type { Worker, Vehicle } from "@/types";
-import { Star, MoreHorizontal, Eye, Edit, History, Archive, PowerOff, KeyRound, Plus, Trash2, Briefcase, Image as ImageIcon } from "lucide-react";
+import { Star, MoreHorizontal, Eye, Edit, History, Archive, PowerOff, KeyRound, Plus, Trash2, Briefcase, Image as ImageIcon, Search, ChevronDown, ChevronUp, Wrench } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -453,11 +453,33 @@ export default function WorkersPage() {
   const deleteWorker = useDeleteWorker();
   const userRole = useAuthStore((state: any) => state.role) || "operator";
 
+  const canEdit = ["admin", "owner"].includes(userRole);
   const [editRecord, setEditRecord] = useState<Worker | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [historyRecord, setHistoryRecord] = useState<Worker | null>(null);
   const [viewRecord, setViewRecord] = useState<Worker | null>(null);
   const [actionReason, setActionReason] = useState<{ worker: Worker, action: "deactivate" | "archive" | "resetPassword" | "delete" } | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedWorkerIds, setExpandedWorkerIds] = useState<Set<number | string>>(new Set());
+
+  const toggleExpandWorker = (id: number | string) => {
+    setExpandedWorkerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const filteredWorkers = useMemo(() => {
+    if (!searchQuery.trim()) return workers;
+    const q = searchQuery.toLowerCase();
+    return workers.filter((w) => 
+      (w.name || "").toLowerCase().includes(q) ||
+      (w.employeeId || "").toLowerCase().includes(q) ||
+      (w.department || "").toLowerCase().includes(q)
+    );
+  }, [workers, searchQuery]);
 
   const columns: ColumnDef<Worker>[] = useMemo(() => [
     {
@@ -613,7 +635,7 @@ export default function WorkersPage() {
   const totalHoursToday = workers.reduce((acc, w) => acc + (w.hoursToday || 0), 0);
 
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="workers.page">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24 md:pb-6" data-ocid="workers.page">
       <PageHeader
         title="Workers"
         description={`${totalWorkers} registered team members · ${activeWorkersCount} active now across factory departments`}
@@ -628,13 +650,14 @@ export default function WorkersPage() {
       />
 
       {/* KPI Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <KPICard
           title="Total Workforce"
           value={totalWorkers}
           description="Registered employees"
           icon={<Users size={14} />}
           semantic="primary"
+          className="p-2.5 sm:p-3"
         />
         <KPICard
           title="Active Now"
@@ -642,6 +665,7 @@ export default function WorkersPage() {
           description={`${totalWorkers > 0 ? Math.round((activeWorkersCount / totalWorkers) * 100) : 0}% on shop floor`}
           icon={<UserCheck size={14} />}
           semantic="success"
+          className="p-2.5 sm:p-3"
         />
         <KPICard
           title="Avg Performance"
@@ -649,6 +673,7 @@ export default function WorkersPage() {
           description="Quality & speed score"
           icon={<Star size={14} className="text-amber-500 fill-amber-500" />}
           semantic="warning"
+          className="p-2.5 sm:p-3"
         />
         <KPICard
           title="Hours Logged Today"
@@ -656,48 +681,251 @@ export default function WorkersPage() {
           description="Combined work duration"
           icon={<Clock size={14} />}
           semantic="neutral"
+          className="p-2.5 sm:p-3"
         />
       </div>
 
-      <div className="space-y-4">
-        <DataTable
-          columns={columns}
-          data={workers}
-          rowId={(w) => String(w.id)}
-          searchKey={(w) => `${w.name} ${w.employeeId}`}
-          expandable={(w) => <WorkerExpand worker={w} />}
-          hidePagination={true}
-          extraFilters={
-            <div className="flex items-center gap-2">
-              <select
-                value={deptFilter}
-                onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
-                data-ocid="workers.dept_filter"
-                className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                {DEPARTMENTS.map((d) => (
-                  <option key={d} value={d}>
-                    {d === "All" ? "All Departments" : d === "Quality" ? "QC" : d}
-                  </option>
-                ))}
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-                data-ocid="workers.status_filter"
-                className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {s === "All"
-                      ? "All Statuses"
-                      : s.charAt(0).toUpperCase() + s.slice(1)}
-                  </option>
-                ))}
-              </select>
+      <div className="space-y-3">
+        {/* Mobile Toolbar */}
+        <div className="md:hidden flex flex-col gap-2 p-3 bg-card border border-border rounded-xl shadow-2xs">
+          <div className="relative w-full">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Search worker name or ID..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-8 pr-3 h-8.5 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <select
+              value={deptFilter}
+              onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
+              className="h-8 text-xs bg-background border border-border rounded-lg px-2 text-foreground font-medium"
+            >
+              {DEPARTMENTS.map((d) => (
+                <option key={d} value={d}>
+                  {d === "All" ? "All Departments" : d === "Quality" ? "QC" : d}
+                </option>
+              ))}
+            </select>
+            <select
+              value={statusFilter}
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="h-8 text-xs bg-background border border-border rounded-lg px-2 text-foreground font-medium"
+            >
+              {STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s === "All" ? "All Statuses" : s.charAt(0).toUpperCase() + s.slice(1)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Mobile Responsive Worker Cards List */}
+        <div className="md:hidden space-y-3">
+          {isLoadingWorkers ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((n) => (
+                <div key={n} className="h-32 rounded-xl bg-card border border-border animate-pulse p-4" />
+              ))}
             </div>
-          }
-        />
+          ) : filteredWorkers.length === 0 ? (
+            <div className="text-center py-10 bg-card rounded-xl border border-border p-6">
+              <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-sm font-semibold text-foreground">No workers found</p>
+              <p className="text-xs text-muted-foreground mt-1">Try adjusting your filters or search.</p>
+            </div>
+          ) : (
+            filteredWorkers.map((w: Worker) => {
+              const isExpanded = expandedWorkerIds.has(w.id);
+              const currentTask = allTasks.find(
+                (t: any) => t.status === "in_progress" && t.workers?.some((worker: any) => worker.id === w.id)
+              );
+
+              return (
+                <div 
+                  key={w.id} 
+                  className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs hover:border-primary/30 transition-all"
+                >
+                  {/* Top Header: Avatar + Name + Emp ID + Status Badge */}
+                  <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-primary font-bold text-xs flex-shrink-0">
+                        {w.name.split(" ").map((n) => n[0]).join("")}
+                      </div>
+                      <div className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => setViewRecord(w)}
+                          className="font-bold text-xs text-foreground hover:text-primary hover:underline truncate text-left block cursor-pointer"
+                        >
+                          {w.name}
+                        </button>
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground font-mono">
+                          <span>{w.employeeId}</span>
+                          <span>•</span>
+                          <span className="font-sans font-medium text-foreground capitalize">{w.department || "Production"}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="shrink-0">
+                      <WorkerStatusBadge status={w.status} />
+                    </div>
+                  </div>
+
+                  {/* Current Work */}
+                  <div className="text-xs">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block mb-0.5">Current Work</span>
+                    {currentTask ? (
+                      <div className="flex items-center gap-1.5 text-xs text-primary font-medium truncate bg-primary/5 border border-primary/15 rounded-md px-2 py-1">
+                        <Wrench size={11} className="shrink-0" />
+                        <span className="capitalize truncate font-semibold">{currentTask.component_type.replace(/_/g, " ")}:</span>
+                        <span className="font-mono truncate">{currentTask.component_number}</span>
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground/60 text-xs italic">No active task assigned</span>
+                    )}
+                  </div>
+
+                  {/* Metrics Matrix: Performance & Hours Today */}
+                  <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Performance</span>
+                      <span className="inline-flex items-center gap-1 font-bold text-sm text-foreground tabular-nums mt-0.5">
+                        <Star size={12} className="text-amber-500 fill-amber-500" />
+                        {w.performanceScore}%
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Hours Today</span>
+                      <span className="font-bold text-sm text-foreground tabular-nums block mt-0.5">
+                        {w.hoursToday}h
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Footer Actions */}
+                  <div className="flex items-center justify-between pt-1 border-t border-border/60 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleExpandWorker(w.id)}
+                      className="text-xs text-primary font-semibold hover:underline inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      {isExpanded ? (
+                        <>Less Details <ChevronUp size={13} /></>
+                      ) : (
+                        <>View Details <ChevronDown size={13} /></>
+                      )}
+                    </button>
+
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setViewRecord(w)}
+                        className="h-7 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
+                      >
+                        <Eye size={12} /> Profile
+                      </Button>
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 cursor-pointer">
+                            <MoreHorizontal size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Administrative</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => setViewRecord(w)}>
+                            <Eye className="mr-2 h-4 w-4" /> View Full Profile
+                          </DropdownMenuItem>
+                          {canEdit && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setEditRecord(w)}>
+                                <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Record
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActionReason({ worker: w, action: "resetPassword" })}>
+                                <KeyRound className="mr-2 h-4 w-4 text-warning" /> Reset Password
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActionReason({ worker: w, action: "deactivate" })}>
+                                <PowerOff className="mr-2 h-4 w-4 text-destructive" /> Deactivate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActionReason({ worker: w, action: "archive" })}>
+                                <Archive className="mr-2 h-4 w-4 text-destructive" /> Archive
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setActionReason({ worker: w, action: "delete" })}>
+                                <Trash2 className="mr-2 h-4 w-4 text-red-600" /> Delete Record
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => setHistoryRecord(w)}>
+                                <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+
+                  {/* Expanded Section */}
+                  {isExpanded && (
+                    <div className="mt-2 pt-2 border-t border-border/50 animate-in fade-in slide-in-from-top-1">
+                      <WorkerExpand worker={w} />
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Main Table View */}
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={workers}
+            rowId={(w) => String(w.id)}
+            searchKey={(w) => `${w.name} ${w.employeeId}`}
+            expandable={(w) => <WorkerExpand worker={w} />}
+            hidePagination={true}
+            extraFilters={
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                <select
+                  value={deptFilter}
+                  onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
+                  data-ocid="workers.dept_filter"
+                  className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 w-full sm:w-auto"
+                >
+                  {DEPARTMENTS.map((d) => (
+                    <option key={d} value={d}>
+                      {d === "All" ? "All Departments" : d === "Quality" ? "QC" : d}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                  data-ocid="workers.status_filter"
+                  className="h-8 text-xs bg-muted/40 border border-border rounded-lg px-2.5 focus:outline-none focus:ring-2 focus:ring-primary/30 w-full sm:w-auto"
+                >
+                  {STATUSES.map((s) => (
+                    <option key={s} value={s}>
+                      {s === "All"
+                        ? "All Statuses"
+                        : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            }
+          />
+        </div>
+
         <Pagination
           page={page}
           pageSize={pageSize}

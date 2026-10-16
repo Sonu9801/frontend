@@ -13,6 +13,7 @@ import {
 import { useState, useRef, useEffect } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter, usePathname } from "next/navigation";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const navGroups = [
@@ -110,20 +111,29 @@ export function MobileTopBar() {
 
   const displayEmail = email ? email : "admin@foxflow.in";
 
+  const currentNav = navGroups.flatMap((g) => g.items).find((item) =>
+    item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+  );
+  const currentLabel =
+    currentNav?.label ||
+    (pathname === "/" ? "Mobile MES" : pathname.replace("/", "").replace(/-/g, " "));
+
   return (
     <>
-      <header className="md:hidden sticky top-0 h-14 flex items-center justify-between px-4 bg-card border-b border-border shadow-subtle z-50 pt-safe">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center flex-shrink-0 shadow-sm">
+      <header className="md:hidden sticky top-0 h-14 flex items-center justify-between px-4 bg-card/95 backdrop-blur-md border-b border-border shadow-2xs z-50 pt-safe">
+        <Link href="/" className="flex items-center gap-2.5 active:scale-95 transition-transform select-none">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-primary to-primary/80 flex items-center justify-center flex-shrink-0 shadow-xs">
             <svg viewBox="0 0 24 24" fill="none" className="w-5 h-5 text-primary-foreground" stroke="currentColor" strokeWidth={2}>
               <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
           </div>
           <div className="flex flex-col">
-            <span className="font-display font-bold text-foreground text-sm tracking-tight leading-none">FOXFLOW</span>
-            <span className="text-[9px] text-muted-foreground font-semibold tracking-widest uppercase mt-0.5">Mobile</span>
+            <span className="font-display font-black text-foreground text-sm tracking-tight leading-none">FOXFLOW</span>
+            <span className="text-[9.5px] text-muted-foreground font-bold tracking-wider uppercase mt-0.5 truncate max-w-[130px]">
+              {pathname === "/" ? "Mobile MES" : currentLabel}
+            </span>
           </div>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-1">
           {/* Theme toggle */}

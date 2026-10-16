@@ -18,7 +18,7 @@ export default function AttendancePage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="flex-shrink-0 px-4 sm:px-6 pt-5 pb-3 border-b border-border bg-card">
+      <div className="flex-shrink-0 px-3 sm:px-6 pt-3 sm:pt-5 pb-3 border-b border-border bg-card">
         <PageHeader
           title="Attendance Command Center"
           description="Monitor workforce attendance, shifts, real-time activity and punch logs"
@@ -26,7 +26,7 @@ export default function AttendancePage() {
           className="mb-0 pb-0"
         />
       </div>
-      <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+      <div className="flex-1 p-3 sm:p-6 overflow-y-auto pb-24 md:pb-6">
         <Tabs defaultValue="dashboard" className="w-full space-y-6">
           <div className="w-full">
             <TabsList className="w-full grid grid-cols-4 p-1 bg-muted/60 border border-border rounded-xl gap-1">

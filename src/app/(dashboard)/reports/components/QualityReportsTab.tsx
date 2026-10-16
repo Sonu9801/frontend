@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import { QCRecord } from "@/types";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
+import { CheckCircle2, XCircle, AlertCircle, AlertTriangle } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts";
 
 import { isDateInFilterRange } from "./dateFilterUtils";
@@ -88,23 +90,35 @@ export function QualityReportsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">QC Pass</span>
-          <span className="text-2xl font-black text-green-500">{passCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">QC Fail</span>
-          <span className="text-2xl font-black text-red-500">{failCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Rework</span>
-          <span className="text-2xl font-black text-orange-500">{reworkCount}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Total Defects Found</span>
-          <span className="text-2xl font-black">{totalDefects}</span>
-        </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <KPICard
+          title="QC Pass"
+          value={passCount}
+          description="Approved vehicles"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="QC Fail"
+          value={failCount}
+          description="Failed standard"
+          icon={<XCircle size={14} />}
+          semantic={failCount > 0 ? "destructive" : "neutral"}
+        />
+        <KPICard
+          title="Rework"
+          value={reworkCount}
+          description="Sent for correction"
+          icon={<AlertCircle size={14} />}
+          semantic={reworkCount > 0 ? "warning" : "neutral"}
+        />
+        <KPICard
+          title="Total Defects"
+          value={totalDefects}
+          description="Defects flagged"
+          icon={<AlertTriangle size={14} />}
+          semantic={totalDefects > 0 ? "destructive" : "neutral"}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

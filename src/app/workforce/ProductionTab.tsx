@@ -1,14 +1,19 @@
+"use client";
+
 import React, { useState, useMemo, useEffect } from "react";
 import { format } from "date-fns";
-import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { vehiclesApi } from "@/lib/api";
 import { 
   CarFront, Clock, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, 
   Users, Settings2, Search, Plus, UserPlus, Truck, FileSpreadsheet, Download, 
-  LayoutGrid, Filter, Calendar as CalendarIcon, X, Tag, Inbox, Eye, ArrowUpDown, ShieldCheck
+  LayoutGrid, Filter, Calendar as CalendarIcon, X, Tag, Inbox, Eye, ArrowUpDown, 
+  ShieldCheck, FileText, ExternalLink, Edit, History, MapPin, UploadCloud, AlertTriangle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -17,10 +22,13 @@ import { AddVehicleDialog } from "@/components/vehicles/AddVehicleDialog";
 import { AssignJobDialog } from "@/components/vehicles/AssignJobDialog";
 import { GateEntryDrawer } from "@/components/vehicles/GateEntryDrawer";
 import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
+import { EditRecordDialog, type FieldDefinition } from "@/components/shared/EditRecordDialog";
+import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
 import { useCreateVehicle, useVerifyVehicle, useWorkers, useUpdateVehicleStage, useUpdateVehicle } from "@/hooks/useQueries";
-import { exportToCSV, exportToExcel } from "../(dashboard)/reports/components/exportUtils";
+import { exportToCSV, exportToExcel, exportToPDF } from "../(dashboard)/reports/components/exportUtils";
 import { isDateInFilterRange, formatFilterLabel } from "../(dashboard)/reports/components/dateFilterUtils";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
+import { KPICard } from "@/components/ui/KPICard";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,18 +39,57 @@ interface ProductionTabProps {
   autoOpenForm?: "received" | "dispatch" | null;
 }
 
+const VEHICLE_EDIT_FIELDS: FieldDefinition[] = [
+  { name: "vehicleNumber", label: "Vehicle / Plate No", type: "text" },
+  { name: "chassisNumber", label: "Chassis Number / VIN", type: "text" },
+  { name: "oemName", label: "OEM Name", type: "text" },
+  { name: "vehicleModel", label: "Model Name", type: "text" },
+  { name: "dealerName", label: "Destination Dealer", type: "text" },
+  { name: "productCategory", label: "Product Category", type: "text" },
+  { name: "driverName", label: "Driver Name", type: "text" },
+  { name: "driverMobileNumber", label: "Driver Mobile", type: "text" },
+  { name: "truckNumber", label: "Truck Number", type: "text" },
+  { name: "transportCompany", label: "Transport Carrier", type: "text" },
+  { name: "dispatchChallanNumber", label: "Challan Number", type: "text" },
+  { name: "invoiceNumber", label: "Invoice Number", type: "text" },
+  { name: "lrNumber", label: "LR Number", type: "text" },
+  { name: "priority", label: "Priority", type: "select", options: ["normal", "medium", "high", "urgent"] },
+];
+
 export function ProductionTab({ activeUser, initialStage = "all", initialViewMode = "kanban", autoOpenForm }: ProductionTabProps) {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Active sub-tab: "all" (Full Board), "received" (Inward Gate), "dispatch" (Outbound Logistics)
+  const [tabMode, setTabMode] = useState<"all" | "received" | "dispatch">(() => {
+    if (initialStage === "received") return "received";
+    if (initialStage === "dispatch") return "dispatch";
+    return "all";
+  });
+
   const [viewMode, setViewMode] = useState<"kanban" | "table">(initialViewMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<string>(initialStage);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [oemFilter, setOemFilter] = useState<string>("All OEMs");
+  const [dealerFilter, setDealerFilter] = useState<string>("All Dealers");
   const [dateRange, setDateRange] = useState<string>("All Time");
+
+  const currentMonthKey = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }, []);
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(currentMonthKey);
   
+  // Modals & Drawers state
   const [showAddModal, setShowAddModal] = useState(false);
   const [addModalMode, setAddModalMode] = useState<"received" | "standard">("standard");
   const [showSelectDispatchModal, setShowSelectDispatchModal] = useState(false);
   const [dispatchSearchQuery, setDispatchSearchQuery] = useState("");
+  const [editRecord, setEditRecord] = useState<any | null>(null);
+  const [historyRecord, setHistoryRecord] = useState<any | null>(null);
+
   const [assignJobState, setAssignJobState] = useState<{ isOpen: boolean; vehicle: any | null }>({
     isOpen: false,
     vehicle: null,
@@ -53,17 +100,20 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
   });
   const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<any | null>(null);
 
-  // Sync props when initialStage, initialViewMode or autoOpenForm changes from Quick Actions
+  // Sync props when initialStage or initialViewMode changes from Quick Actions
   useEffect(() => {
-    if (initialStage) setStageFilter(initialStage);
-    if (initialViewMode) setViewMode(initialViewMode);
-    if (autoOpenForm === "received") {
-      setAddModalMode("received");
-      setShowAddModal(true);
-    } else if (autoOpenForm === "dispatch") {
-      setShowSelectDispatchModal(true);
+    if (initialStage === "received") {
+      setTabMode("received");
+      setStageFilter("received");
+    } else if (initialStage === "dispatch") {
+      setTabMode("dispatch");
+      setStageFilter("dispatch");
+    } else if (initialStage) {
+      setStageFilter(initialStage);
     }
-  }, [initialStage, initialViewMode, autoOpenForm]);
+
+    if (initialViewMode) setViewMode(initialViewMode);
+  }, [initialStage, initialViewMode]);
 
   const createVehicleMutation = useCreateVehicle();
   const verifyVehicleMutation = useVerifyVehicle();
@@ -103,12 +153,36 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
       {
         onSuccess: () => {
           toast.success(
-            `Vehicle ${pendingDispatchVehicle.platformNumber || pendingDispatchVehicle.trackingId || pendingDispatchVehicle.vehicleNumber || ""} dispatched successfully!`
+            `Vehicle ${pendingDispatchVehicle.chassisNumber || pendingDispatchVehicle.platformNumber || pendingDispatchVehicle.trackingId || pendingDispatchVehicle.vehicleNumber || ""} dispatched successfully!`
           );
           setPendingDispatchVehicle(null);
+          queryClient.invalidateQueries({ queryKey: ["vehicles"] });
         },
         onError: (err: any) => {
           toast.error(err?.response?.data?.detail || "Failed to dispatch vehicle");
+        },
+      }
+    );
+  };
+
+  const handleEditRecordSubmit = (data: Record<string, any>, reason: string) => {
+    if (!editRecord) return;
+    updateVehicleMutation.mutate(
+      {
+        id: editRecord.id,
+        data: {
+          ...data,
+          edit_reason: reason,
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success("Vehicle details updated successfully");
+          setEditRecord(null);
+          queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        },
+        onError: (err: any) => {
+          toast.error(err?.response?.data?.detail || "Failed to update vehicle");
         },
       }
     );
@@ -137,9 +211,95 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     return ["All OEMs", ...Array.from(set)];
   }, [platformsList]);
 
+  const dealerList = useMemo(() => {
+    const set = new Set<string>();
+    platformsList.forEach((p: any) => {
+      const d = p.dealerName || p.dealer_name;
+      if (d) set.add(d);
+    });
+    return ["All Dealers", ...Array.from(set)];
+  }, [platformsList]);
+
+  // Helper to extract received/created date string
+  const getVehicleReceivedDate = (p: any): string | null => {
+    return p.receivedAt || p.received_at || p.arrivalTime || p.arrival_time || p.gateEntryTime || p.gate_entry_time || p.submittedAt || p.createdAt || p.created_at || null;
+  };
+
+  // Helper to extract YYYY-MM key from vehicle intake date
+  const getVehicleMonthKey = (p: any): string => {
+    const dt = getVehicleReceivedDate(p);
+    if (!dt) return "";
+    try {
+      const d = new Date(dt);
+      if (isNaN(d.getTime())) return "";
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    } catch {
+      return "";
+    }
+  };
+
+  // Dynamically build available months list from vehicles data
+  const availableMonths = useMemo(() => {
+    const map = new Map<string, string>();
+    const now = new Date();
+    const curKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const curLabel = now.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    map.set(curKey, curLabel);
+
+    platformsList.forEach((p: any) => {
+      const mKey = getVehicleMonthKey(p);
+      if (mKey) {
+        try {
+          const [y, m] = mKey.split("-");
+          const d = new Date(Number(y), Number(m) - 1, 1);
+          const label = d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+          map.set(mKey, label);
+        } catch {}
+      }
+    });
+
+    return Array.from(map.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+  }, [platformsList]);
+
+  const monthDisplayLabel = useMemo(() => {
+    if (selectedMonth === "all") return "All Time";
+    const found = availableMonths.find(([k]) => k === selectedMonth);
+    if (found) return found[1];
+    try {
+      const [y, m] = selectedMonth.split("-");
+      const d = new Date(Number(y), Number(m) - 1, 1);
+      return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    } catch {
+      return selectedMonth;
+    }
+  }, [selectedMonth, availableMonths]);
+
   // Main Filtered Dataset for Excel Table & Kanban Views
   const filteredPlatforms = useMemo(() => {
     let list = platformsList;
+
+    // Sub-tab mode filtering
+    if (tabMode === "received") {
+      list = list.filter((p: any) => {
+        const curr = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
+        if (selectedMonth === "all") {
+          return ["received", "oem", "incoming_verification", "supervisor_verification"].includes(curr);
+        }
+        return true;
+      });
+    } else if (tabMode === "dispatch") {
+      list = list.filter((p: any) => {
+        const curr = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
+        return ["dispatch", "dispatched", "rtd", "readytodispatch", "delivered"].includes(curr);
+      });
+    }
+
+    // Month filter (filters records by month of intake/dispatch)
+    if (selectedMonth && selectedMonth !== "all") {
+      list = list.filter((p: any) => {
+        return getVehicleMonthKey(p) === selectedMonth;
+      });
+    }
 
     // Search query filter
     if (searchQuery) {
@@ -147,14 +307,18 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
       list = list.filter((p: any) => 
         (p.platformNumber || p.trackingId || p.tracking_id || "").toLowerCase().includes(q) ||
         (p.vehicleNumber || p.vehicle_number || p.vehicleModel || "").toLowerCase().includes(q) ||
+        (p.chassisNumber || p.chassis_number || p.vin || "").toLowerCase().includes(q) ||
         (p.oemName || p.oem_name || "").toLowerCase().includes(q) ||
+        (p.dealerName || p.dealer_name || "").toLowerCase().includes(q) ||
+        (p.dispatchChallanNumber || "").toLowerCase().includes(q) ||
+        (p.invoiceNumber || "").toLowerCase().includes(q) ||
         (p.productCategory || p.product_category || "").toLowerCase().includes(q) ||
         (p.currentStage || p.current_stage || p.stage || "").toLowerCase().includes(q)
       );
     }
 
-    // Stage filter
-    if (stageFilter && stageFilter !== "all") {
+    // Stage filter (only if not strictly in received or dispatch tab)
+    if (tabMode === "all" && stageFilter && stageFilter !== "all") {
       const sf = stageFilter.toLowerCase();
       list = list.filter((p: any) => {
         const curr = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
@@ -176,34 +340,83 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
       list = list.filter((p: any) => (p.oemName || p.oem_name || "").toLowerCase() === oemFilter.toLowerCase());
     }
 
+    // Dealer filter
+    if (dealerFilter && dealerFilter !== "All Dealers") {
+      list = list.filter((p: any) => (p.dealerName || p.dealer_name || "").toLowerCase() === dealerFilter.toLowerCase());
+    }
+
     // Date range filter
     if (dateRange && dateRange !== "All Time") {
       list = list.filter((p: any) => {
-        const dt = p.createdAt || p.created_at || p.receivedAt || p.received_at || p.date;
-        return dt ? isDateInFilterRange(dt, dateRange) : true;
+        const dt = p.dispatchDateTime || p.receivedAt || p.createdAt;
+        return isDateInFilterRange(dt, dateRange);
       });
     }
 
+    // Sort descending by date
     return list.sort((a: any, b: any) => {
-      const stageA = (a.currentStage || a.current_stage || a.stage || "").toLowerCase().trim();
-      const stageB = (b.currentStage || b.current_stage || b.stage || "").toLowerCase().trim();
-
-      const isDispatchedA = stageA === "dispatch" || stageA === "dispatched" || stageA === "delivered";
-      const isDispatchedB = stageB === "dispatch" || stageB === "dispatched" || stageB === "delivered";
-
-      if (!isDispatchedA && isDispatchedB) return -1;
-      if (isDispatchedA && !isDispatchedB) return 1;
-
-      const dtA = a.receivedAt || a.received_at || a.createdAt || a.created_at || a.date;
-      const dtB = b.receivedAt || b.received_at || b.createdAt || b.created_at || b.date;
-
+      const dtA = a.dispatchDateTime || a.receivedAt || a.createdAt;
+      const dtB = b.dispatchDateTime || b.receivedAt || b.createdAt;
       const timeA = dtA ? new Date(dtA).getTime() : 0;
       const timeB = dtB ? new Date(dtB).getTime() : 0;
 
       if (timeA !== timeB) return timeB - timeA;
       return (Number(b.id) || 0) - (Number(a.id) || 0);
     });
-  }, [platformsList, searchQuery, stageFilter, priorityFilter, oemFilter, dateRange]);
+  }, [platformsList, tabMode, searchQuery, stageFilter, priorityFilter, oemFilter, dealerFilter, dateRange, selectedMonth]);
+
+  // Specific KPI stats calculation
+  const stats = useMemo(() => {
+    const total = platformsList.length;
+
+    // Monthly received vehicles (intake in selected month, or all-time if "all")
+    const monthReceivedCount = platformsList.filter((p: any) => {
+      if (selectedMonth === "all") return true;
+      return getVehicleMonthKey(p) === selectedMonth;
+    }).length;
+
+    // All-time pending vehicles in factory (not yet dispatched / delivered)
+    const allTimePendingCount = platformsList.filter((p: any) => {
+      const stage = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
+      return !["dispatched", "delivered"].includes(stage);
+    }).length;
+
+    const receivedCount = platformsList.filter((p: any) => 
+      ["received", "oem", "incoming_verification", "supervisor_verification"].includes((p.currentStage || "").toLowerCase())
+    ).length;
+    const inAssemblyCount = platformsList.filter((p: any) => 
+      ["fabrication", "paint", "quality", "assembly", "chassis assembly", "battery installation"].includes((p.currentStage || "").toLowerCase())
+    ).length;
+    const rtdCount = platformsList.filter((p: any) => 
+      ["rtd", "readytodispatch"].includes((p.currentStage || "").toLowerCase())
+    ).length;
+    const dispatchedCount = platformsList.filter((p: any) => 
+      ["dispatch", "dispatched", "delivered"].includes((p.currentStage || "").toLowerCase())
+    ).length;
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayReceived = platformsList.filter((p: any) => {
+      const dt = getVehicleReceivedDate(p);
+      return dt && dt.slice(0, 10) === todayStr;
+    }).length;
+    const todayDispatched = platformsList.filter((p: any) => {
+      const dt = p.dispatchDateTime || p.updatedAt;
+      const stage = (p.currentStage || "").toLowerCase();
+      return (stage === "dispatch" || stage === "delivered") && dt && dt.slice(0, 10) === todayStr;
+    }).length;
+
+    return { 
+      total, 
+      monthReceivedCount, 
+      allTimePendingCount, 
+      receivedCount, 
+      inAssemblyCount, 
+      rtdCount, 
+      dispatchedCount, 
+      todayReceived, 
+      todayDispatched 
+    };
+  }, [platformsList, selectedMonth]);
 
   const dispatchCandidateVehicles = useMemo(() => {
     let list = platformsList.filter((v: any) => (v.currentStage || "").toLowerCase() !== "delivered");
@@ -212,6 +425,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
       list = list.filter((v: any) =>
         (v.platformNumber || v.trackingId || "").toLowerCase().includes(q) ||
         (v.vehicleNumber || v.vehicleModel || "").toLowerCase().includes(q) ||
+        (v.chassisNumber || v.vin || "").toLowerCase().includes(q) ||
         (v.oemName || "").toLowerCase().includes(q)
       );
     }
@@ -224,39 +438,89 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     });
   }, [platformsList, dispatchSearchQuery]);
 
+  const formatReceivedDate = (dateVal: any) => {
+    if (!dateVal) return "-";
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return "-";
+      return d.toLocaleDateString("en-IN", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "-";
+    }
+  };
+
   // Export handlers
   const handleExportExcel = () => {
     if (filteredPlatforms.length === 0) return toast.error("No vehicle records to export");
+    const filename = tabMode === "received" ? "Received_Vehicles_Master" : tabMode === "dispatch" ? "Dispatch_Vehicles_Master" : "Production_Board_Vehicles";
     const exportData = filteredPlatforms.map((p: any) => ({
-      "Platform Number / ID": p.platformNumber || p.trackingId || "",
+      "Tracking ID": p.trackingId || p.platformNumber || "",
+      "Chassis / VIN": p.chassisNumber || p.vin || "-",
       "Vehicle Model": p.vehicleNumber || p.vehicleModel || "",
       "OEM Name": p.oemName || "",
+      "Dealer Name": p.dealerName || "-",
       "Category": p.productCategory || "",
       "Stage": p.currentStage || "Pending",
       "Priority": p.priority || "Normal",
-      "Progress %": `${p.progressPercent || 0}%`,
-      "Workers Assigned": (p.assignedWorkerIds || p.workers || []).length,
-      "Received Date": p.createdAt ? format(new Date(p.createdAt), "yyyy-MM-dd HH:mm") : "",
-      "Transport / Driver": p.driverName ? `${p.driverName} (${p.truckNumber || ""})` : ""
+      "Challan Number": p.dispatchChallanNumber || "-",
+      "Invoice Number": p.invoiceNumber || "-",
+      "Transporter": p.transportCompany || "-",
+      "Truck Number": p.truckNumber || "-",
+      "Driver Name": p.driverName || "-",
+      "Driver Mobile": p.driverMobileNumber || "-",
+      "Date": formatReceivedDate(p.dispatchDateTime || p.receivedAt || p.createdAt),
     }));
-    exportToExcel("Production_Board_Vehicles", Object.keys(exportData[0]), exportData);
+    exportToExcel(filename, Object.keys(exportData[0]), exportData);
+  };
+
+  const handleExportPDF = () => {
+    if (filteredPlatforms.length === 0) return toast.error("No vehicle records to export");
+    const filename = tabMode === "received" ? "Received_Vehicles_Master" : tabMode === "dispatch" ? "Dispatch_Vehicles_Master" : "Production_Board_Vehicles";
+    const title = tabMode === "received" ? "Received Vehicles Master Report" : tabMode === "dispatch" ? "Dispatch & Logistics Report" : "Production Board Master Report";
+    const headers = ["Tracking ID", "Chassis / VIN", "Vehicle Model", "OEM", "Dealer", "Category", "Challan/Inv", "Stage", "Date"];
+    const exportData = filteredPlatforms.map((p: any) => ({
+      "Tracking ID": p.trackingId || p.platformNumber || "",
+      "Chassis / VIN": p.chassisNumber || p.vin || "-",
+      "Vehicle Model": p.vehicleNumber || p.vehicleModel || "",
+      "OEM": p.oemName || "",
+      "Dealer": p.dealerName || "-",
+      "Category": p.productCategory || "",
+      "Challan/Inv": p.dispatchChallanNumber ? `Ch: ${p.dispatchChallanNumber}` : p.invoiceNumber ? `Inv: ${p.invoiceNumber}` : "-",
+      "Stage": p.currentStage || "Pending",
+      "Date": formatReceivedDate(p.dispatchDateTime || p.receivedAt || p.createdAt),
+    }));
+    exportToPDF(filename, title, headers, exportData, {
+      summary: `Total ${filteredPlatforms.length} vehicles matching current filter.`
+    });
   };
 
   const handleExportCSV = () => {
     if (filteredPlatforms.length === 0) return toast.error("No vehicle records to export");
+    const filename = tabMode === "received" ? "Received_Vehicles_Master" : tabMode === "dispatch" ? "Dispatch_Vehicles_Master" : "Production_Board_Vehicles";
     const exportData = filteredPlatforms.map((p: any) => ({
-      "Platform Number / ID": p.platformNumber || p.trackingId || "",
+      "Tracking ID": p.trackingId || p.platformNumber || "",
+      "Chassis / VIN": p.chassisNumber || p.vin || "-",
       "Vehicle Model": p.vehicleNumber || p.vehicleModel || "",
       "OEM Name": p.oemName || "",
+      "Dealer Name": p.dealerName || "-",
       "Category": p.productCategory || "",
       "Stage": p.currentStage || "Pending",
       "Priority": p.priority || "Normal",
-      "Progress %": `${p.progressPercent || 0}%`,
-      "Workers Assigned": (p.assignedWorkerIds || p.workers || []).length,
-      "Received Date": p.createdAt ? format(new Date(p.createdAt), "yyyy-MM-dd HH:mm") : "",
-      "Transport / Driver": p.driverName ? `${p.driverName} (${p.truckNumber || ""})` : ""
+      "Challan Number": p.dispatchChallanNumber || "-",
+      "Invoice Number": p.invoiceNumber || "-",
+      "Transporter": p.transportCompany || "-",
+      "Truck Number": p.truckNumber || "-",
+      "Driver Name": p.driverName || "-",
+      "Driver Mobile": p.driverMobileNumber || "-",
+      "Date": formatReceivedDate(p.dispatchDateTime || p.receivedAt || p.createdAt),
     }));
-    exportToCSV("Production_Board_Vehicles", Object.keys(exportData[0]), exportData);
+    exportToCSV(filename, Object.keys(exportData[0]), exportData);
   };
 
   const columns = [
@@ -273,209 +537,501 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
   ];
 
   return (
-    <div className="p-4 pb-24 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* Header & View Switcher */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-extrabold text-gray-900 dark:text-white">Production Board</h2>
-            {stageFilter !== "all" && (
-              <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30 uppercase text-[10px] font-bold">
-                Filter: {stageFilter}
-              </Badge>
-            )}
-          </div>
-          <p className="text-sm text-gray-500 font-medium">Track vehicle assembly stages & full production excel view</p>
-        </div>
-
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View Mode Toggle Switch */}
-          <div className="bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl flex items-center border border-gray-200 dark:border-zinc-700">
+    <div className="p-3 sm:p-4 pb-28 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* ─── TOP SECTION: MODE SELECTOR & STATS ─── */}
+      <div className="space-y-4 mb-5">
+        {/* Sub-tab Mode Switcher (All Production / Received Inward / Dispatch Outward) */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-zinc-900 p-2 sm:p-3 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-xs">
+          <div className="flex bg-gray-100 dark:bg-zinc-800 p-1 rounded-xl w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => setViewMode("kanban")}
+              onClick={() => {
+                setTabMode("all");
+                setStageFilter("all");
+              }}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
-                viewMode === "kanban" 
-                  ? "bg-white dark:bg-zinc-900 text-primary shadow-sm" 
+                "flex-1 sm:flex-initial px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                tabMode === "all"
+                  ? "bg-white dark:bg-zinc-900 text-indigo-600 dark:text-indigo-400 shadow-sm"
                   : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
               )}
             >
-              <LayoutGrid size={14} />
-              Kanban Board
+              <CarFront size={14} />
+              <span>All Production ({platformsList.length})</span>
             </button>
             <button
               type="button"
-              onClick={() => setViewMode("table")}
+              onClick={() => {
+                setTabMode("received");
+                setStageFilter("received");
+              }}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-lg transition-all",
-                viewMode === "table" 
-                  ? "bg-emerald-600 text-white shadow-sm" 
+                "flex-1 sm:flex-initial px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                tabMode === "received"
+                  ? "bg-teal-600 text-white shadow-sm"
                   : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
               )}
             >
-              <FileSpreadsheet size={14} />
-              Excel / Table View
+              <Inbox size={14} />
+              <span>Received (Inward)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTabMode("dispatch");
+                setStageFilter("dispatch");
+              }}
+              className={cn(
+                "flex-1 sm:flex-initial px-3 sm:px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5",
+                tabMode === "dispatch"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              <Truck size={14} />
+              <span>Dispatch (Outward)</span>
             </button>
           </div>
 
-          <button
-            onClick={() => {
-              setAddModalMode("received");
-              setShowAddModal(true);
-            }}
-            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-colors"
-          >
-            <Plus size={16} />
-            Receive New
-          </button>
-          <button
-            onClick={() => setShowSelectDispatchModal(true)}
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold shadow-md transition-colors"
-          >
-            <Truck size={16} />
-            Dispatch Vehicle
-          </button>
+          {/* Quick Action Buttons */}
+          <div className="flex items-center gap-2 justify-end">
+            <Button
+              size="sm"
+              onClick={() => {
+                setAddModalMode("received");
+                setShowAddModal(true);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold h-9 rounded-xl gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Plus size={14} />
+              Receive New
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => setShowSelectDispatchModal(true)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold h-9 rounded-xl gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Truck size={14} />
+              Dispatch
+            </Button>
+          </div>
         </div>
+
+        {/* ─── DYNAMIC KPI CARDS MATCHING ADMIN FORMAT ─── */}
+        {tabMode === "received" ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+            <KPICard
+              title={selectedMonth === "all" ? "Total Received" : `Total Received (${monthDisplayLabel})`}
+              value={stats.monthReceivedCount}
+              description={selectedMonth === "all" ? "All-time gate intake & stock" : `${stats.monthReceivedCount} vehicles received in ${monthDisplayLabel}`}
+              icon={<Inbox size={16} />}
+              semantic="primary"
+            />
+            <KPICard
+              title="Received Today"
+              value={stats.todayReceived}
+              description="Today's gate intake"
+              icon={<CheckCircle2 size={16} />}
+              semantic="success"
+            />
+            <KPICard
+              title="In Assembly"
+              value={stats.inAssemblyCount}
+              description="Active in fab, paint & QA"
+              icon={<CarFront size={16} />}
+              semantic="warning"
+            />
+            <KPICard
+              title="Pending Vehicles"
+              value={stats.allTimePendingCount}
+              description="All-time pending in factory"
+              icon={<Clock size={16} />}
+              semantic="destructive"
+            />
+          </div>
+        ) : tabMode === "dispatch" ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+            <KPICard
+              title="Total Dispatched"
+              value={stats.dispatchedCount}
+              description="All logged outbounds"
+              icon={<Truck size={16} />}
+              semantic="primary"
+            />
+            <KPICard
+              title="Dispatched Today"
+              value={stats.todayDispatched}
+              description="Today's outgoing shipments"
+              icon={<CheckCircle2 size={16} />}
+              semantic="success"
+            />
+            <KPICard
+              title="Ready to Dispatch"
+              value={stats.rtdCount}
+              description="Passed QA, waiting truck"
+              icon={<Clock size={16} />}
+              semantic="warning"
+            />
+            <KPICard
+              title="Pending Dispatch"
+              value={platformsList.filter((p: any) => !["dispatch", "dispatched", "delivered"].includes((p.currentStage || "").toLowerCase())).length}
+              description="Remaining in factory"
+              icon={<AlertCircle size={16} />}
+              semantic="destructive"
+            />
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+            <KPICard
+              title="Total Fleet"
+              value={stats.total}
+              description="Entire production roster"
+              icon={<CarFront size={16} />}
+              semantic="primary"
+            />
+            <KPICard
+              title="In Assembly"
+              value={stats.inAssemblyCount}
+              description="Running on floor"
+              icon={<Settings2 size={16} />}
+              semantic="warning"
+            />
+            <KPICard
+              title="Ready / Dispatched"
+              value={stats.rtdCount + stats.dispatchedCount}
+              description="Finished / dispatched"
+              icon={<CheckCircle2 size={16} />}
+              semantic="success"
+            />
+            <KPICard
+              title={selectedMonth === "all" ? "Received & Intake" : `Received (${monthDisplayLabel})`}
+              value={stats.monthReceivedCount}
+              description={selectedMonth === "all" ? "Inward gate vehicles" : `${stats.monthReceivedCount} received in ${monthDisplayLabel}`}
+              icon={<Inbox size={16} />}
+              semantic="primary"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Filter Control Bar */}
-      <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm mb-6 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      {/* ─── FILTER CONTROL BAR & EXPORT STRIP ─── */}
+      <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-xs mb-5 space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
           {/* Search Bar */}
-          <div className="relative lg:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
+          <div className="relative sm:col-span-2 lg:col-span-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
             <Input 
-              placeholder="Search Platform ID, Vehicle, OEM..." 
-              className="pl-9 bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 rounded-xl h-10 text-xs"
+              placeholder="Search Chassis, VIN, Tracking ID, Model, OEM, Dealer..." 
+              className="pl-9 bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 rounded-xl h-9 text-xs"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          {/* Stage Filter Dropdown */}
+          {/* Month Dropdown */}
           <div>
             <select
-              value={stageFilter}
-              onChange={(e) => setStageFilter(e.target.value)}
-              className="w-full h-10 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
             >
-              <option value="all">All Production Stages</option>
-              <option value="received">Received / Incoming</option>
-              <option value="in_assembly">In Assembly (Fab/Paint/QA)</option>
-              <option value="fabrication">Fabrication</option>
-              <option value="paint">Paint</option>
-              <option value="quality">Quality</option>
-              <option value="rtd">Ready to Dispatch (RTD)</option>
-              <option value="dispatch">Dispatch / Delivered</option>
-              <option value="supervisor_verification">Supervisor Verification</option>
-              <option value="rejected">Rejected</option>
+              <option value="all">📅 All Months (All-Time)</option>
+              {availableMonths.map(([key, label]) => (
+                <option key={key} value={key}>
+                  📅 {label} {key === currentMonthKey ? "(Current)" : ""}
+                </option>
+              ))}
             </select>
           </div>
 
-          {/* Priority Filter Dropdown */}
+          {/* OEM Dropdown */}
+          <div>
+            <select
+              value={oemFilter}
+              onChange={(e) => setOemFilter(e.target.value)}
+              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
+            >
+              {oemList.map((oem) => (
+                <option key={oem} value={oem}>{oem}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Dealer Dropdown */}
+          <div>
+            <select
+              value={dealerFilter}
+              onChange={(e) => setDealerFilter(e.target.value)}
+              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
+            >
+              {dealerList.map((dealer) => (
+                <option key={dealer} value={dealer}>{dealer}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Priority Dropdown */}
           <div>
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full h-10 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
             >
               <option value="all">All Priorities</option>
-              <option value="urgent">Urgent Priority</option>
-              <option value="high">High Priority</option>
-              <option value="medium">Medium Priority</option>
+              <option value="urgent">🚨 Urgent Priority</option>
+              <option value="high">🔥 High Priority</option>
+              <option value="medium">⚡ Medium Priority</option>
               <option value="normal">Normal Priority</option>
-            </select>
-          </div>
-
-          {/* Date Range Dropdown */}
-          <div>
-            <select
-              value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="w-full h-10 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/40"
-            >
-              <option value="All Time">All Time</option>
-              <option value="Today">Today</option>
-              <option value="Yesterday">Yesterday</option>
-              <option value="This Week">This Week</option>
-              <option value="This Month">This Month</option>
             </select>
           </div>
         </div>
 
-        {/* Secondary Filter & Export Buttons */}
-        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800/80 flex-wrap gap-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Active filter pills */}
-            {stageFilter !== "all" && (
-              <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-primary/10 text-primary border border-primary/20">
-                Stage: {stageFilter}
-                <button type="button" onClick={() => setStageFilter("all")} className="hover:text-primary/60">
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-            {priorityFilter !== "all" && (
-              <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-destructive/10 text-destructive border border-destructive/20">
-                Priority: {priorityFilter}
-                <button type="button" onClick={() => setPriorityFilter("all")} className="hover:text-destructive/60">
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-            {oemFilter !== "All OEMs" && (
-              <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
-                OEM: {oemFilter}
-                <button type="button" onClick={() => setOemFilter("All OEMs")} className="hover:text-blue-600">
-                  <X size={12} />
-                </button>
-              </span>
-            )}
-            {dateRange !== "All Time" && (
-              <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
-                Date: {dateRange}
-                <button type="button" onClick={() => setDateRange("All Time")} className="hover:text-amber-600">
-                  <X size={12} />
-                </button>
-              </span>
-            )}
+        {/* Export Buttons & View Toggle Strip */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800 flex-wrap gap-2">
+          {/* View Toggle */}
+          <div className="bg-gray-100 dark:bg-zinc-800 p-0.5 rounded-lg flex items-center border border-gray-200 dark:border-zinc-700">
+            <button
+              type="button"
+              onClick={() => setViewMode("table")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer",
+                viewMode === "table" 
+                  ? "bg-emerald-600 text-white shadow-xs" 
+                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              <FileSpreadsheet size={13} />
+              Excel / Table View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("kanban")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-md transition-all cursor-pointer",
+                viewMode === "kanban" 
+                  ? "bg-white dark:bg-zinc-900 text-indigo-600 shadow-xs" 
+                  : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              )}
+            >
+              <LayoutGrid size={13} />
+              Kanban Board
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Export Action Buttons */}
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={handleExportExcel}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60 rounded-xl text-xs font-bold border border-emerald-200 dark:border-emerald-800/40 transition-colors shadow-sm cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
             >
-              <FileSpreadsheet size={14} className="text-emerald-600 dark:text-emerald-400" />
-              Export Excel (.xlsx)
+              <FileSpreadsheet size={13} />
+              <span className="hidden sm:inline">Export </span>Excel
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPDF}
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs cursor-pointer"
+            >
+              <FileText size={13} />
+              <span className="hidden sm:inline">Export </span>PDF
             </button>
             <button
               type="button"
               onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700 rounded-xl text-xs font-bold border border-gray-200 dark:border-zinc-700 transition-colors cursor-pointer"
+              className="flex items-center gap-1 px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:text-gray-300 text-gray-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
             >
-              <Download size={14} />
+              <Download size={13} />
               CSV
             </button>
           </div>
         </div>
       </div>
 
-      {/* ─── VIEW 1: EXCEL / TABLE VIEW ─── */}
+      {/* ─── MOBILE CARDS VIEW (ADMIN FORMATTED) ─── */}
+      <div className="md:hidden space-y-3 mb-6">
+        {filteredPlatforms.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-zinc-900 rounded-2xl border border-border p-6 shadow-xs">
+            <CarFront size={36} className="mx-auto text-muted-foreground/40 mb-2" />
+            <p className="text-sm font-semibold text-foreground">No vehicles found</p>
+            <p className="text-xs text-muted-foreground mt-1">Try adjusting your search query or filters.</p>
+          </div>
+        ) : (
+          filteredPlatforms.map((pf: any) => {
+            const chassis = pf.chassisNumber || pf.vin || "-";
+            const stage = (pf.currentStage || "received").toLowerCase();
+            const isCompleted = ["rtd", "dispatch", "delivered", "readytodispatch"].includes(stage);
+            const dateStr = formatReceivedDate(pf.dispatchDateTime || pf.receivedAt || pf.createdAt);
+            const pNorm = (pf.priority || "normal").toLowerCase();
+
+            return (
+              <div key={pf.id} className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-2xl p-4 space-y-3 shadow-xs">
+                {/* Header row */}
+                <div className="flex items-center justify-between gap-2 border-b border-gray-100 dark:border-zinc-800/80 pb-2.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/vehicle/${pf.id}`)}
+                      className="font-mono text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline truncate"
+                    >
+                      {pf.trackingId || pf.platformNumber}
+                    </button>
+                    <span className="font-semibold px-2 py-0.5 rounded-full text-[10px] bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 capitalize shrink-0">
+                      {pf.currentStage || "Received"}
+                    </span>
+                  </div>
+                  <span
+                    className={cn(
+                      "font-bold px-2 py-0.5 rounded-full text-[10px] shrink-0",
+                      pNorm === "urgent"
+                        ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
+                        : pNorm === "high"
+                        ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {pf.priority || "Normal"}
+                  </span>
+                </div>
+
+                {/* Body Details Grid (Exact Admin Format) */}
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  <div>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OEM & Model</span>
+                    <span className="font-bold text-foreground truncate block">{pf.oemName || "Fox Motors"}</span>
+                    <span className="text-muted-foreground text-[11px] truncate block">{pf.vehicleNumber || pf.vehicleModel || "-"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Chassis / VIN</span>
+                    <span className="font-mono text-foreground font-semibold truncate block bg-gray-50 dark:bg-zinc-800/80 px-1.5 py-0.5 rounded border border-gray-100 dark:border-zinc-800">
+                      {chassis}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Dealer / Destination</span>
+                    <span className="text-foreground font-medium truncate block">{pf.dealerName || "Factory Floor"}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Date</span>
+                    <span className="text-muted-foreground text-[11px] truncate block">{dateStr}</span>
+                  </div>
+                </div>
+
+                {/* Category & Logistics Row */}
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800/60 text-[11px]">
+                  <span className="text-muted-foreground font-medium truncate">{pf.productCategory || "Cargo Box"}</span>
+                  {(pf.dispatchChallanNumber || pf.invoiceNumber) && (
+                    <span className="font-mono text-indigo-600 dark:text-indigo-400 font-semibold truncate">
+                      {pf.dispatchChallanNumber ? `Ch: ${pf.dispatchChallanNumber}` : `Inv: ${pf.invoiceNumber}`}
+                    </span>
+                  )}
+                </div>
+
+                {/* Progress bar */}
+                <div>
+                  <div className="flex justify-between items-center text-[10px] font-bold text-gray-500 mb-1">
+                    <span>Progress</span>
+                    <span>{pf.progressPercent || 0}%</span>
+                  </div>
+                  <div className="w-full bg-gray-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
+                    <div 
+                      className={cn("h-full rounded-full transition-all duration-300", isCompleted ? "bg-emerald-500" : "bg-indigo-600")}
+                      style={{ width: `${pf.progressPercent || 0}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Action Buttons Strip */}
+                <div className="flex items-center justify-end gap-1.5 pt-2 border-t border-gray-100 dark:border-zinc-800 flex-wrap">
+                  {pf.documentsUrl && (
+                    <a
+                      href={pf.documentsUrl.startsWith("http") || pf.documentsUrl.startsWith("/") ? pf.documentsUrl : "#"}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="h-8 px-2.5 text-xs font-semibold rounded-lg border border-border bg-background hover:bg-muted inline-flex items-center gap-1 text-foreground transition-colors cursor-pointer"
+                    >
+                      <FileText size={12} /> Doc
+                    </a>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => router.push(`/vehicle/${pf.id}`)}
+                    className="h-8 px-2.5 text-xs font-bold cursor-pointer"
+                  >
+                    <Eye size={12} className="mr-1" /> View
+                  </Button>
+
+                  {["oem", "incoming_verification", "supervisor_verification"].includes(stage) && (
+                    <Button
+                      size="sm"
+                      onClick={() => setVerifyState({ isOpen: true, vehicle: pf })}
+                      className="h-8 px-2.5 text-xs font-bold bg-green-600 hover:bg-green-700 text-white gap-1 cursor-pointer"
+                    >
+                      <CheckCircle2 size={12} /> Verify
+                    </Button>
+                  )}
+
+                  {!["oem", "incoming_verification", "supervisor_verification", "rejected"].includes(stage) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setAssignJobState({ isOpen: true, vehicle: pf })}
+                      className="h-8 px-2.5 text-xs font-bold text-indigo-600 border-indigo-200 dark:border-indigo-800 gap-1 cursor-pointer"
+                    >
+                      <UserPlus size={12} /> Assign
+                    </Button>
+                  )}
+
+                  <Button
+                    size="sm"
+                    onClick={() => setPendingDispatchVehicle(pf)}
+                    className="h-8 px-2.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 cursor-pointer"
+                  >
+                    <Truck size={12} /> Dispatch
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        type="button"
+                        className="h-8 w-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted cursor-pointer"
+                      >
+                        <ChevronDown size={14} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setEditRecord(pf)}>
+                        <Edit className="w-3.5 h-3.5 mr-2" /> Edit Details
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setHistoryRecord(pf)}>
+                        <History className="w-3.5 h-3.5 mr-2" /> Audit History
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* ─── DESKTOP VIEW 1: EXCEL / MASTER TABLE VIEW ─── */}
       {viewMode === "table" ? (
-        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+        <div className="hidden md:block bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-xs overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[900px]">
+            <table className="w-full text-left border-collapse min-w-[1050px]">
               <thead>
                 <tr className="bg-gray-50/80 dark:bg-zinc-800/80 border-b border-gray-200 dark:border-zinc-800 text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   <th className="p-3.5 pl-4">Platform / Tracking ID</th>
-                  <th className="p-3.5">Vehicle Model</th>
-                  <th className="p-3.5">OEM & Category</th>
-                  <th className="p-3.5">Current Stage</th>
+                  <th className="p-3.5">Chassis / VIN</th>
+                  <th className="p-3.5">OEM & Model</th>
+                  <th className="p-3.5">Dealer / Destination</th>
+                  <th className="p-3.5">Challan / Invoice</th>
+                  <th className="p-3.5">Category</th>
+                  <th className="p-3.5">Stage</th>
                   <th className="p-3.5">Priority</th>
-                  <th className="p-3.5">Assigned Workers</th>
                   <th className="p-3.5">Progress</th>
                   <th className="p-3.5 pr-4 text-right">Actions</th>
                 </tr>
@@ -483,8 +1039,8 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
               <tbody className="divide-y divide-gray-100 dark:divide-zinc-800 text-xs">
                 {filteredPlatforms.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-center py-12 text-gray-400">
-                      <CarFront size={40} className="mx-auto mb-2 opacity-25" />
+                    <td colSpan={10} className="text-center py-16 text-gray-400">
+                      <CarFront size={44} className="mx-auto mb-2 opacity-25" />
                       <p className="text-sm font-semibold">No vehicles found matching current filters</p>
                       <button
                         type="button"
@@ -493,9 +1049,10 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                           setStageFilter("all");
                           setPriorityFilter("all");
                           setOemFilter("All OEMs");
+                          setDealerFilter("All Dealers");
                           setDateRange("All Time");
                         }}
-                        className="mt-2 text-xs text-primary font-bold hover:underline"
+                        className="mt-2 text-xs text-indigo-600 font-bold hover:underline cursor-pointer"
                       >
                         Reset All Filters
                       </button>
@@ -503,37 +1060,63 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                   </tr>
                 ) : (
                   filteredPlatforms.map((pf: any) => {
-                    const workerCount = pf.assignedWorkerIds?.length || pf.workers?.length || 0;
-                    const stage = (pf.currentStage || "").toLowerCase();
+                    const chassis = pf.chassisNumber || pf.vin || "-";
+                    const stage = (pf.currentStage || "received").toLowerCase();
                     const isCompleted = ["rtd", "dispatch", "delivered", "readytodispatch"].includes(stage);
+                    const workerCount = pf.assignedWorkerIds?.length || pf.workers?.length || 0;
 
                     return (
                       <tr key={pf.id} className="hover:bg-gray-50/50 dark:hover:bg-zinc-800/40 transition-colors">
-                        <td className="p-3.5 pl-4 font-extrabold text-gray-900 dark:text-white">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center font-black shrink-0">
-                              <CarFront size={16} />
-                            </div>
-                            <div>
-                              <div className="font-extrabold text-gray-900 dark:text-white">
-                                {pf.platformNumber || pf.trackingId}
-                              </div>
-                              <div className="text-[10px] text-gray-400 font-mono">
-                                {pf.createdAt ? format(new Date(pf.createdAt), "dd MMM yyyy") : ""}
-                              </div>
-                            </div>
+                        {/* Tracking ID */}
+                        <td className="p-3.5 pl-4 font-extrabold">
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/vehicle/${pf.id}`)}
+                            className="font-mono text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1.5"
+                          >
+                            <CarFront size={14} className="text-gray-400" />
+                            {pf.platformNumber || pf.trackingId}
+                          </button>
+                          <div className="text-[10px] text-gray-400 font-normal mt-0.5">
+                            {formatReceivedDate(pf.dispatchDateTime || pf.receivedAt || pf.createdAt)}
                           </div>
                         </td>
 
-                        <td className="p-3.5 font-bold text-gray-800 dark:text-gray-200">
-                          {pf.vehicleNumber || pf.vehicleModel || "N/A"}
-                        </td>
-
+                        {/* Chassis / VIN */}
                         <td className="p-3.5">
-                          <div className="font-semibold text-gray-700 dark:text-gray-300">{pf.oemName || "Fox Motors"}</div>
-                          <div className="text-[10px] text-gray-400">{pf.productCategory || "Cargo Box"}</div>
+                          <span className="font-mono font-semibold text-foreground bg-gray-50 dark:bg-zinc-800/80 px-2 py-0.5 rounded border border-gray-200 dark:border-zinc-700 text-xs">
+                            {chassis}
+                          </span>
                         </td>
 
+                        {/* OEM & Model */}
+                        <td className="p-3.5">
+                          <div className="font-bold text-gray-900 dark:text-white">{pf.oemName || "Fox Motors"}</div>
+                          <div className="text-[11px] text-muted-foreground">{pf.vehicleNumber || pf.vehicleModel || "-"}</div>
+                        </td>
+
+                        {/* Dealer */}
+                        <td className="p-3.5 font-medium text-foreground">
+                          {pf.dealerName || "Factory Outbound"}
+                        </td>
+
+                        {/* Challan / Invoice */}
+                        <td className="p-3.5 font-mono text-xs">
+                          {pf.dispatchChallanNumber ? (
+                            <span className="text-foreground font-semibold block">Ch: {pf.dispatchChallanNumber}</span>
+                          ) : null}
+                          {pf.invoiceNumber ? (
+                            <span className="text-muted-foreground text-[10px] block">Inv: {pf.invoiceNumber}</span>
+                          ) : null}
+                          {!pf.dispatchChallanNumber && !pf.invoiceNumber && <span className="text-gray-400">-</span>}
+                        </td>
+
+                        {/* Category */}
+                        <td className="p-3.5 text-muted-foreground">
+                          {pf.productCategory || "Cargo Box"}
+                        </td>
+
+                        {/* Stage */}
                         <td className="p-3.5">
                           <Badge 
                             variant="outline"
@@ -552,105 +1135,88 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                           </Badge>
                         </td>
 
+                        {/* Priority */}
                         <td className="p-3.5">
                           <PriorityBadge priority={pf.priority || "normal"} />
                         </td>
 
-                        <td className="p-3.5 font-semibold">
-                          <div className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300">
-                            <Users size={13} className="text-gray-400" />
+                        {/* Progress */}
+                        <td className="p-3.5 w-32">
+                          <div className="flex items-center justify-between text-[10px] font-bold mb-1 text-gray-500">
+                            <span>{pf.progressPercent || 0}%</span>
                             <span>{workerCount} worker(s)</span>
                           </div>
-                        </td>
-
-                        <td className="p-3.5 w-36">
-                          <div className="flex items-center justify-between text-[11px] font-bold mb-1">
-                            <span className="text-gray-500">{pf.progressPercent || 0}%</span>
-                          </div>
-                          <div className="w-full bg-gray-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                          <div className="w-full bg-gray-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden">
                             <div 
-                              className={cn(
-                                "h-full rounded-full transition-all duration-300",
-                                isCompleted ? "bg-green-500" : "bg-indigo-500"
-                              )} 
+                              className={cn("h-full rounded-full transition-all duration-300", isCompleted ? "bg-emerald-500" : "bg-indigo-600")}
                               style={{ width: `${pf.progressPercent || 0}%` }}
                             />
                           </div>
                         </td>
 
+                        {/* Actions */}
                         <td className="p-3.5 pr-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
-                            {/* Verification Button */}
+                            {pf.documentsUrl && (
+                              <a
+                                href={pf.documentsUrl.startsWith("http") || pf.documentsUrl.startsWith("/") ? pf.documentsUrl : "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2 py-1 rounded-md border border-border bg-background hover:bg-muted text-xs font-semibold inline-flex items-center gap-1 text-foreground transition-colors cursor-pointer"
+                              >
+                                <FileText size={12} /> Doc
+                              </a>
+                            )}
+
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/vehicle/${pf.id}`)}
+                              className="px-2.5 py-1 text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-zinc-800 hover:bg-gray-200 rounded-lg cursor-pointer"
+                            >
+                              View
+                            </button>
+
                             {["oem", "incoming_verification", "supervisor_verification"].includes(stage) && (
                               <button
                                 type="button"
                                 onClick={() => setVerifyState({ isOpen: true, vehicle: pf })}
-                                className="px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
+                                className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
                               >
-                                <CheckCircle2 size={13} /> Verify
+                                <CheckCircle2 size={12} /> Verify
                               </button>
                             )}
 
-                            {/* Dispatch Button */}
-                            {(stage === "rtd" || stage === "readytodispatch") && (
-                              <button
-                                type="button"
-                                onClick={() => setPendingDispatchVehicle(pf)}
-                                className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors flex items-center gap-1 shadow-sm"
-                              >
-                                <Truck size={13} /> Dispatch
-                              </button>
-                            )}
-
-                            {/* Assign Job Button */}
                             {!["oem", "incoming_verification", "supervisor_verification", "rejected"].includes(stage) && (
                               <button
                                 type="button"
                                 onClick={() => setAssignJobState({ isOpen: true, vehicle: pf })}
-                                className="px-2.5 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 rounded-lg text-xs font-bold border border-indigo-200 dark:border-indigo-800/40 transition-colors flex items-center gap-1"
+                                className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 rounded-lg text-xs font-bold border border-indigo-200 dark:border-indigo-800/40 flex items-center gap-1 cursor-pointer"
                               >
-                                <UserPlus size={13} /> Assign
+                                <UserPlus size={12} /> Assign
                               </button>
                             )}
 
-                            {/* Change Stage Dropdown */}
+                            <button
+                              type="button"
+                              onClick={() => setPendingDispatchVehicle(pf)}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <Truck size={12} /> Dispatch
+                            </button>
+
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <button className="p-1.5 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg text-gray-500 transition-colors">
-                                  <ChevronDown size={16} />
+                                <button className="p-1 hover:bg-gray-100 dark:hover:bg-zinc-800 rounded-lg text-gray-500 cursor-pointer">
+                                  <ChevronDown size={15} />
                                 </button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch", "Delivered"].map(stageLabel => {
-                                  const stageMap: Record<string, string> = {
-                                    "Received": "received",
-                                    "Fabrication": "fabrication",
-                                    "Paint": "paint",
-                                    "Ready-to-Dispatch": "rtd",
-                                    "Dispatch": "dispatch",
-                                    "Delivered": "delivered"
-                                  };
-                                  return (
-                                    <DropdownMenuItem 
-                                      key={stageLabel}
-                                      onClick={() => {
-                                        const targetStage = stageMap[stageLabel];
-                                        if (targetStage === "dispatch" || targetStage === "delivered") {
-                                          setPendingDispatchVehicle(pf);
-                                          return;
-                                        }
-                                        let progress = 0;
-                                        if (targetStage === "received") progress = 0;
-                                        else if (targetStage === "fabrication") progress = 30;
-                                        else if (targetStage === "paint") progress = 60;
-                                        else if (targetStage === "rtd") progress = 90;
-                                        updateStageMutation.mutate({ id: pf.id, stage: targetStage, progress });
-                                      }}
-                                    >
-                                      Change to {stageLabel}
-                                    </DropdownMenuItem>
-                                  );
-                                })}
+                                <DropdownMenuItem onClick={() => setEditRecord(pf)}>
+                                  <Edit className="w-3.5 h-3.5 mr-2" /> Edit Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => setHistoryRecord(pf)}>
+                                  <History className="w-3.5 h-3.5 mr-2" /> Audit History
+                                </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
@@ -664,9 +1230,9 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
           </div>
 
           {/* Table Footer Summary */}
-          <div className="p-4 bg-gray-50 dark:bg-zinc-800/60 border-t border-gray-200 dark:border-zinc-800 flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 flex-wrap gap-2">
+          <div className="p-3.5 bg-gray-50 dark:bg-zinc-800/60 border-t border-gray-200 dark:border-zinc-800 flex items-center justify-between text-xs font-bold text-gray-600 dark:text-gray-300 flex-wrap gap-2">
             <div>
-              Showing <span className="text-primary">{filteredPlatforms.length}</span> of {platformsList.length} vehicles
+              Showing <span className="text-indigo-600 dark:text-indigo-400">{filteredPlatforms.length}</span> of {platformsList.length} vehicles
             </div>
             <div className="flex items-center gap-4">
               <span>Urgent: <strong className="text-red-600">{filteredPlatforms.filter((p: any) => (p.priority || "").toLowerCase() === "urgent").length}</strong></span>
@@ -676,8 +1242,8 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
           </div>
         </div>
       ) : (
-        /* ─── VIEW 2: KANBAN BOARD ─── */
-        <div className="flex overflow-x-auto snap-x snap-mandatory hide-scrollbar pb-6 gap-4 -mx-4 px-4 h-[calc(100vh-280px)] min-h-[500px]">
+        /* ─── DESKTOP VIEW 2: KANBAN BOARD ─── */
+        <div className="hidden md:flex overflow-x-auto snap-x snap-mandatory hide-scrollbar pb-6 gap-4 -mx-4 px-4 h-[calc(100vh-280px)] min-h-[500px]">
           {columns.map((col) => {
             const columnVehicles = filteredPlatforms.filter((pf: any) => {
               const stage = pf.currentStage?.toLowerCase() === "readytodispatch" ? "rtd" : pf.currentStage?.toLowerCase() || "";
@@ -707,6 +1273,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                       const workerCount = pf.assignedWorkerIds?.length || pf.workers?.length || 0;
                       const stage = pf.currentStage?.toLowerCase() || "";
                       const isCompleted = ["rtd", "dispatch", "delivered", "readytodispatch"].includes(stage);
+                      const chassis = pf.chassisNumber || pf.vin || "-";
                       
                       return (
                         <motion.div 
@@ -714,119 +1281,94 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: idx * 0.05 }}
                           key={pf.id} 
-                          className="bg-white dark:bg-zinc-900 rounded-[20px] p-4 shadow-sm border border-gray-100 dark:border-zinc-800"
+                          className="bg-white dark:bg-zinc-900 rounded-[20px] p-4 shadow-sm border border-gray-100 dark:border-zinc-800 space-y-2.5"
                         >
-                          <div className="flex justify-between items-start mb-3">
+                          {/* Top Badges */}
+                          <div className="flex justify-between items-start">
                             <div>
-                              <Badge variant="outline" className="mb-2 bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] uppercase font-bold px-2 py-0.5">
+                              <Badge variant="outline" className="mb-1.5 bg-indigo-50 text-indigo-700 border-indigo-200 text-[10px] uppercase font-bold px-2 py-0.5">
                                 {pf.currentStage || "Pending"}
                               </Badge>
-                              <h3 className="font-extrabold text-lg leading-tight">{pf.platformNumber || pf.trackingId}</h3>
-                              <p className="text-sm text-gray-800 dark:text-gray-300 font-bold mt-1">{pf.vehicleNumber || pf.vehicleModel}</p>
-                              <p className="text-xs text-gray-500 font-medium mt-0.5">{pf.oemName}</p>
+                              <h3 
+                                onClick={() => router.push(`/vehicle/${pf.id}`)}
+                                className="font-extrabold text-base leading-tight text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                              >
+                                {pf.platformNumber || pf.trackingId}
+                              </h3>
+                              <p className="text-xs text-gray-800 dark:text-gray-200 font-bold mt-0.5">{pf.vehicleNumber || pf.vehicleModel}</p>
+                              <p className="text-[11px] text-gray-500 font-medium">{pf.oemName} • {pf.productCategory || "Cargo Box"}</p>
                             </div>
-                            {isCompleted ? (
-                              <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center flex-shrink-0">
-                                <CheckCircle2 size={16} />
-                              </div>
-                            ) : (
-                              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-shrink-0">
-                                <Settings2 size={16} />
+                            <PriorityBadge priority={pf.priority || "normal"} showLabel={false} />
+                          </div>
+
+                          {/* Chassis & Dealer Details */}
+                          <div className="bg-gray-50 dark:bg-zinc-800/60 p-2 rounded-xl text-[11px] space-y-1 border border-gray-100 dark:border-zinc-800">
+                            <div className="flex justify-between items-center">
+                              <span className="text-gray-400 font-medium">Chassis / VIN:</span>
+                              <span className="font-mono font-bold text-gray-800 dark:text-gray-200">{chassis}</span>
+                            </div>
+                            {pf.dealerName && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-400 font-medium">Dealer:</span>
+                                <span className="font-semibold text-gray-700 dark:text-gray-300 truncate max-w-[150px]">{pf.dealerName}</span>
                               </div>
                             )}
                           </div>
                           
-                          <div className="mt-4 pt-3 border-t border-gray-100 dark:border-zinc-800">
-                            <div className="flex justify-between items-center text-[11px] font-bold mb-2">
-                              <span className="text-gray-600 flex items-center gap-1.5">
-                                <Users size={12} /> 
+                          {/* Progress bar */}
+                          <div className="pt-2 border-t border-gray-100 dark:border-zinc-800">
+                            <div className="flex justify-between items-center text-[10px] font-bold mb-1.5">
+                              <span className="text-gray-600 flex items-center gap-1">
+                                <Users size={11} /> 
                                 {workerCount} {workerCount === 1 ? 'Worker' : 'Workers'}
                               </span>
                               <span className="text-indigo-600">{pf.progressPercent || 0}%</span>
                             </div>
                             
-                            <div className="w-full bg-gray-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden mb-3">
+                            <div className="w-full bg-gray-100 dark:bg-zinc-800 h-1.5 rounded-full overflow-hidden mb-3">
                               <div 
-                                className={`h-full rounded-full transition-all duration-500 ${isCompleted ? 'bg-green-500' : 'bg-indigo-500'}`} 
+                                className={`h-full rounded-full transition-all duration-500 ${isCompleted ? 'bg-emerald-500' : 'bg-indigo-600'}`} 
                                 style={{ width: `${pf.progressPercent || 0}%` }}
                               />
                             </div>
                             
-                            {(!isCompleted && ["oem", "incoming_verification", "supervisor_verification"].includes(stage)) && (
-                              <button
-                                onClick={() => setVerifyState({ isOpen: true, vehicle: pf })}
-                                className="w-full flex items-center justify-center gap-2 bg-green-500 hover:bg-green-600 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors"
-                              >
-                                <CheckCircle2 size={14} />
-                                Verify
-                              </button>
-                            )}
-                            
-                            {(!isCompleted && !["oem", "incoming_verification", "supervisor_verification", "rejected"].includes(stage)) && (
-                              <div className="w-full space-y-2">
-                                {(stage === "rtd" || stage === "readytodispatch") && (
-                                  <button
-                                    onClick={() => setPendingDispatchVehicle(pf)}
-                                    className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors"
-                                  >
-                                    <Truck size={14} />
-                                    Dispatch Vehicle
-                                  </button>
-                                )}
-                                <div className="w-full flex gap-2">
+                            {/* Card Actions */}
+                            <div className="space-y-1.5">
+                              {(!isCompleted && ["oem", "incoming_verification", "supervisor_verification"].includes(stage)) && (
+                                <button
+                                  onClick={() => setVerifyState({ isOpen: true, vehicle: pf })}
+                                  className="w-full flex items-center justify-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <CheckCircle2 size={13} />
+                                  Verify Gate Entry
+                                </button>
+                              )}
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => router.push(`/vehicle/${pf.id}`)}
+                                  className="flex-1 flex items-center justify-center gap-1 bg-gray-100 hover:bg-gray-200 dark:bg-zinc-800 dark:text-gray-200 text-gray-700 px-2 py-1.5 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                                >
+                                  <Eye size={12} /> View
+                                </button>
+
+                                {(!isCompleted && !["oem", "incoming_verification", "supervisor_verification", "rejected"].includes(stage)) && (
                                   <button
                                     onClick={() => setAssignJobState({ isOpen: true, vehicle: pf })}
-                                    className="flex-1 flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-indigo-200 dark:border-indigo-500/30"
+                                    className="flex-1 flex items-center justify-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 px-2 py-1.5 rounded-xl text-xs font-bold border border-indigo-200 dark:border-indigo-800/40 transition-colors cursor-pointer"
                                   >
-                                    <UserPlus size={14} />
-                                    Assign Job
+                                    <UserPlus size={12} /> Assign
                                   </button>
-                                  
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <button 
-                                        className="flex items-center justify-center gap-1 bg-gray-50 hover:bg-gray-100 text-gray-700 dark:bg-zinc-800 dark:text-gray-300 dark:hover:bg-zinc-700 px-3 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors border border-gray-200 dark:border-zinc-700"
-                                      >
-                                        Stage <ChevronDown size={14} />
-                                      </button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent>
-                                      {["Received", "Fabrication", "Paint", "Ready-to-Dispatch", "Dispatch", "Delivered"].map(stageLabel => {
-                                        const stageMap: Record<string, string> = {
-                                          "Received": "received",
-                                          "Fabrication": "fabrication",
-                                          "Paint": "paint",
-                                          "Ready-to-Dispatch": "rtd",
-                                          "Dispatch": "dispatch",
-                                          "Delivered": "delivered"
-                                        };
-                                        return (
-                                          <DropdownMenuItem 
-                                            key={stageLabel}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              const targetStage = stageMap[stageLabel];
-                                              if (targetStage === "dispatch" || targetStage === "delivered") {
-                                                setPendingDispatchVehicle(pf);
-                                                return;
-                                              }
-                                              let progress = 0;
-                                              if (targetStage === "received") progress = 0;
-                                              else if (targetStage === "fabrication") progress = 30;
-                                              else if (targetStage === "paint") progress = 60;
-                                              else if (targetStage === "rtd") progress = 90;
-                                              updateStageMutation.mutate({ id: pf.id, stage: targetStage, progress });
-                                            }}
-                                          >
-                                            {stageLabel}
-                                          </DropdownMenuItem>
-                                        );
-                                      })}
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                </div>
+                                )}
+
+                                <button
+                                  onClick={() => setPendingDispatchVehicle(pf)}
+                                  className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 hover:bg-emerald-700 text-white px-2 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-colors cursor-pointer"
+                                >
+                                  <Truck size={12} /> Dispatch
+                                </button>
                               </div>
-                            )}
+                            </div>
                           </div>
                         </motion.div>
                       );
@@ -839,6 +1381,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
         </div>
       )}
 
+      {/* ─── MODALS & DRAWERS ─── */}
       {showAddModal && (
         <AddVehicleDialog
           onClose={() => setShowAddModal(false)}
@@ -860,7 +1403,10 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
         vehicle={verifyState.vehicle}
         open={verifyState.isOpen}
         onOpenChange={(open) => setVerifyState({ isOpen: open, vehicle: open ? verifyState.vehicle : null })}
-        onVerificationComplete={() => setVerifyState({ isOpen: false, vehicle: null })}
+        onVerificationComplete={() => {
+          setVerifyState({ isOpen: false, vehicle: null });
+          queryClient.invalidateQueries({ queryKey: ["vehicles"] });
+        }}
       />
 
       <DispatchVehicleDialog
@@ -869,6 +1415,43 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
         vehicle={pendingDispatchVehicle}
         onSubmit={handleFinalDispatchSubmit}
         isSubmitting={updateVehicleMutation.isPending}
+      />
+
+      {/* Edit Record Dialog */}
+      {editRecord && (
+        <EditRecordDialog
+          open={!!editRecord}
+          onOpenChange={(open) => !open && setEditRecord(null)}
+          title={`Edit Vehicle: ${editRecord.trackingId || editRecord.platformNumber || editRecord.vehicleNumber}`}
+          fields={VEHICLE_EDIT_FIELDS}
+          initialValues={{
+            vehicleNumber: editRecord.vehicleNumber || "",
+            chassisNumber: editRecord.chassisNumber || editRecord.vin || "",
+            oemName: editRecord.oemName || "",
+            vehicleModel: editRecord.vehicleModel || "",
+            dealerName: editRecord.dealerName || "",
+            productCategory: editRecord.productCategory || "",
+            driverName: editRecord.driverName || "",
+            driverMobileNumber: editRecord.driverMobileNumber || "",
+            truckNumber: editRecord.truckNumber || "",
+            transportCompany: editRecord.transportCompany || "",
+            dispatchChallanNumber: editRecord.dispatchChallanNumber || "",
+            invoiceNumber: editRecord.invoiceNumber || "",
+            lrNumber: editRecord.lrNumber || "",
+            priority: (editRecord.priority || "normal").toLowerCase(),
+          }}
+          onSubmit={handleEditRecordSubmit}
+          isSubmitting={updateVehicleMutation.isPending}
+        />
+      )}
+
+      {/* Audit History Drawer */}
+      <AuditHistoryDrawer
+        open={!!historyRecord}
+        onOpenChange={(open) => !open && setHistoryRecord(null)}
+        recordId={historyRecord?.id}
+        module="vehicles"
+        title={`Audit History: ${historyRecord?.trackingId || historyRecord?.vehicleNumber || historyRecord?.id}`}
       />
 
       {/* Select Vehicle For Dispatch Modal */}
@@ -887,7 +1470,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
           <div className="relative mb-4">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
             <Input
-              placeholder="Search vehicle number or ID..."
+              placeholder="Search vehicle number, chassis or ID..."
               value={dispatchSearchQuery}
               onChange={(e) => setDispatchSearchQuery(e.target.value)}
               className="pl-9 h-10 rounded-xl bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 text-xs"
@@ -932,6 +1515,9 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                       <p className="text-xs text-gray-700 dark:text-gray-300 font-semibold">
                         {vehicle.vehicleNumber || vehicle.vehicleModel}
                       </p>
+                      <p className="text-[11px] text-gray-400 font-mono">
+                        Chassis: {vehicle.chassisNumber || vehicle.vin || "-"}
+                      </p>
                       <p className="text-[11px] text-gray-400">{vehicle.oemName}</p>
                     </div>
 
@@ -940,7 +1526,7 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
                         setShowSelectDispatchModal(false);
                         setPendingDispatchVehicle(vehicle);
                       }}
-                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm cursor-pointer"
+                      className="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-xs cursor-pointer"
                     >
                       <Truck size={13} />
                       Dispatch

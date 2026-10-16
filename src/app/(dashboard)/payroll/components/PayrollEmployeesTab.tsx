@@ -4,7 +4,9 @@ import React, { useState, useMemo } from "react";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2, RefreshCw } from "lucide-react";
+import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2, RefreshCw, Users, IndianRupee, Clock } from "lucide-react";
+import { KPICard } from "@/components/ui/KPICard";
+import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -67,6 +69,15 @@ export default function PayrollEmployeesTab() {
   const filteredEmployees = useMemo(() => {
     return employees.filter((e: any) => e.employeeName.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [employees, searchTerm]);
+
+  const payrollStats = useMemo(() => {
+    const totalStaff = filteredEmployees.length;
+    const totalGross = filteredEmployees.reduce((acc: number, curr: any) => acc + (curr.totalSalary !== undefined ? curr.totalSalary : (curr.baseSalary + curr.otAmount + curr.sundayAmount + curr.bonusAmount)), 0);
+    const totalNet = filteredEmployees.reduce((acc: number, curr: any) => acc + (curr.finalSalary || 0), 0);
+    const totalExtra = filteredEmployees.reduce((acc: number, curr: any) => acc + (curr.otAmount || 0) + (curr.sundayAmount || 0), 0);
+    const paidCount = filteredEmployees.filter((e: any) => (e.status || "").toLowerCase() === "paid").length;
+    return { totalStaff, totalGross, totalNet, totalExtra, paidCount };
+  }, [filteredEmployees]);
 
   const generatePayslipPDF = (emp: any) => {
     const doc = new jsPDF();
@@ -426,7 +437,40 @@ export default function PayrollEmployeesTab() {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
+    <div className="space-y-4">
+      {/* 4 Executive KPI Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
+        <KPICard
+          title="Total Staff"
+          value={payrollStats.totalStaff}
+          description={`Payroll roster (${selectedMonth})`}
+          icon={<Users size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Net Payable"
+          value={`₹${payrollStats.totalNet.toLocaleString()}`}
+          description="Total net disbursal"
+          icon={<IndianRupee size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="OT & Extra Pay"
+          value={`₹${payrollStats.totalExtra.toLocaleString()}`}
+          description="Overtime & Sunday work"
+          icon={<Clock size={14} />}
+          semantic={payrollStats.totalExtra > 0 ? "warning" : "neutral"}
+        />
+        <KPICard
+          title="Disbursement Status"
+          value={`${payrollStats.paidCount} / ${payrollStats.totalStaff} Paid`}
+          description={payrollStats.totalStaff - payrollStats.paidCount > 0 ? `${payrollStats.totalStaff - payrollStats.paidCount} pending payment` : "All salaries cleared"}
+          icon={<CheckCircle size={14} />}
+          semantic={payrollStats.paidCount === payrollStats.totalStaff && payrollStats.totalStaff > 0 ? "success" : "neutral"}
+        />
+      </div>
+
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
       
       {/* TOOLBAR */}
       <div className="p-3 sm:p-3.5 border-b border-border bg-muted/10 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
@@ -557,8 +601,149 @@ export default function PayrollEmployeesTab() {
         </div>
       </div>
 
-      {/* TABLE */}
-      <div className="flex-1 overflow-auto">
+      {/* Mobile Payroll Cards List */}
+      <div className="md:hidden space-y-3 p-3 bg-muted/10">
+        {filteredEmployees.length === 0 ? (
+          <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
+            <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+            <p className="text-sm font-semibold text-foreground">No payroll records found</p>
+            <p className="text-xs text-muted-foreground mt-1">Try generating payroll or selecting another month.</p>
+          </div>
+        ) : (
+          filteredEmployees.map((emp: any) => {
+            const gross = emp.totalSalary !== undefined ? emp.totalSalary : (emp.baseSalary + emp.otAmount + emp.sundayAmount + emp.bonusAmount);
+            const isPaid = (emp.status || "").toLowerCase() === "paid";
+
+            return (
+              <div key={emp.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                {/* Header */}
+                <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-xs font-bold text-primary">{emp.employeeId}</span>
+                      <span className="text-muted-foreground text-xs">•</span>
+                      <span className="font-semibold text-foreground text-xs truncate">{emp.employeeName}</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground truncate">{emp.department} • <span className="capitalize">{emp.role || "worker"}</span></p>
+                  </div>
+                  <Badge 
+                    variant="outline" 
+                    className={cn(
+                      "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 cursor-pointer",
+                      isPaid ? "border-success/30 text-success bg-success/10" : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+                    )}
+                    onClick={() => setEditRecord(emp)}
+                  >
+                    {emp.status || "Draft"}
+                  </Badge>
+                </div>
+
+                {/* Salary Breakdown 2x2 Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Base Salary</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditRecord(emp)}
+                      className="font-mono font-bold text-foreground hover:text-primary hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                      title="Edit Base Salary"
+                    >
+                      ₹{Number(emp.baseSalary || 0).toLocaleString()}
+                      <Edit size={10} className="text-primary" />
+                    </button>
+                  </div>
+
+                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OT & Sunday</span>
+                    <span className="font-mono font-semibold text-orange-600 dark:text-orange-400 block mt-0.5">
+                      +₹{(Number(emp.otAmount || 0) + Number(emp.sundayAmount || 0)).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Gross Pay</span>
+                    <span className="font-mono font-semibold text-blue-600 dark:text-blue-400 block mt-0.5">
+                      ₹{Number(gross || 0).toLocaleString()}
+                    </span>
+                  </div>
+
+                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Deductions</span>
+                    <button
+                      type="button"
+                      onClick={() => openAdvanceDeduct(emp)}
+                      className="font-mono font-semibold text-destructive hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                      title="Deduct advance"
+                    >
+                      {Number(emp.deductions || 0) > 0 ? `-₹${Number(emp.deductions).toLocaleString()}` : "₹0"}
+                      <MinusCircle size={10} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Net Final Pay Highlight Banner */}
+                <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Net Final Payable</span>
+                  <span className="font-mono text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                    ₹{Number(emp.finalSalary || 0).toLocaleString()}
+                  </span>
+                </div>
+
+                {/* Action Footer */}
+                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/60">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setSelectedEmp(emp)}
+                    className="h-7 px-2 text-xs font-semibold cursor-pointer"
+                  >
+                    <FileText size={11} className="mr-1 text-muted-foreground" /> Details
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => generatePayslipPDF(emp)}
+                    className="h-7 px-2 text-xs font-semibold cursor-pointer"
+                  >
+                    <Download size={11} className="mr-1 text-muted-foreground" /> Payslip
+                  </Button>
+                  {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 cursor-pointer"
+                        >
+                          <ChevronRight size={14} />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => openAdvanceDeduct(emp)}>
+                          <MinusCircle className="mr-2 h-4 w-4 text-destructive" /> Deduct Advance
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setEditRecord(emp)}>
+                          <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Salary
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setMarkPaidRecord(emp)}>
+                          <CheckCircle className="mr-2 h-4 w-4 text-success" /> Mark as Paid
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => setHistoryRecord(emp)}>
+                          <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop Table View */}
+      <div className="hidden md:block flex-1 overflow-auto">
         <DataTable 
           columns={columns} 
           data={filteredEmployees} 
@@ -883,6 +1068,7 @@ export default function PayrollEmployeesTab() {
         </DialogContent>
       </Dialog>
 
+      </div>
     </div>
   );
 }

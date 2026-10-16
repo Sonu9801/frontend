@@ -32,7 +32,7 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-2",
+        "flex flex-col md:flex-row md:items-center justify-between gap-3 md:gap-4 mb-4 md:mb-6 pb-1 md:pb-2",
         className,
       )}
     >
@@ -40,32 +40,32 @@ export function PageHeader({
         {backHref && (
           <Link
             href={backHref}
-            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors mb-1 w-fit"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors mb-0.5 w-fit active:scale-95"
           >
             <ChevronLeft size={14} />
             <span>{backLabel || "Back"}</span>
           </Link>
         )}
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
           {icon && (
-            <div className="w-9 h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary flex-shrink-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary flex-shrink-0 shadow-2xs">
               {icon}
             </div>
           )}
-          <h1 className="text-xl sm:text-2xl font-bold font-display text-foreground tracking-tight">
+          <h1 className="text-lg sm:text-2xl font-bold font-display text-foreground tracking-tight">
             {title}
           </h1>
           {badge && <div className="flex-shrink-0">{badge}</div>}
         </div>
         {desc && (
-          <div className="text-xs sm:text-sm text-muted-foreground leading-relaxed mt-0.5 max-w-3xl">
+          <div className="text-[11px] sm:text-xs md:text-sm text-muted-foreground leading-relaxed mt-0.5 max-w-3xl line-clamp-2 md:line-clamp-none">
             {desc}
           </div>
         )}
       </div>
 
       {actions && (
-        <div className="flex items-center gap-2.5 flex-wrap flex-shrink-0 self-start md:self-center">
+        <div className="flex items-center gap-2 flex-wrap flex-shrink-0 w-full sm:w-auto mt-1 md:mt-0">
           {actions}
         </div>
       )}

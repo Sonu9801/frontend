@@ -337,18 +337,18 @@ export function UploadInvoiceDialog({ open, onOpenChange }: UploadInvoiceDialogP
                   </div>
                 </div>
 
-                <div className="flex gap-2 pt-3">
+                <div className="flex gap-2 pt-4 pb-2">
                   <Button
                     variant="outline"
                     onClick={handleClose}
-                    className="flex-1 rounded-xl text-xs font-bold"
+                    className="flex-1 rounded-xl text-xs font-bold h-11"
                   >
                     Cancel
                   </Button>
                   <Button
                     onClick={handleSave}
                     disabled={createMutation.isPending}
-                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md"
+                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md h-11"
                   >
                     {createMutation.isPending ? <Loader2 className="animate-spin w-4 h-4 mr-1" /> : <CheckCircle2 className="w-4 h-4 mr-1" />}
                     Save Invoice

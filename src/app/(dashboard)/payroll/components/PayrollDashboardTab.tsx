@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { motion } from "motion/react";
 import { Badge } from "@/components/ui/badge";
+import { KPICard } from "@/components/ui/KPICard";
 
 import { api } from "@/lib/api";
 
@@ -31,13 +32,13 @@ export default function PayrollDashboardTab() {
   }
 
   const kpis = [
-    { title: "Total Employees", value: summary.totalEmployees, icon: <Users className="text-blue-500" size={24} />, bg: "bg-blue-500/10" },
-    { title: "Monthly Payroll Cost", value: `₹${(summary.monthlyPayrollCost || 0).toLocaleString()}`, icon: <IndianRupee className="text-emerald-500" size={24} />, bg: "bg-emerald-500/10" },
-    { title: "OT Cost", value: `₹${(summary.otCost || 0).toLocaleString()}`, icon: <Clock className="text-orange-500" size={24} />, bg: "bg-orange-500/10" },
-    { title: "Sunday Cost", value: `₹${(summary.sundayCost || 0).toLocaleString()}`, icon: <CalendarDays className="text-purple-500" size={24} />, bg: "bg-purple-500/10" },
-    { title: "Pending Payroll", value: `₹${(summary.pendingPayroll || 0).toLocaleString()}`, icon: <AlertCircle className="text-yellow-500" size={24} />, bg: "bg-yellow-500/10" },
-    { title: "Approved Payroll", value: `₹${(summary.approvedPayroll || 0).toLocaleString()}`, icon: <CheckCircle2 className="text-blue-500" size={24} />, bg: "bg-blue-500/10" },
-    { title: "Paid Payroll", value: `₹${(summary.paidPayroll || 0).toLocaleString()}`, icon: <HandCoins className="text-green-500" size={24} />, bg: "bg-green-500/10" }
+    { title: "Total Employees", value: summary.totalEmployees, icon: <Users size={14} />, semantic: "primary" as const, description: "Active workforce" },
+    { title: "Monthly Payroll Cost", value: `₹${(summary.monthlyPayrollCost || 0).toLocaleString()}`, icon: <IndianRupee size={14} />, semantic: "primary" as const, description: "Labour expenditure" },
+    { title: "OT Cost", value: `₹${(summary.otCost || 0).toLocaleString()}`, icon: <Clock size={14} />, semantic: "warning" as const, description: "Overtime compensation" },
+    { title: "Sunday Cost", value: `₹${(summary.sundayCost || 0).toLocaleString()}`, icon: <CalendarDays size={14} />, semantic: "warning" as const, description: "Sunday & festival shifts" },
+    { title: "Pending Payroll", value: `₹${(summary.pendingPayroll || 0).toLocaleString()}`, icon: <AlertCircle size={14} />, semantic: "destructive" as const, description: "Awaiting approval / draft" },
+    { title: "Approved Payroll", value: `₹${(summary.approvedPayroll || 0).toLocaleString()}`, icon: <CheckCircle2 size={14} />, semantic: "success" as const, description: "Cleared for payment" },
+    { title: "Paid Payroll", value: `₹${(summary.paidPayroll || 0).toLocaleString()}`, icon: <HandCoins size={14} />, semantic: "success" as const, description: "Disbursed wages" }
   ];
 
   const depts = Object.entries(summary.departmentCosts || {});
@@ -70,25 +71,16 @@ export default function PayrollDashboardTab() {
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
         {kpis.map((kpi, i) => (
-          <motion.div
+          <KPICard
             key={i}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-            className="bg-card border border-border rounded-2xl p-5 shadow-sm flex items-center gap-4"
-          >
-            <div className={`w-14 h-14 rounded-xl flex items-center justify-center shrink-0 ${kpi.bg}`}>
-              {kpi.icon}
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground">{kpi.title}</p>
-              <h3 className="text-xl font-black font-display tracking-tight text-foreground mt-0.5">
-                {kpi.value}
-              </h3>
-            </div>
-          </motion.div>
+            title={kpi.title}
+            value={kpi.value}
+            description={kpi.description}
+            icon={kpi.icon}
+            semantic={kpi.semantic}
+          />
         ))}
       </div>
 

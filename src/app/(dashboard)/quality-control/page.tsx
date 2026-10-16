@@ -472,7 +472,7 @@ export default function QualityControlPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="quality_control.page">
+    <div className="p-4 md:p-6 space-y-6 pb-28 md:pb-6" data-ocid="quality_control.page">
       <PageHeader
         title="Quality Control"
         description="Inspection workflow, quality checklist execution, and defect rework management"
@@ -480,7 +480,14 @@ export default function QualityControlPage() {
         actions={<AddQCModal vehicles={vehicles} />}
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+        <KPICard
+          title="Total Inspected"
+          value={totalQC}
+          description="Logged quality audits"
+          icon={<CheckSquare size={14} />}
+          semantic="primary"
+        />
         <KPICard
           title="Passed Inspection"
           value={stats.passed}
@@ -500,7 +507,7 @@ export default function QualityControlPage() {
           value={`${stats.passRate}%`}
           description="Overall inspection success"
           icon={<AlertCircle size={14} />}
-          semantic="primary"
+          semantic="neutral"
         />
       </div>
 

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 
 import { useWorkers } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
+import { KPICard } from "@/components/ui/KPICard";
 
 interface EmployeesTabProps {
   // no longer passing workers down, fetching inside component
@@ -138,28 +139,28 @@ export default function EmployeesTab() {
   return (
     <div className="flex flex-col gap-6 w-full pb-8">
       {/* OWNER KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-primary/10 text-primary"><Users size={20} /></div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Total Employees</p>
-            <h3 className="text-2xl font-bold">{totalWorkers}</h3>
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-emerald-500/10 text-emerald-500"><UserCheck size={20} /></div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Active Employees</p>
-            <h3 className="text-2xl font-bold">{activeEmployees} (this page)</h3>
-          </div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-sm flex items-center gap-4">
-          <div className="p-3 rounded-lg bg-blue-500/10 text-blue-500"><Briefcase size={20} /></div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">Workers / Supervisors</p>
-            <h3 className="text-2xl font-bold">{workers.length - supervisors} / {supervisors} (this page)</h3>
-          </div>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <KPICard
+          title="Total Employees"
+          value={totalWorkers}
+          description="Registered company roster"
+          icon={<Users size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Active Employees"
+          value={activeEmployees}
+          description={`${activeEmployees} active on this page`}
+          icon={<UserCheck size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Workers / Supervisors"
+          value={`${workers.length - supervisors} / ${supervisors}`}
+          description="Floor crew vs supervisors"
+          icon={<Briefcase size={14} />}
+          semantic="neutral"
+        />
       </div>
 
       <div className="flex flex-col flex-1 bg-card rounded-xl border border-border shadow-sm p-5 overflow-hidden">

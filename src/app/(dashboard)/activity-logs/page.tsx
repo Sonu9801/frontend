@@ -53,18 +53,18 @@ export default function ActivityLogsPage() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden bg-background">
-      <div className="flex-shrink-0 px-6 py-5 border-b border-border bg-card">
+      <div className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-5 border-b border-border bg-card">
         <PageHeader
           title="Activity Logs"
           subtitle="System-wide audit trail, stage transitions, and operational events"
           actions={
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/60 rounded-lg border border-border">
-                <Filter size={14} className="text-muted-foreground" />
+            <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/60 rounded-lg border border-border flex-1 sm:flex-initial">
+                <Filter size={14} className="text-muted-foreground shrink-0" />
                 <select 
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
-                  className="bg-transparent text-xs md:text-sm font-medium text-foreground outline-none cursor-pointer"
+                  className="bg-transparent text-xs md:text-sm font-medium text-foreground outline-none cursor-pointer w-full sm:w-auto"
                 >
                   <option value="all">All Events</option>
                   <option value="qc_passed">QC Passed</option>
@@ -74,7 +74,7 @@ export default function ActivityLogsPage() {
                   <option value="worker_started">Worker Activities</option>
                 </select>
               </div>
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button variant="outline" size="sm" className="gap-1.5 flex-1 sm:flex-initial">
                 <Download size={14} /> Export
               </Button>
             </div>
@@ -82,7 +82,7 @@ export default function ActivityLogsPage() {
         />
       </div>
 
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-3 sm:p-6 overflow-y-auto pb-24 md:pb-6">
         <div className="max-w-4xl mx-auto">
           {isLoadingActivities ? (
             <div className="space-y-4 animate-pulse">

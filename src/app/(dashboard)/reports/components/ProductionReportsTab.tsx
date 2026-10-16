@@ -4,6 +4,8 @@ import React, { useMemo } from "react";
 import { Vehicle } from "@/types";
 import { exportToCSV, exportToPDF, exportToExcel } from "./exportUtils";
 import { Button } from "@/components/ui/button";
+import { KPICard } from "@/components/ui/KPICard";
+import { Truck, CheckCircle2, AlertTriangle } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
 
 import { isDateInFilterRange } from "./dateFilterUtils";
@@ -83,19 +85,28 @@ export function ProductionReportsTab({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Total Vehicles</span>
-          <span className="text-2xl font-black">{vehicles.length}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Completed Vehicles</span>
-          <span className="text-2xl font-black text-green-500">{completedVehicles}</span>
-        </div>
-        <div className="bg-card border rounded-xl p-4 shadow-sm flex flex-col justify-between">
-          <span className="text-xs font-semibold text-muted-foreground uppercase">Delayed Vehicles</span>
-          <span className="text-2xl font-black text-red-500">{delayedVehicles}</span>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <KPICard
+          title="Total Vehicles"
+          value={vehicles.length}
+          description="Inward & staged vehicles"
+          icon={<Truck size={14} />}
+          semantic="primary"
+        />
+        <KPICard
+          title="Completed Vehicles"
+          value={completedVehicles}
+          description="Ready or dispatched"
+          icon={<CheckCircle2 size={14} />}
+          semantic="success"
+        />
+        <KPICard
+          title="Delayed Vehicles"
+          value={delayedVehicles}
+          description="Stage SLA breached"
+          icon={<AlertTriangle size={14} />}
+          semantic={delayedVehicles > 0 ? "destructive" : "neutral"}
+        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

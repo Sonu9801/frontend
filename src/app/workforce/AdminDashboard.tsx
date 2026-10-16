@@ -170,8 +170,8 @@ export function AdminDashboard({ worker, onLogout }: { worker: any; onLogout: ()
   const allSidebarTabs = [
     // Production
     { id: "production", label: "Production", icon: Factory, color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300", category: "Production", action: () => handleTabChange("production", "all", "kanban", null) },
-    { id: "received", label: "Received", icon: Inbox, color: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", category: "Production", action: () => handleTabChange("received", "received", "table", "received") },
-    { id: "dispatch", label: "Dispatch", icon: Truck, color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300", category: "Production", action: () => handleTabChange("dispatch", "dispatch", "table", "dispatch") },
+    { id: "received", label: "Received", icon: Inbox, color: "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300", category: "Production", action: () => handleTabChange("received", "received", "table", null) },
+    { id: "dispatch", label: "Dispatch", icon: Truck, color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300", category: "Production", action: () => handleTabChange("dispatch", "dispatch", "table", null) },
 
     // Workforce
     { id: "workers", label: "Workers", icon: Users, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300", category: "Workforce", action: () => handleTabChange("workers") },
@@ -670,7 +670,7 @@ export function AdminDashboard({ worker, onLogout }: { worker: any; onLogout: ()
       </main>
 
       {/* ─── 4. FLOATING BOTTOM NAVIGATION BAR (JUST LIKE SUPERVISOR PWA) ───────── */}
-      <div className="fixed bottom-0 left-0 right-0 p-3 z-30 pointer-events-none flex justify-center pb-safe">
+      <div className="floating-home-bar fixed bottom-0 left-0 right-0 p-3 z-30 pointer-events-none flex justify-center pb-safe">
         <div className="bg-card/95 backdrop-blur-md rounded-full shadow-[0_8px_30px_rgba(0,0,0,0.15)] border border-border/80 p-1.5 flex items-center gap-1 pointer-events-auto">
           
           <button 

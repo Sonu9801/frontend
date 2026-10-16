@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useInvoices, useInvoiceDashboardStats, useInvoiceAnalytics, useDeleteInvoice, useUpdateInvoice } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
-import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit } from "lucide-react";
+import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "./components/InvoiceAnalyticsCharts";
 import { AddInvoiceDialog } from "@/components/invoices/AddInvoiceDialog";
@@ -340,7 +340,7 @@ export default function InvoicesDashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="invoices.page">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24 md:pb-6" data-ocid="invoices.page">
       <PageHeader
         title="Purchase Invoices Dashboard"
         description="Manage vendor purchase invoices, tax calculations, approvals, and OCR processing"
@@ -380,7 +380,7 @@ export default function InvoicesDashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
         <KPICard
           title="Today's Uploads"
           value={stats?.today_uploads || 0}
@@ -425,10 +425,29 @@ export default function InvoicesDashboardPage() {
 
       {/* Invoice Table with Sticky Filters */}
       <div className="bg-card border border-border rounded-xl shadow-subtle overflow-hidden">
-        <div className="p-4 border-b border-border bg-muted/20 flex flex-wrap items-center gap-4 sticky top-0 z-10">
-          <h2 className="font-semibold mr-auto">Recent Purchase Invoices</h2>
+        <div className="p-4 border-b border-border bg-muted/20 flex flex-wrap items-center gap-3 sticky top-0 z-10">
+          <div className="flex items-center justify-between w-full md:w-auto md:mr-auto">
+            <h2 className="font-semibold text-sm md:text-base">Recent Purchase Invoices</h2>
+            <span className="md:hidden text-xs text-muted-foreground font-mono">
+              {totalInvoices} total
+            </span>
+          </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+            <div className="relative flex-1 md:w-60 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search invoice #, vendor, GSTIN..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-8 pr-3 h-9 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
             <select
               value={`${sortBy}_${sortOrder}`}
               onChange={(e) => {
@@ -437,7 +456,7 @@ export default function InvoicesDashboardPage() {
                 setSortOrder(so as "asc" | "desc");
                 setPage(1);
               }}
-              className="flex-1 md:w-44 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="flex-1 md:w-40 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="vendor_name_asc">Sort: Vendor (A-Z)</option>
               <option value="vendor_name_desc">Sort: Vendor (Z-A)</option>
@@ -452,7 +471,7 @@ export default function InvoicesDashboardPage() {
             <select
               value={statusFilter}
               onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-              className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Approvals</option>
               <option value="Pending Review">Pending Review</option>
@@ -463,7 +482,7 @@ export default function InvoicesDashboardPage() {
             <select
               value={paymentFilter}
               onChange={(e) => { setPaymentFilter(e.target.value); setPage(1); }}
-              className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Payments</option>
               <option value="Unpaid">Unpaid</option>
@@ -474,15 +493,213 @@ export default function InvoicesDashboardPage() {
         </div>
 
         <div className="p-0">
-          <DataTable
-            columns={columns}
-            data={invoices}
-            rowId={(d) => String(d.id)}
-            searchKey={(d) => `${d.invoice_number} ${d.vendor_name} ${d.vendor_gstin} ${d.department}`}
-            searchValue={searchQuery}
-            onSearchChange={(val) => { setSearchQuery(val); setPage(1); }}
-            hidePagination={true}
-          />
+          {/* Mobile Responsive Purchase Invoices List */}
+          <div className="md:hidden space-y-3 p-3 bg-muted/10">
+            {isLoadingInvoices ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="h-36 rounded-xl bg-card border border-border animate-pulse p-4" />
+                ))}
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center py-10 bg-card rounded-xl border border-border p-6">
+                <FileText size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No purchase invoices found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or filters.</p>
+              </div>
+            ) : (
+              invoices.map((inv: any) => {
+                let approvalColor = "bg-muted text-muted-foreground border-transparent";
+                if (inv.approval_status === "Approved") approvalColor = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                if (inv.approval_status === "Rejected") approvalColor = "bg-destructive/15 text-destructive border-destructive/25";
+                if (inv.approval_status === "Pending Review") approvalColor = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25";
+
+                let paymentColor = "bg-muted text-muted-foreground border-transparent";
+                if (inv.payment_status === "Paid") paymentColor = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                if (inv.payment_status === "Partial") paymentColor = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25";
+                if (inv.payment_status === "Unpaid") paymentColor = "bg-destructive/15 text-destructive border-destructive/25";
+
+                const handleQuickPayment = (newStatus: string) => {
+                  if (newStatus === inv.payment_status) return;
+                  updateInvoice.mutate(
+                    { id: inv.id, data: { payment_status: newStatus } },
+                    {
+                      onSuccess: () => toast.success(`Payment status updated to ${newStatus}`),
+                      onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update payment status"),
+                    }
+                  );
+                };
+
+                return (
+                  <div 
+                    key={inv.id} 
+                    className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs hover:border-primary/30 transition-all"
+                  >
+                    {/* Header: Invoice #, Date, Status Badges */}
+                    <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+                      <div className="flex flex-col min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/invoices/${inv.id}`)}
+                          className="font-mono text-xs font-bold text-primary hover:underline truncate text-left cursor-pointer"
+                        >
+                          {inv.invoice_number || "PENDING OCR"}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("en-IN") : "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border", approvalColor)}>
+                          {inv.approval_status || "Pending"}
+                        </span>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider transition-colors cursor-pointer border",
+                                paymentColor
+                              )}
+                              title="Click to change payment status"
+                            >
+                              <span>{inv.payment_status || "Unpaid"}</span>
+                              <ChevronDown className="h-2.5 w-2.5 opacity-70" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-32">
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer"
+                              onClick={() => handleQuickPayment("Unpaid")}
+                            >
+                              <span className="font-medium text-muted-foreground">Unpaid</span>
+                              {inv.payment_status === "Unpaid" && <Check className="h-3.5 w-3.5 text-foreground" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer text-amber-600 focus:text-amber-700"
+                              onClick={() => handleQuickPayment("Partial")}
+                            >
+                              <span className="font-medium">Partial</span>
+                              {inv.payment_status === "Partial" && <Check className="h-3.5 w-3.5 text-amber-600" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer text-emerald-600 focus:text-emerald-700"
+                              onClick={() => handleQuickPayment("Paid")}
+                            >
+                              <span className="font-medium">Paid</span>
+                              {inv.payment_status === "Paid" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Vendor Information */}
+                    <div>
+                      <h4 className="font-bold text-xs text-foreground truncate">{inv.vendor_name || "Unknown Vendor"}</h4>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
+                        {inv.vendor_gstin && <span className="font-mono">GSTIN: {inv.vendor_gstin}</span>}
+                        {inv.department && (
+                          <span className="px-1.5 py-0.5 rounded bg-muted/60 text-foreground font-medium text-[9px]">
+                            Dept: {inv.department}
+                          </span>
+                        )}
+                        {inv.hsn_sac && (
+                          <span className="text-muted-foreground text-[10px]">HSN: {inv.hsn_sac}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Financial Summary Box */}
+                    <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Grand Total</span>
+                        <span className="font-bold text-sm text-foreground tabular-nums block">
+                          ₹{inv.grand_total?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || "0.00"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Total GST</span>
+                        <span className="font-medium text-xs text-muted-foreground tabular-nums block">
+                          ₹{inv.gst_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || "0.00"}
+                        </span>
+                      </div>
+                      {inv.subtotal !== undefined && inv.subtotal !== null && (
+                        <div className="col-span-2 pt-1 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span>Subtotal (Before Tax):</span>
+                          <span className="font-mono">₹{inv.subtotal?.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/invoices/${inv.id}`)}
+                        className="h-7 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
+                      >
+                        <Eye size={12} /> View Details
+                      </Button>
+
+                      {canUpload && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditRecord(inv)}
+                          className="h-7 px-2.5 text-xs font-semibold gap-1 text-primary hover:bg-primary/5 cursor-pointer"
+                        >
+                          <Edit size={12} /> Edit
+                        </Button>
+                      )}
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 cursor-pointer">
+                            <MoreHorizontal size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {canUpload && (
+                            <DropdownMenuItem 
+                              className="text-red-600 cursor-pointer"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this purchase invoice?")) {
+                                  deleteInvoice.mutate(inv.id, {
+                                    onSuccess: () => toast.success("Purchase Invoice deleted successfully"),
+                                    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete")
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Invoice
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Main Table View */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={invoices}
+              rowId={(d) => String(d.id)}
+              searchKey={(d) => `${d.invoice_number} ${d.vendor_name} ${d.vendor_gstin} ${d.department}`}
+              searchValue={searchQuery}
+              onSearchChange={(val) => { setSearchQuery(val); setPage(1); }}
+              hidePagination={true}
+            />
+          </div>
+
           <Pagination
             page={page}
             pageSize={pageSize}

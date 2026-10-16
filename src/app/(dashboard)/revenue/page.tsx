@@ -443,7 +443,7 @@ export default function RevenueDashboardPage() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="revenue.page">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24 md:pb-6" data-ocid="revenue.page">
       <PageHeader
         title="Sales Invoices Dashboard"
         description="Manage sales invoices, customer payments, tax breakdowns, and revenue tracking"
@@ -483,7 +483,7 @@ export default function RevenueDashboardPage() {
       />
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
         <KPICard
           title="Today's Bills"
           value={stats?.today_uploads || 0}
@@ -528,10 +528,29 @@ export default function RevenueDashboardPage() {
 
       {/* Invoice Table with Sticky Filters */}
       <div className="bg-card border border-border rounded-xl shadow-subtle overflow-hidden">
-        <div className="p-4 border-b border-border bg-muted/20 flex flex-wrap items-center gap-4 sticky top-0 z-10">
-          <h2 className="font-semibold mr-auto">Recent Sales Invoices</h2>
+        <div className="p-4 border-b border-border bg-muted/20 flex flex-wrap items-center gap-3 sticky top-0 z-10">
+          <div className="flex items-center justify-between w-full md:w-auto md:mr-auto">
+            <h2 className="font-semibold text-sm md:text-base">Recent Sales Invoices</h2>
+            <span className="md:hidden text-xs text-muted-foreground font-mono">
+              {totalInvoices} total
+            </span>
+          </div>
           
-          <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="flex items-center gap-2.5 w-full md:w-auto flex-wrap">
+            <div className="relative flex-1 md:w-60 min-w-[180px]">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search invoice #, customer, GSTIN..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full pl-8 pr-3 h-9 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
+              />
+            </div>
+
             <select
               value={`${sortBy}_${sortOrder}`}
               onChange={(e) => {
@@ -540,7 +559,7 @@ export default function RevenueDashboardPage() {
                 setSortOrder(so as "asc" | "desc");
                 setPage(1);
               }}
-              className="flex-1 md:w-44 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              className="flex-1 md:w-40 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="customer_name_asc">Sort: Customer (A-Z)</option>
               <option value="customer_name_desc">Sort: Customer (Z-A)</option>
@@ -554,8 +573,8 @@ export default function RevenueDashboardPage() {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Approvals</option>
               <option value="Pending Review">Pending Review</option>
@@ -565,29 +584,28 @@ export default function RevenueDashboardPage() {
 
             <select
               value={paymentFilter}
-              onChange={(e) => setPaymentFilter(e.target.value)}
-              className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => { setPaymentFilter(e.target.value); setPage(1); }}
+              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Payments</option>
               <option value="Pending">Pending</option>
               <option value="Partially Paid">Partially Paid</option>
               <option value="Paid">Paid</option>
+              <option value="Overdue">Overdue</option>
             </select>
             
             <select
               value={oemFilter}
-              onChange={(e) => setOemFilter(e.target.value)}
-              className="flex-1 md:w-32 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
+              onChange={(e) => { setOemFilter(e.target.value); setPage(1); }}
+              className="flex-1 md:w-28 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All OEMs</option>
               {uniqueOems.map((o: any) => <option key={o} value={o}>{o}</option>)}
             </select>
-            
-
 
             <select
               value={customerFilter}
-              onChange={(e) => setCustomerFilter(e.target.value)}
+              onChange={(e) => { setCustomerFilter(e.target.value); setPage(1); }}
               className="flex-1 md:w-36 h-9 text-xs bg-background border border-border rounded-lg px-2 focus:outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="All">All Customers</option>
@@ -597,18 +615,238 @@ export default function RevenueDashboardPage() {
         </div>
 
         <div className="p-0">
-          <DataTable
-            columns={columns}
-            data={invoices}
-            rowId={(d) => String(d.id)}
-            searchKey={(d) => `${d.invoice_number} ${d.customer_name} ${d.customer_gstin} ${d.vehicle_number} ${d.po_number}`}
-            searchValue={searchQuery}
-            onSearchChange={(val) => {
-              setSearchQuery(val);
-              setPage(1);
-            }}
-            hidePagination={true}
-          />
+          {/* Mobile Responsive Invoices List */}
+          <div className="md:hidden space-y-3 p-3 bg-muted/10">
+            {isLoadingInvoices ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((n) => (
+                  <div key={n} className="h-36 rounded-xl bg-card border border-border animate-pulse p-4" />
+                ))}
+              </div>
+            ) : invoices.length === 0 ? (
+              <div className="text-center py-10 bg-card rounded-xl border border-border p-6">
+                <FileText size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+                <p className="text-sm font-semibold text-foreground">No sales invoices found</p>
+                <p className="text-xs text-muted-foreground mt-1">Try adjusting your search or filters.</p>
+              </div>
+            ) : (
+              invoices.map((inv: any) => {
+                let approvalColor = "bg-muted text-muted-foreground border-transparent";
+                if (inv.approval_status === "Approved") approvalColor = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                if (inv.approval_status === "Rejected") approvalColor = "bg-destructive/15 text-destructive border-destructive/25";
+                if (inv.approval_status === "Pending Review") approvalColor = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25";
+
+                let paymentColor = "bg-muted text-muted-foreground border-transparent";
+                if (inv.payment_status === "Paid") paymentColor = "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25";
+                if (inv.payment_status === "Partially Paid") paymentColor = "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25";
+                if (inv.payment_status === "Overdue") paymentColor = "bg-destructive/15 text-destructive border-destructive/25";
+
+                const handleQuickPaymentStatus = (newStatus: string) => {
+                  if (newStatus === inv.payment_status) return;
+                  updateInvoice.mutate(
+                    { id: inv.id, data: { payment_status: newStatus } },
+                    {
+                      onSuccess: () => toast.success(`Payment status updated to ${newStatus}`),
+                      onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update payment status"),
+                    }
+                  );
+                };
+
+                return (
+                  <div 
+                    key={inv.id} 
+                    className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs hover:border-primary/30 transition-all"
+                  >
+                    {/* Header: Invoice #, Date, Status Badges */}
+                    <div className="flex items-start justify-between gap-2 border-b border-border/60 pb-2">
+                      <div className="flex flex-col min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/revenue/${inv.id}`)}
+                          className="font-mono text-xs font-bold text-primary hover:underline truncate text-left cursor-pointer"
+                        >
+                          {inv.invoice_number || "PENDING OCR"}
+                        </button>
+                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                          {inv.invoice_date ? new Date(inv.invoice_date).toLocaleDateString("en-IN") : "-"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className={cn("text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider border", approvalColor)}>
+                          {inv.approval_status || "Pending"}
+                        </span>
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className={cn(
+                                "inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider transition-colors cursor-pointer border",
+                                paymentColor
+                              )}
+                              title="Click to change payment status"
+                            >
+                              <span>{inv.payment_status || "Pending"}</span>
+                              <ChevronDown className="h-2.5 w-2.5 opacity-70" />
+                            </button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-36">
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer"
+                              onClick={() => handleQuickPaymentStatus("Pending")}
+                            >
+                              <span className="font-medium text-muted-foreground">Pending</span>
+                              {inv.payment_status === "Pending" && <Check className="h-3.5 w-3.5 text-foreground" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer text-emerald-600 focus:text-emerald-700"
+                              onClick={() => handleQuickPaymentStatus("Paid")}
+                            >
+                              <span className="font-medium">Paid</span>
+                              {inv.payment_status === "Paid" && <Check className="h-3.5 w-3.5 text-emerald-600" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer text-amber-600 focus:text-amber-700"
+                              onClick={() => handleQuickPaymentStatus("Partially Paid")}
+                            >
+                              <span className="font-medium">Partially Paid</span>
+                              {inv.payment_status === "Partially Paid" && <Check className="h-3.5 w-3.5 text-amber-600" />}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-xs flex items-center justify-between cursor-pointer text-rose-600 focus:text-rose-700"
+                              onClick={() => handleQuickPaymentStatus("Overdue")}
+                            >
+                              <span className="font-medium">Overdue</span>
+                              {inv.payment_status === "Overdue" && <Check className="h-3.5 w-3.5 text-rose-600" />}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+
+                    {/* Customer Information */}
+                    <div>
+                      <h4 className="font-bold text-xs text-foreground truncate">{inv.customer_name || "Unknown Customer"}</h4>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5 flex-wrap">
+                        {inv.customer_gstin && <span className="font-mono">GSTIN: {inv.customer_gstin}</span>}
+                        {inv.oem && (
+                          <span className="px-1.5 py-0.5 rounded bg-muted/60 text-foreground font-medium text-[9px]">
+                            OEM: {inv.oem}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Financial Summary Box */}
+                    <div className="bg-muted/30 border border-border/50 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Grand Total</span>
+                        <span className="font-bold text-sm text-foreground tabular-nums block">
+                          ₹{inv.grand_total?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || "0.00"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Outstanding</span>
+                        <span className={cn(
+                          "font-bold text-sm tabular-nums block",
+                          (inv.outstanding_amount ?? 0) > 0 ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"
+                        )}>
+                          ₹{inv.outstanding_amount?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || "0.00"}
+                        </span>
+                      </div>
+                      {(inv.due_date || inv.payment_terms) && (
+                        <div className="col-span-2 pt-1 border-t border-border/40 flex items-center justify-between text-[10px] text-muted-foreground">
+                          <span>Due: {inv.due_date ? new Date(inv.due_date).toLocaleDateString("en-IN") : "-"}</span>
+                          {inv.payment_terms && <span className="truncate max-w-[170px]">{inv.payment_terms}</span>}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Actions */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => router.push(`/revenue/${inv.id}`)}
+                        className="h-7 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
+                      >
+                        <Eye size={12} /> View Details
+                      </Button>
+
+                      {canUpload && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setEditRecord(inv)}
+                          className="h-7 px-2.5 text-xs font-semibold gap-1 text-primary hover:bg-primary/5 cursor-pointer"
+                        >
+                          <Edit size={12} /> Edit
+                        </Button>
+                      )}
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 cursor-pointer">
+                            <MoreHorizontal size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {inv.payment_status !== "Paid" ? (
+                            <DropdownMenuItem
+                              className="text-emerald-600 focus:text-emerald-700 font-medium cursor-pointer"
+                              onClick={() => handleQuickPaymentStatus("Paid")}
+                            >
+                              <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" /> Mark as Paid
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => handleQuickPaymentStatus("Pending")}
+                            >
+                              <Clock className="mr-2 h-4 w-4" /> Mark as Pending
+                            </DropdownMenuItem>
+                          )}
+                          {canUpload && (
+                            <DropdownMenuItem 
+                              className="text-red-600 cursor-pointer"
+                              onClick={() => {
+                                if (confirm("Are you sure you want to delete this sales invoice?")) {
+                                  deleteInvoice.mutate(inv.id, {
+                                    onSuccess: () => toast.success("Sales Invoice deleted successfully"),
+                                    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete")
+                                  });
+                                }
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Invoice
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Main Table View */}
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={invoices}
+              rowId={(d) => String(d.id)}
+              searchKey={(d) => `${d.invoice_number} ${d.customer_name} ${d.customer_gstin} ${d.vehicle_number} ${d.po_number}`}
+              searchValue={searchQuery}
+              onSearchChange={(val) => {
+                setSearchQuery(val);
+                setPage(1);
+              }}
+              hidePagination={true}
+            />
+          </div>
+
           <Pagination
             page={page}
             pageSize={pageSize}
