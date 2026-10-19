@@ -1,6 +1,6 @@
 export const isDateInFilterRange = (dateRaw?: string | Date | number | null, dateRange: string = "All Time"): boolean => {
   if (!dateRange || dateRange === "All Time") return true;
-  if (!dateRaw) return true;
+  if (!dateRaw) return false;
 
   let compDate: Date | null = null;
   if (dateRaw instanceof Date) {
@@ -21,7 +21,7 @@ export const isDateInFilterRange = (dateRaw?: string | Date | number | null, dat
     }
   }
 
-  if (!compDate || isNaN(compDate.getTime())) return true;
+  if (!compDate || isNaN(compDate.getTime())) return false;
 
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());

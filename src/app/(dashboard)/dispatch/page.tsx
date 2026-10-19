@@ -11,11 +11,12 @@ import { KPICard } from "@/components/ui/KPICard";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/vehicles/DispatchVehicleDialog";
 import { Pagination } from "@/components/ui/Pagination";
-import type { DispatchRecord, Vehicle } from "@/types";
+import type { DispatchRecord, Vehicle, Priority } from "@/types";
 import { useAuthStore } from "@/store/authStore";
-import { GlobalDateFilterBar } from "@/components/shared/GlobalDateFilterBar";
 import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
+import { isDateInFilterRange } from "../reports/components/dateFilterUtils";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "motion/react";
 import { 
   Calendar as CalendarIcon, 
   ExternalLink, 
@@ -24,14 +25,15 @@ import {
   Edit, 
   History, 
   ChevronDown, 
-  CheckCircle2,
-  Clock,
-  Trash2,
-  FileSpreadsheet,
-  Download,
-  FileText,
-  Search,
-  Eye
+  CheckCircle2, 
+  Clock, 
+  Trash2, 
+  FileSpreadsheet, 
+  Download, 
+  FileText, 
+  Search, 
+  Eye, 
+  AlertTriangle 
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
@@ -45,6 +47,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { EditRecordDialog } from "@/components/shared/EditRecordDialog";
 import { AuditHistoryDrawer } from "@/components/shared/AuditHistoryDrawer";
+
+const PRODUCT_CATEGORIES = [
+  "All Categories",
+  "Cargo Box",
+  "Cargo Box / Air Cutter / Battery Box",
+  "Cargo Box / Air Cutter",
+  "Cargo Box / Battery Box",
+  "Garbage Body",
+  "Grocery Cart",
+  "Food Cart",
+];
 
 const STATUS_CONFIG: Record<
   string,
@@ -173,113 +186,79 @@ export default function DispatchPage() {
   const [showSelectVehicleModal, setShowSelectVehicleModal] = useState(false);
   const [vehicleSearchQuery, setVehicleSearchQuery] = useState("");
   const [modalStageFilter, setModalStageFilter] = useState<"all" | "received" | "rtd" | "dispatch" | "all_system">("all");
-  const [dispatchScope, setDispatchScope] = useState<"production_dispatches" | "all" | "pending">("production_dispatches");
+  
   // Table pagination state
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [statusFilter, setStatusFilter] = useState("All");
-  const [carrierFilter, setCarrierFilter] = useState("All");
-  const [oemFilter, setOemFilter] = useState("All");
-  const [dealerFilter, setDealerFilter] = useState("All");
+
+  // Filters state (1:1 matching received vehicles page)
   const [searchQuery, setSearchQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All Categories");
+  const [oemFilter, setOemFilter] = useState("All OEMs");
+  const [dealerFilter, setDealerFilter] = useState("All Dealers");
+  const [carrierFilter, setCarrierFilter] = useState("All Carriers");
+  const [priorityFilter, setPriorityFilter] = useState<"all" | Priority>("all");
+  const [statusFilter, setStatusFilter] = useState("All Statuses");
 
-  // Date filter state
-  const [dateFilter, setDateFilter] = useState("All");
-  const [customMonth, setCustomMonth] = useState("");
-  const [customStartDate, setCustomStartDate] = useState("");
-  const [customEndDate, setCustomEndDate] = useState("");
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showOemDropdown, setShowOemDropdown] = useState(false);
+  const [showDealerDropdown, setShowDealerDropdown] = useState(false);
+  const [showCarrierDropdown, setShowCarrierDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
 
-  const dateQueryParams = useMemo(() => {
-    const now = new Date();
-    if (dateFilter === "Today") {
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, "0");
-      const dd = String(now.getDate()).padStart(2, "0");
-      const todayStr = `${yyyy}-${mm}-${dd}`;
-      return { start_date: todayStr, end_date: todayStr };
-    }
-    if (dateFilter === "This Month") {
-      const yyyy = now.getFullYear();
-      const mm = String(now.getMonth() + 1).padStart(2, "0");
-      return { month: `${yyyy}-${mm}` };
-    }
-    if (dateFilter === "Last Month") {
-      const lm = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const yyyy = lm.getFullYear();
-      const mm = String(lm.getMonth() + 1).padStart(2, "0");
-      return { month: `${yyyy}-${mm}` };
-    }
-    if (dateFilter === "This Quarter") {
-      const qStartMonth = Math.floor(now.getMonth() / 3) * 3;
-      const qStart = new Date(now.getFullYear(), qStartMonth, 1);
-      const qEnd = new Date(now.getFullYear(), qStartMonth + 3, 0);
-      const startStr = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, "0")}-01`;
-      const endStr = `${qEnd.getFullYear()}-${String(qEnd.getMonth() + 1).padStart(2, "0")}-${String(qEnd.getDate()).padStart(2, "0")}`;
-      return { start_date: startStr, end_date: endStr };
-    }
-    if (dateFilter === "Last Quarter") {
-      const currentQ = Math.floor(now.getMonth() / 3);
-      const lastQMonth = currentQ === 0 ? 9 : (currentQ - 1) * 3;
-      const lastQYear = currentQ === 0 ? now.getFullYear() - 1 : now.getFullYear();
-      const qStart = new Date(lastQYear, lastQMonth, 1);
-      const qEnd = new Date(lastQYear, lastQMonth + 3, 0);
-      const startStr = `${qStart.getFullYear()}-${String(qStart.getMonth() + 1).padStart(2, "0")}-01`;
-      const endStr = `${qEnd.getFullYear()}-${String(qEnd.getMonth() + 1).padStart(2, "0")}-${String(qEnd.getDate()).padStart(2, "0")}`;
-      return { start_date: startStr, end_date: endStr };
-    }
-    if (dateFilter === "This Year") {
-      return { start_date: `${now.getFullYear()}-01-01`, end_date: `${now.getFullYear()}-12-31` };
-    }
-    if (dateFilter === "Month" && customMonth) {
-      return { month: customMonth };
-    }
-    if (dateFilter === "Custom") {
-      return { start_date: customStartDate || undefined, end_date: customEndDate || undefined };
-    }
-    return {};
-  }, [dateFilter, customMonth, customStartDate, customEndDate]);
+  // Date Presets State (identical to received vehicles page)
+  const [selectedDatePreset, setSelectedDatePreset] = useState("All Time");
+  const [dateRange, setDateRange] = useState("All Time");
+  const [customMonth, setCustomMonth] = useState(
+    () => new Date().toISOString().slice(0, 7)
+  );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
-  // Helper function to check if a date string falls within active date range
-  const matchesActiveDateFilter = (dateStr: string | undefined | null): boolean => {
-    if (!dateQueryParams.start_date && !dateQueryParams.end_date && !dateQueryParams.month) return true;
-    if (!dateStr) return false;
-
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return false;
-
-      if (dateQueryParams.month) {
-        const [y, m] = dateQueryParams.month.split("-");
-        return d.getFullYear() === parseInt(y, 10) && (d.getMonth() + 1) === parseInt(m, 10);
+  const handleDatePresetChange = (preset: string) => {
+    setSelectedDatePreset(preset);
+    if (preset === "Custom Month") {
+      setDateRange(`Month: ${customMonth}`);
+    } else if (preset === "Custom Range") {
+      if (startDate && endDate) {
+        setDateRange(`Custom: ${startDate} to ${endDate}`);
+      } else {
+        setDateRange("All Time");
       }
-
-      if (dateQueryParams.start_date) {
-        const sd = new Date(`${dateQueryParams.start_date}T00:00:00`);
-        if (d < sd) return false;
-      }
-
-      if (dateQueryParams.end_date) {
-        const ed = new Date(`${dateQueryParams.end_date}T23:59:59.999`);
-        if (d > ed) return false;
-      }
-
-      return true;
-    } catch {
-      return false;
+    } else {
+      setDateRange(preset);
     }
   };
 
-  // Fetch paginated dispatch records for table view
+  const handleCustomMonthChange = (monthVal: string) => {
+    setCustomMonth(monthVal);
+    if (selectedDatePreset === "Custom Month") {
+      setDateRange(`Month: ${monthVal}`);
+    }
+  };
+
+  const handleCustomDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    if (selectedDatePreset === "Custom Range" && start && end) {
+      setDateRange(`Custom: ${start} to ${end}`);
+    }
+  };
+
+  const closeAllDropdowns = () => {
+    setShowCategoryDropdown(false);
+    setShowOemDropdown(false);
+    setShowDealerDropdown(false);
+    setShowCarrierDropdown(false);
+    setShowStatusDropdown(false);
+  };
+
+  // Fetch full records for client-side filtering and real-time responsiveness
   const { data: dispatchData, isLoading: isLoadingDispatch } = useDispatchRecords({
-    page,
-    pageSize,
-    search: searchQuery,
-    ...dateQueryParams,
+    pageSize: 1000,
   });
 
   const dispatchRecords = dispatchData?.items ?? [];
-  const totalDispatch = dispatchData?.total ?? 0;
-  const totalPages = dispatchData?.total_pages ?? 1;
 
   const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
   const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
@@ -370,11 +349,17 @@ export default function DispatchPage() {
       return "";
     };
 
-    // 1. Include records from backend query (which are already date & search filtered)
+    // 1. Include records from backend query
     dispatchRecords.forEach((d: any) => {
       const vid = extractVehicleId(d);
       const matchingV = vid ? vehicleMap[vid] : undefined;
       const chassis = extractChassis(d, matchingV);
+
+      // Exclude vehicles that are still strictly in 'received' stage (they belong on Received vehicles page, not Dispatch)
+      const vStage = ((matchingV?.currentStage || (matchingV as any)?.current_stage || d.currentStage || "") as string).toLowerCase().trim();
+      if (vStage === "received") {
+        return;
+      }
 
       if (vid && addedVehicleIds.has(vid)) return;
       if (chassis && addedChassisNumbers.has(chassis)) return;
@@ -388,7 +373,7 @@ export default function DispatchPage() {
       });
     });
 
-    // 2. Include vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered matching date filter ONLY if not already in itemsList
+    // 2. Include vehicles from Production Board whose stage is dispatch / dispatched / rtd / delivered
     vehiclesList.forEach((v: Vehicle) => {
       const vid = String(v.id).trim();
       const chassis = extractChassis(v);
@@ -406,9 +391,6 @@ export default function DispatchPage() {
         vStage === "readytodispatch";
 
       if (isDispatchedStage) {
-        const vDate = v.dispatchDateTime || (v as any).receivedAt;
-        if (!matchesActiveDateFilter(vDate)) return;
-
         if (vid) addedVehicleIds.add(vid);
         if (chassis) addedChassisNumbers.add(chassis);
 
@@ -429,7 +411,7 @@ export default function DispatchPage() {
           invoiceNumber: v.invoiceNumber,
           lrNumber: v.lrNumber,
           destination: v.dealerName || v.oemName || "Factory Outbound",
-          scheduledDate: v.dispatchDateTime || (v as any).receivedAt || new Date().toISOString(),
+          scheduledDate: v.dispatchDateTime || new Date().toISOString(),
           status: vStage === "delivered" ? "delivered" : "dispatched",
           documentsUrl: v.documentsUrl,
         });
@@ -437,18 +419,29 @@ export default function DispatchPage() {
     });
 
     return itemsList;
-  }, [vehiclesList, dispatchRecords, vehicleMap, dateQueryParams]);
+  }, [vehiclesList, dispatchRecords, vehicleMap]);
 
-  // Dynamic unique OEMs list (aggregates defaults, vehicles DB, custom saved, and dispatches)
+  // Urgent and high counts for badges
+  const urgentCount = useMemo(() => {
+    return allDispatchedItems.filter((d) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      return ((v?.priority || (d as any).priority || "").toLowerCase() === "urgent");
+    }).length;
+  }, [allDispatchedItems, vehicleMap]);
+
+  const highCount = useMemo(() => {
+    return allDispatchedItems.filter((d) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      return ((v?.priority || (d as any).priority || "").toLowerCase() === "high");
+    }).length;
+  }, [allDispatchedItems, vehicleMap]);
+
+  // Dynamic unique OEMs list
   const uniqueOems = useMemo(() => {
     const oemsMap = new Map<string, string>();
-
-    // 1. Defaults
     DEFAULT_OEM_OPTIONS.forEach((o) => {
       oemsMap.set(o.toLowerCase().trim(), o.trim());
     });
-
-    // 2. Custom stored OEMs from localStorage
     try {
       const stored = localStorage.getItem("custom_oem_names");
       if (stored) {
@@ -460,16 +453,12 @@ export default function DispatchPage() {
         }
       }
     } catch {}
-
-    // 3. From complete vehicles list
     vehiclesList.forEach((v) => {
       const oem = v.oemName || (v as any).oem_name;
       if (oem && String(oem).trim()) {
         oemsMap.set(String(oem).toLowerCase().trim(), String(oem).trim());
       }
     });
-
-    // 4. From dispatch items
     allDispatchedItems.forEach((d: any) => {
       const v = vehicleMap[String(d.vehicleId)];
       const oem = d.oemName || (d as any).oem_name || v?.oemName;
@@ -477,20 +466,15 @@ export default function DispatchPage() {
         oemsMap.set(String(oem).toLowerCase().trim(), String(oem).trim());
       }
     });
-
-    return ["All", ...Array.from(oemsMap.values()).sort((a, b) => a.localeCompare(b))];
+    return ["All OEMs", ...Array.from(oemsMap.values()).sort((a, b) => a.localeCompare(b))];
   }, [vehiclesList, allDispatchedItems, vehicleMap]);
 
-  // Dynamic unique Dealers / Destinations list (aggregates defaults, vehicles DB, custom saved, and dispatches)
+  // Dynamic unique Dealers list
   const uniqueDealers = useMemo(() => {
     const dealersMap = new Map<string, string>();
-
-    // 1. Defaults
     DEFAULT_DEALER_OPTIONS.forEach((d) => {
       dealersMap.set(d.toLowerCase().trim(), d.trim());
     });
-
-    // 2. Custom stored dealers from localStorage
     try {
       const stored = localStorage.getItem("custom_dealer_names");
       if (stored) {
@@ -502,8 +486,6 @@ export default function DispatchPage() {
         }
       }
     } catch {}
-
-    // 3. From complete vehicles list
     vehiclesList.forEach((v) => {
       const dealer = v.dealerName || (v as any).dealer_name;
       if (dealer && String(dealer).trim()) {
@@ -517,8 +499,6 @@ export default function DispatchPage() {
         }
       }
     });
-
-    // 4. From dispatch items
     allDispatchedItems.forEach((d: any) => {
       const v = vehicleMap[String(d.vehicleId)];
       const dealer = d.destination || (d as any).dealerName || (d as any).destination || v?.dealerName;
@@ -527,13 +507,12 @@ export default function DispatchPage() {
         dealersMap.set(trimmed.toLowerCase(), trimmed);
       }
     });
-
-    return ["All", ...Array.from(dealersMap.values()).sort((a, b) => a.localeCompare(b))];
+    return ["All Dealers", ...Array.from(dealersMap.values()).sort((a, b) => a.localeCompare(b))];
   }, [vehiclesList, allDispatchedItems, vehicleMap]);
 
   // Dynamic carriers list
   const dynamicCarriers = useMemo(() => {
-    const carriers = new Set<string>(CARRIERS);
+    const carriers = new Set<string>(CARRIERS.filter((c) => c !== "All"));
     allDispatchedItems.forEach((d: any) => {
       const v = vehicleMap[String(d.vehicleId)];
       const carrier = d.carrier || v?.transportCompany;
@@ -541,51 +520,104 @@ export default function DispatchPage() {
         carriers.add(String(carrier).trim());
       }
     });
-    return Array.from(carriers);
+    return ["All Carriers", ...Array.from(carriers).sort()];
   }, [allDispatchedItems, vehicleMap]);
 
-  // Filtered dispatches for status, carrier, OEM, dealer, and date - sorted by Date Descending (Newest / Current date first)
+  // Filtered dispatches: Search, Category, OEM, Dealer, Carrier, Priority, Status, Date
   const filteredRecords = useMemo(() => {
     const list = allDispatchedItems.filter((d: any) => {
       const v = vehicleMap[String(d.vehicleId)];
-      const normStatus = (d.status || "dispatched").toLowerCase();
 
-      if (dispatchScope === "pending") {
-        if (normStatus !== "pending" && normStatus !== "scheduled") return false;
-      }
+      // 1. Search Query Filter
+      const q = searchQuery.toLowerCase().trim();
+      const matchSearch = !q || [
+        d.trackingNumber,
+        d.trackingId,
+        d.chassisNumber,
+        (d as any).chassis_number,
+        v?.chassisNumber,
+        v?.vin,
+        d.vehicleNumber,
+        v?.vehicleNumber,
+        d.oemName,
+        v?.oemName,
+        v?.vehicleModel,
+        (v as any)?.modelName,
+        d.destination,
+        v?.dealerName,
+        d.carrier,
+        v?.transportCompany,
+        d.truckNumber,
+        v?.truckNumber,
+        d.driverName,
+        v?.driverName,
+        d.driverPhone,
+        v?.driverMobileNumber,
+        d.dispatchChallanNumber,
+        v?.dispatchChallanNumber,
+        d.invoiceNumber,
+        v?.invoiceNumber,
+        d.lrNumber,
+        v?.lrNumber,
+      ].some((val) => (val || "").toLowerCase().includes(q));
 
-      if (statusFilter !== "All" && normStatus !== statusFilter.toLowerCase()) {
-        return false;
-      }
+      if (!matchSearch) return false;
 
-      if (carrierFilter !== "All") {
-        const carrierName = d.carrier || v?.transportCompany || v?.driverName || "Self Transport";
-        if (carrierName.toLowerCase() !== carrierFilter.toLowerCase()) return false;
-      }
+      // 2. Category Filter
+      const vCategory = v?.productCategory || (v as any)?.product_category || (d as any)?.productCategory;
+      const matchCategory = categoryFilter === "All Categories" || vCategory === categoryFilter;
+      if (!matchCategory) return false;
 
-      if (oemFilter !== "All") {
-        const oemName = d.oemName || (d as any).oem_name || v?.oemName || "";
-        const targetOem = oemFilter.toLowerCase().trim();
-        const currentOem = oemName.toLowerCase().trim();
-        if (currentOem !== targetOem && !currentOem.includes(targetOem) && !targetOem.includes(currentOem)) {
-          return false;
-        }
-      }
+      // 3. OEM Filter
+      const currentOem = (d.oemName || (d as any).oem_name || v?.oemName || "").toLowerCase().trim();
+      const targetOem = oemFilter.toLowerCase().trim();
+      const matchOem =
+        oemFilter === "All" ||
+        oemFilter === "All OEMs" ||
+        currentOem === targetOem ||
+        currentOem.includes(targetOem) ||
+        targetOem.includes(currentOem);
+      if (!matchOem) return false;
 
-      if (dealerFilter !== "All") {
-        const dealerName = d.destination || (d as any).dealerName || v?.dealerName || "";
-        const targetDealer = dealerFilter.toLowerCase().trim();
-        const currentDealer = dealerName.toLowerCase().trim();
-        if (currentDealer !== targetDealer && !currentDealer.includes(targetDealer) && !targetDealer.includes(currentDealer)) {
-          return false;
-        }
-      }
+      // 4. Dealer / Destination Filter
+      const currentDealer = (d.destination || (d as any).dealerName || (d as any).destination || v?.dealerName || "").toLowerCase().trim();
+      const targetDealer = dealerFilter.toLowerCase().trim();
+      const matchDealer =
+        dealerFilter === "All" ||
+        dealerFilter === "All Dealers" ||
+        currentDealer === targetDealer ||
+        currentDealer.includes(targetDealer) ||
+        targetDealer.includes(currentDealer);
+      if (!matchDealer) return false;
 
-      // Check date filter
-      const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time;
-      if (!matchesActiveDateFilter(dDate)) {
-        return false;
-      }
+      // 5. Carrier Filter
+      const currentCarrier = (d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport")).toLowerCase().trim();
+      const targetCarrier = carrierFilter.toLowerCase().trim();
+      const matchCarrier =
+        carrierFilter === "All" ||
+        carrierFilter === "All Carriers" ||
+        currentCarrier === targetCarrier ||
+        currentCarrier.includes(targetCarrier) ||
+        targetCarrier.includes(currentCarrier);
+      if (!matchCarrier) return false;
+
+      // 6. Priority Filter
+      const priority = ((v?.priority || (d as any).priority || "Normal") as string).toLowerCase().trim();
+      const matchPriority = priorityFilter === "all" || priority === priorityFilter.toLowerCase().trim();
+      if (!matchPriority) return false;
+
+      // 7. Status Filter
+      const normStatus = (d.status || "dispatched").toLowerCase().trim();
+      const matchStatus =
+        statusFilter === "All" ||
+        statusFilter === "All Statuses" ||
+        normStatus === statusFilter.toLowerCase().trim();
+      if (!matchStatus) return false;
+
+      // 8. Date Range Filter
+      const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time || v?.dispatchDateTime;
+      const matchDate = isDateInFilterRange(dDate, dateRange);
+      if (!matchDate) return false;
 
       return true;
     });
@@ -601,18 +633,14 @@ export default function DispatchPage() {
       const challanA = parseChallanNumber(a, vA);
       const challanB = parseChallanNumber(b, vB);
 
-      // If both have numerical challan numbers, sort descending (e.g. 538, 537, 536...)
       if (challanA !== null && challanB !== null && challanA !== challanB) {
         return challanB - challanA;
       }
-
-      // If only one has a challan number, prioritize the one with challan
       if (challanA !== null && challanB === null) return -1;
       if (challanA === null && challanB !== null) return 1;
 
-      // Otherwise sort by dispatch / scheduled date descending
-      const dateA = a.scheduledDate || (a as any).dispatchDate || (a as any).dispatch_date_time || vA?.dispatchDateTime || vA?.receivedAt;
-      const dateB = b.scheduledDate || (b as any).dispatchDate || (b as any).dispatch_date_time || vB?.dispatchDateTime || vB?.receivedAt;
+      const dateA = a.scheduledDate || (a as any).dispatchDate || (a as any).dispatch_date_time || vA?.dispatchDateTime;
+      const dateB = b.scheduledDate || (b as any).dispatchDate || (b as any).dispatch_date_time || vB?.dispatchDateTime;
       const timeA = dateA ? new Date(dateA).getTime() : 0;
       const timeB = dateB ? new Date(dateB).getTime() : 0;
       if (timeB !== timeA) {
@@ -621,16 +649,20 @@ export default function DispatchPage() {
 
       return (b.id || 0) - (a.id || 0);
     });
-  }, [allDispatchedItems, dispatchScope, statusFilter, carrierFilter, oemFilter, dealerFilter, vehicleMap, dateQueryParams]);
+  }, [allDispatchedItems, searchQuery, categoryFilter, oemFilter, dealerFilter, carrierFilter, priorityFilter, statusFilter, dateRange, vehicleMap]);
 
-  // Overall Stats calculation
+  // Overall Stats calculation strictly based on filtered dataset (matching received page)
   const stats = useMemo(() => {
     const total = filteredRecords.length;
     let scheduled = 0;
     let inTransit = 0;
     let delivered = 0;
     let pending = 0;
-    const oemCounts: Record<string, number> = {};
+    let urgent = 0;
+    let high = 0;
+    let todayCount = 0;
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
     filteredRecords.forEach((d: any) => {
       const st = (d.status || "pending").toLowerCase();
@@ -640,12 +672,187 @@ export default function DispatchPage() {
       else pending++;
 
       const v = vehicleMap[String(d.vehicleId)];
-      const oem = d.oemName || (d as any).oem_name || v?.oemName || "OEM";
-      oemCounts[oem] = (oemCounts[oem] || 0) + 1;
+      const p = ((v?.priority || (d as any).priority || "Normal") as string).toLowerCase();
+      if (p === "urgent") urgent++;
+      if (p === "high") high++;
+
+      const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time || v?.dispatchDateTime;
+      if (dDate) {
+        const dObj = new Date(dDate);
+        if (!isNaN(dObj.getTime())) {
+          const dStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}-${String(dObj.getDate()).padStart(2, "0")}`;
+          if (dStr === todayStr) todayCount++;
+        }
+      }
     });
 
-    return { total, scheduled, pending, inTransit, delivered, oemCounts };
+    return { total, scheduled, pending, inTransit, delivered, urgent, high, todayCount };
   }, [filteredRecords, vehicleMap]);
+
+  const isFiltered = Boolean(
+    searchQuery ||
+    dateRange !== "All Time" ||
+    priorityFilter !== "all" ||
+    categoryFilter !== "All Categories" ||
+    (oemFilter !== "All" && oemFilter !== "All OEMs") ||
+    (dealerFilter !== "All" && dealerFilter !== "All Dealers") ||
+    (carrierFilter !== "All" && carrierFilter !== "All Carriers") ||
+    (statusFilter !== "All" && statusFilter !== "All Statuses")
+  );
+
+  const handleExportExcel = () => {
+    const headers = [
+      "Tracking ID",
+      "Chassis / VIN",
+      "Vehicle Number",
+      "OEM Name",
+      "Transporter / Carrier",
+      "Truck Number",
+      "Driver Name",
+      "Driver Mobile",
+      "Challan Number",
+      "Invoice Number",
+      "Destination",
+      "Dispatch Date",
+      "Status"
+    ];
+    const tableRows = filteredRecords.map((d: DispatchRecord) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
+      const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
+      const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
+      const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
+      const truckNo = d.truckNumber || v?.truckNumber || "-";
+      const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
+      const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
+      const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
+      const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
+      const dateStr = d.scheduledDate || (d as any).dispatchDate;
+      return {
+        "Tracking ID": d.trackingNumber || d.trackingId || "-",
+        "Chassis / VIN": chassis,
+        "Vehicle Number": vehicleNum,
+        "OEM Name": oem,
+        "Transporter / Carrier": carrierName,
+        "Truck Number": truckNo,
+        "Driver Name": driver,
+        "Driver Mobile": phone,
+        "Challan Number": challan,
+        "Invoice Number": invoice,
+        "Destination": d.destination || "-",
+        "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+        "Status": d.status || "pending"
+      };
+    });
+    exportToExcel("Dispatch_Master_List", headers, tableRows);
+  };
+
+  const handleExportPDF = () => {
+    const headers = [
+      "Tracking ID",
+      "Chassis / VIN",
+      "Vehicle Number",
+      "OEM Name",
+      "Transporter / Carrier",
+      "Truck Number",
+      "Driver Name",
+      "Driver Mobile",
+      "Challan Number",
+      "Invoice Number",
+      "Destination",
+      "Dispatch Date",
+      "Status"
+    ];
+    const tableRows = filteredRecords.map((d: DispatchRecord) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
+      const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
+      const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
+      const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
+      const truckNo = d.truckNumber || v?.truckNumber || "-";
+      const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
+      const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
+      const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
+      const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
+      const dateStr = d.scheduledDate || (d as any).dispatchDate;
+      return {
+        "Tracking ID": d.trackingNumber || d.trackingId || "-",
+        "Chassis / VIN": chassis,
+        "Vehicle Number": vehicleNum,
+        "OEM Name": oem,
+        "Transporter / Carrier": carrierName,
+        "Truck Number": truckNo,
+        "Driver Name": driver,
+        "Driver Mobile": phone,
+        "Challan Number": challan,
+        "Invoice Number": invoice,
+        "Destination": d.destination || "-",
+        "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+        "Status": d.status || "pending"
+      };
+    });
+    exportToPDF(
+      "Dispatch_Master_List",
+      "Dispatch & Logistics Master Report",
+      headers,
+      tableRows,
+      {
+        dateRange,
+        oem: oemFilter,
+        dealer: dealerFilter,
+        carrier: carrierFilter,
+        status: statusFilter,
+        summary: `Total ${filteredRecords.length} dispatch records matching filter criteria.`
+      }
+    );
+  };
+
+  const handleExportCSV = () => {
+    const headers = [
+      "Tracking ID",
+      "Chassis / VIN",
+      "Vehicle Number",
+      "OEM Name",
+      "Transporter / Carrier",
+      "Truck Number",
+      "Driver Name",
+      "Driver Mobile",
+      "Challan Number",
+      "Invoice Number",
+      "Destination",
+      "Dispatch Date",
+      "Status"
+    ];
+    const tableRows = filteredRecords.map((d: DispatchRecord) => {
+      const v = vehicleMap[String(d.vehicleId)];
+      const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
+      const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
+      const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
+      const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
+      const truckNo = d.truckNumber || v?.truckNumber || "-";
+      const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
+      const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
+      const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
+      const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
+      const dateStr = d.scheduledDate || (d as any).dispatchDate;
+      return {
+        "Tracking ID": d.trackingNumber || d.trackingId || "-",
+        "Chassis / VIN": chassis,
+        "Vehicle Number": vehicleNum,
+        "OEM Name": oem,
+        "Transporter / Carrier": carrierName,
+        "Truck Number": truckNo,
+        "Driver Name": driver,
+        "Driver Mobile": phone,
+        "Challan Number": challan,
+        "Invoice Number": invoice,
+        "Destination": d.destination || "-",
+        "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
+        "Status": d.status || "pending"
+      };
+    });
+    exportToCSV("Dispatch_Master_List", headers, tableRows);
+  };
 
   // Client-side pagination calculations for accurate page switching
   const totalFilteredRecords = filteredRecords.length;
@@ -892,357 +1099,561 @@ export default function DispatchPage() {
     [vehicleMap, canEdit, deleteDispatchMutation]
   );
 
+  const anyDropdownOpen = showCategoryDropdown || showOemDropdown || showDealerDropdown || showCarrierDropdown || showStatusDropdown;
+
   return (
-    <div className="p-4 md:p-6 space-y-6" data-ocid="dispatch.page">
-      {/* Top Header */}
-      <PageHeader
-        title="Dispatch Command Center"
-        description="Logistics chassis dispatch records, transporter tracking, gate pass generation, and delivery tracking"
-        icon={<Truck className="w-5 h-5 text-primary" />}
-        actions={
-          <div className="flex items-center gap-2 flex-wrap">
-            {canEdit && (
-              <Button
-                type="button"
-                onClick={() => setShowSelectVehicleModal(true)}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-semibold cursor-pointer"
-              >
-                <Truck size={14} /> Dispatch Vehicle
-              </Button>
+    <div className="flex flex-col min-h-full bg-background" data-ocid="dispatch.page">
+      {/* Click-away backdrop for dropdowns */}
+      {anyDropdownOpen && (
+        <div
+          className="fixed inset-0 z-20 bg-transparent"
+          onClick={closeAllDropdowns}
+        />
+      )}
+
+      {/* Top bar */}
+      <div className="flex-shrink-0 p-3 sm:p-4 md:px-6 md:pt-5 md:pb-4 border-b border-border bg-card space-y-3 sm:space-y-4">
+        {/* Header with PageHeader and Actions */}
+        <PageHeader
+          title="Dispatch Command Center"
+          className="mb-0 pb-0 gap-3"
+          description={
+            <span className="flex items-center gap-2 flex-wrap">
+              <span>{allDispatchedItems.length} total vehicles tracked through outbound staging</span>
+              {urgentCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                  {urgentCount} urgent
+                </span>
+              )}
+              {highCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                  {highCount} high priority
+                </span>
+              )}
+            </span>
+          }
+          actions={
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {canEdit && (
+                <Button
+                  type="button"
+                  onClick={() => setShowSelectVehicleModal(true)}
+                  className="flex-1 sm:flex-initial gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                >
+                  <Truck size={14} /> Dispatch Vehicle
+                </Button>
+              )}
+              <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("standard")}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer",
+                    activeTab === "standard" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  Standard View
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("excel")}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
+                    activeTab === "excel" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <FileSpreadsheet size={13} className="text-emerald-600" />
+                  Table View
+                </button>
+              </div>
+            </div>
+          }
+        />
+
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
+          {/* Search Input */}
+          <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
+            <Search
+              size={14}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="text"
+              placeholder="Search tracking ID, vehicle, OEM…"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              className="w-full pl-9 pr-3 h-9 text-xs bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all shadow-2xs"
+              data-ocid="dispatch.search_input"
+            />
+          </div>
+
+          {/* Date Range & Custom Month Filter Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto">
+            <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
+            <select 
+              value={selectedDatePreset}
+              onChange={(e) => {
+                handleDatePresetChange(e.target.value);
+                setPage(1);
+              }}
+              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer w-full sm:w-auto"
+            >
+              <option value="All Time">All Time (All Dates)</option>
+              <option value="Today">Today</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="This Week">This Week</option>
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="This Month">This Month</option>
+              <option value="Last Month">Last Month</option>
+              <option value="Custom Month">Select Month (Custom)</option>
+              <option value="Custom Range">Custom Date Range</option>
+            </select>
+
+            {selectedDatePreset === "Custom Month" && (
+              <input 
+                type="month"
+                value={customMonth}
+                onChange={(e) => {
+                  handleCustomMonthChange(e.target.value);
+                  setPage(1);
+                }}
+                className="bg-background border border-input rounded px-2 py-0.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              />
             )}
-            <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+
+            {selectedDatePreset === "Custom Range" && (
+              <div className="flex items-center gap-1">
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => {
+                    handleCustomDateChange(e.target.value, endDate);
+                    setPage(1);
+                  }}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-[10px] text-muted-foreground">to</span>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => {
+                    handleCustomDateChange(startDate, e.target.value);
+                    setPage(1);
+                  }}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Priority Tabs */}
+          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border">
+            {(["all", "normal", "high", "urgent"] as const).map((f) => (
               <button
+                key={f}
                 type="button"
-                onClick={() => setActiveTab("standard")}
+                onClick={() => {
+                  setPriorityFilter(f as any);
+                  setPage(1);
+                }}
+                data-ocid={`dispatch.priority.${f}.tab`}
                 className={cn(
-                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer",
-                  activeTab === "standard" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
+                  "px-1.5 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all duration-150 whitespace-nowrap text-center truncate cursor-pointer",
+                  priorityFilter === f
+                    ? f === "urgent"
+                      ? "bg-destructive text-white shadow-xs"
+                      : f === "high"
+                        ? "bg-warning text-white shadow-xs"
+                        : "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                Standard View
+                {f === "all" ? `All (${allDispatchedItems.length})` : f}
               </button>
+            ))}
+          </div>
+
+          {/* Dropdown Filters */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Category Filter */}
+            <div className="relative w-full sm:w-auto z-30">
               <button
                 type="button"
-                onClick={() => setActiveTab("excel")}
-                className={cn(
-                  "px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
-                  activeTab === "excel" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
-                )}
+                onClick={() => {
+                  const cur = showCategoryDropdown;
+                  closeAllDropdowns();
+                  setShowCategoryDropdown(!cur);
+                }}
+                data-ocid="dispatch.category.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 shadow-2xs cursor-pointer"
               >
-                <FileSpreadsheet size={13} className="text-emerald-600" />
-                Table View
+                <span className="truncate">{categoryFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showCategoryDropdown && "rotate-180",
+                  )}
+                />
               </button>
+              <AnimatePresence>
+                {showCategoryDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="dispatch.category.dropdown_menu"
+                  >
+                    {PRODUCT_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(cat);
+                          setShowCategoryDropdown(false);
+                          setPage(1);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer",
+                          categoryFilter === cat
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* OEM Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showOemDropdown;
+                  closeAllDropdowns();
+                  setShowOemDropdown(!cur);
+                }}
+                data-ocid="dispatch.oem.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{oemFilter === "All" || oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showOemDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showOemDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="dispatch.oem.dropdown_menu"
+                  >
+                    {uniqueOems.map((oem) => (
+                      <button
+                        key={oem}
+                        type="button"
+                        onClick={() => {
+                          setOemFilter(oem);
+                          setShowOemDropdown(false);
+                          setPage(1);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          oemFilter === oem
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {oem === "All" ? "All OEMs" : oem}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Dealer Name Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showDealerDropdown;
+                  closeAllDropdowns();
+                  setShowDealerDropdown(!cur);
+                }}
+                data-ocid="dispatch.dealer.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{dealerFilter === "All" || dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showDealerDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showDealerDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="dispatch.dealer.dropdown_menu"
+                  >
+                    {uniqueDealers.map((dealer) => (
+                      <button
+                        key={dealer}
+                        type="button"
+                        onClick={() => {
+                          setDealerFilter(dealer);
+                          setShowDealerDropdown(false);
+                          setPage(1);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          dealerFilter === dealer
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {dealer === "All" ? "All Dealers" : dealer}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Carrier / Transporter Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showCarrierDropdown;
+                  closeAllDropdowns();
+                  setShowCarrierDropdown(!cur);
+                }}
+                data-ocid="dispatch.carrier.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{carrierFilter === "All" || carrierFilter === "All Carriers" ? "All Carriers" : `Carrier: ${carrierFilter}`}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showCarrierDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showCarrierDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                    data-ocid="dispatch.carrier.dropdown_menu"
+                  >
+                    {dynamicCarriers.map((carrier) => (
+                      <button
+                        key={carrier}
+                        type="button"
+                        onClick={() => {
+                          setCarrierFilter(carrier);
+                          setShowCarrierDropdown(false);
+                          setPage(1);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          carrierFilter === carrier
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {carrier === "All" ? "All Carriers" : carrier}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Status Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showStatusDropdown;
+                  closeAllDropdowns();
+                  setShowStatusDropdown(!cur);
+                }}
+                data-ocid="dispatch.status.select"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">
+                  {statusFilter === "All" || statusFilter === "All Statuses"
+                    ? "All Statuses"
+                    : statusFilter === "dispatched"
+                      ? "🚚 Dispatched"
+                      : statusFilter === "delivered"
+                        ? "✅ Delivered"
+                        : statusFilter === "in_transit"
+                          ? "🛣️ In Transit"
+                          : statusFilter === "scheduled"
+                            ? "📅 Scheduled"
+                            : "⏳ Pending"}
+                </span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showStatusDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showStatusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                    data-ocid="dispatch.status.dropdown_menu"
+                  >
+                    {[
+                      { id: "All Statuses", label: "All Statuses" },
+                      { id: "dispatched", label: "🚚 Dispatched" },
+                      { id: "delivered", label: "✅ Delivered" },
+                      { id: "in_transit", label: "🛣️ In Transit" },
+                      { id: "scheduled", label: "📅 Scheduled" },
+                      { id: "pending", label: "⏳ Pending Vehicles" },
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(item.id);
+                          setShowStatusDropdown(false);
+                          setPage(1);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          statusFilter === item.id
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
-        }
-      />
 
-      {/* Global Date Filter Bar */}
-      <GlobalDateFilterBar
-        dateFilter={dateFilter}
-        setDateFilter={(v) => { setDateFilter(v); setPage(1); }}
-        customMonth={customMonth}
-        setCustomMonth={(v) => { setCustomMonth(v); setPage(1); }}
-        customStartDate={customStartDate}
-        setCustomStartDate={(v) => { setCustomStartDate(v); setPage(1); }}
-        customEndDate={customEndDate}
-        setCustomEndDate={(v) => { setCustomEndDate(v); setPage(1); }}
-      />
-
-      {/* Metric Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-        <KPICard
-          title="Total Dispatches"
-          value={stats.total}
-          description="Recorded movements"
-          icon={<Truck size={14} />}
-          semantic="primary"
-        />
-        <KPICard
-          title="Delivered / Dispatched"
-          value={stats.delivered + stats.inTransit}
-          description="In transit or finished"
-          icon={<CheckCircle2 size={14} />}
-          semantic="success"
-        />
-        <KPICard
-          title="Scheduled / Pending"
-          value={stats.scheduled + stats.pending}
-          description="Awaiting pickup"
-          icon={<Clock size={14} />}
-          semantic={stats.scheduled + stats.pending > 0 ? "warning" : "neutral"}
-        />
-        <KPICard
-          title="OEMs Served"
-          value={Object.keys(stats.oemCounts).length}
-          description="Outbound partner brands"
-          icon={<Truck size={14} />}
-          semantic="neutral"
-        />
+          {isFiltered && (
+            <span className="text-[11px] text-muted-foreground w-full sm:w-auto text-center">
+              {filteredRecords.length} / {allDispatchedItems.length} shown
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* TABLE VIEW SWITCHER */}
-      {activeTab === "excel" ? (
-        <div className="space-y-4 animate-in fade-in duration-300">
-          {/* Table Action Header Bar */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-4 rounded-xl border border-border shadow-sm">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                <FileSpreadsheet size={20} />
+      {/* Content Area */}
+      <div className="flex-1 p-3 sm:p-4 md:p-6 bg-muted/10 space-y-4 pb-28 md:pb-6">
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
+          <KPICard
+            title="Total Dispatches"
+            value={stats.total}
+            description={isFiltered ? `Matching filter (${stats.total} of ${allDispatchedItems.length})` : "Outbound vehicles recorded"}
+            icon={<Truck size={14} />}
+            semantic="primary"
+          />
+          <KPICard
+            title="Dispatched Today"
+            value={stats.todayCount}
+            description={isFiltered ? "Filtered today dispatches" : "Today's outbound departures"}
+            icon={<CheckCircle2 size={14} />}
+            semantic="success"
+          />
+          <KPICard
+            title="Urgent Priority"
+            value={stats.urgent}
+            description={isFiltered ? "Filtered urgent vehicles" : "Immediate attention required"}
+            icon={<AlertTriangle size={14} />}
+            semantic={stats.urgent > 0 ? "destructive" : "neutral"}
+          />
+          <KPICard
+            title="High Priority"
+            value={stats.high}
+            description={isFiltered ? "Filtered high priority" : "Fast-track dispatches"}
+            icon={<Clock size={14} />}
+            semantic={stats.high > 0 ? "warning" : "neutral"}
+          />
+        </div>
+
+        {/* TABLE VIEW SWITCHER */}
+        {activeTab === "excel" ? (
+          <div className="space-y-4 animate-in fade-in duration-300">
+            {/* Table Action Header Bar */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-card p-3 sm:p-4 rounded-xl border border-border shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                  <FileSpreadsheet size={20} />
+                </div>
+                <div>
+                  <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">Dispatch Vehicles Master List (Excel View)</h3>
+                  <p className="text-[11px] text-muted-foreground">{filteredRecords.length} vehicles matching filter</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Dispatch Master List (Excel View)</h3>
-                <p className="text-xs text-muted-foreground">Real-time row and column table list ({filteredRecords.length} records matching filter)</p>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={handleExportExcel}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
+                >
+                  <Download size={13} /> Export Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportPDF}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
+                >
+                  <FileText size={13} /> Export PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
+                >
+                  <Download size={13} /> CSV
+                </button>
               </div>
             </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = [
-                    "Tracking ID",
-                    "Chassis / VIN",
-                    "Vehicle Number",
-                    "OEM Name",
-                    "Transporter / Carrier",
-                    "Truck Number",
-                    "Driver Name",
-                    "Driver Mobile",
-                    "Challan Number",
-                    "Invoice Number",
-                    "Destination",
-                    "Dispatch Date",
-                    "Status"
-                  ];
-                  const tableRows = filteredRecords.map((d: DispatchRecord) => {
-                    const v = vehicleMap[String(d.vehicleId)];
-                    const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
-                    const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
-                    const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
-                    const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
-                    const truckNo = d.truckNumber || v?.truckNumber || "-";
-                    const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
-                    const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
-                    const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
-                    const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
-                    const dateStr = d.scheduledDate || (d as any).dispatchDate;
-                    return {
-                      "Tracking ID": d.trackingNumber || d.trackingId || "-",
-                      "Chassis / VIN": chassis,
-                      "Vehicle Number": vehicleNum,
-                      "OEM Name": oem,
-                      "Transporter / Carrier": carrierName,
-                      "Truck Number": truckNo,
-                      "Driver Name": driver,
-                      "Driver Mobile": phone,
-                      "Challan Number": challan,
-                      "Invoice Number": invoice,
-                      "Destination": d.destination || "-",
-                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
-                      "Status": d.status || "pending"
-                    };
-                  });
-                  exportToExcel("Dispatch_Master_List", headers, tableRows);
-                }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
-              >
-                <Download size={13} /> Export Excel (.xlsx)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = [
-                    "Tracking ID",
-                    "Chassis / VIN",
-                    "Vehicle Number",
-                    "OEM Name",
-                    "Transporter / Carrier",
-                    "Truck Number",
-                    "Driver Name",
-                    "Driver Mobile",
-                    "Challan Number",
-                    "Invoice Number",
-                    "Destination",
-                    "Dispatch Date",
-                    "Status"
-                  ];
-                  const tableRows = filteredRecords.map((d: DispatchRecord) => {
-                    const v = vehicleMap[String(d.vehicleId)];
-                    const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
-                    const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
-                    const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
-                    const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
-                    const truckNo = d.truckNumber || v?.truckNumber || "-";
-                    const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
-                    const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
-                    const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
-                    const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
-                    const dateStr = d.scheduledDate || (d as any).dispatchDate;
-                    return {
-                      "Tracking ID": d.trackingNumber || d.trackingId || "-",
-                      "Chassis / VIN": chassis,
-                      "Vehicle Number": vehicleNum,
-                      "OEM Name": oem,
-                      "Transporter / Carrier": carrierName,
-                      "Truck Number": truckNo,
-                      "Driver Name": driver,
-                      "Driver Mobile": phone,
-                      "Challan Number": challan,
-                      "Invoice Number": invoice,
-                      "Destination": d.destination || "-",
-                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
-                      "Status": d.status || "pending"
-                    };
-                  });
-                  exportToPDF(
-                    "Dispatch_Master_List",
-                    "Dispatch & Logistics Master Report",
-                    headers,
-                    tableRows,
-                    {
-                      dateRange: dateFilter,
-                      oem: oemFilter,
-                      dealer: dealerFilter,
-                      carrier: carrierFilter,
-                      status: statusFilter,
-                      summary: `Total ${filteredRecords.length} dispatch records matching filter criteria.`
-                    }
-                  );
-                }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
-              >
-                <FileText size={13} /> Export PDF (.pdf)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = [
-                    "Tracking ID",
-                    "Chassis / VIN",
-                    "Vehicle Number",
-                    "OEM Name",
-                    "Transporter / Carrier",
-                    "Truck Number",
-                    "Driver Name",
-                    "Driver Mobile",
-                    "Challan Number",
-                    "Invoice Number",
-                    "Destination",
-                    "Dispatch Date",
-                    "Status"
-                  ];
-                  const tableRows = filteredRecords.map((d: DispatchRecord) => {
-                    const v = vehicleMap[String(d.vehicleId)];
-                    const chassis = d.chassisNumber || (d as any).chassis_number || v?.chassisNumber || v?.vin || "-";
-                    const vehicleNum = d.vehicleNumber || (d as any).vehicle_number || v?.vehicleNumber || "-";
-                    const oem = d.oemName || (d as any).oem_name || v?.oemName || "-";
-                    const carrierName = d.carrier && d.carrier !== "Pending Assignment" ? d.carrier : (v?.transportCompany || v?.driverName || "Self Transport");
-                    const truckNo = d.truckNumber || v?.truckNumber || "-";
-                    const driver = d.driverName || (d as any).driver_name || v?.driverName || "-";
-                    const phone = d.driverPhone || (d as any).driver_phone || v?.driverMobileNumber || "-";
-                    const challan = d.dispatchChallanNumber || v?.dispatchChallanNumber || "-";
-                    const invoice = d.invoiceNumber || v?.invoiceNumber || "-";
-                    const dateStr = d.scheduledDate || (d as any).dispatchDate;
-                    return {
-                      "Tracking ID": d.trackingNumber || d.trackingId || "-",
-                      "Chassis / VIN": chassis,
-                      "Vehicle Number": vehicleNum,
-                      "OEM Name": oem,
-                      "Transporter / Carrier": carrierName,
-                      "Truck Number": truckNo,
-                      "Driver Name": driver,
-                      "Driver Mobile": phone,
-                      "Challan Number": challan,
-                      "Invoice Number": invoice,
-                      "Destination": d.destination || "-",
-                      "Dispatch Date": dateStr ? new Date(dateStr).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "-",
-                      "Status": d.status || "pending"
-                    };
-                  });
-                  exportToCSV("Dispatch_Master_List", headers, tableRows);
-                }}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
-              >
-                <Download size={13} /> Export CSV
-              </button>
-            </div>
-          </div>
-
-          {/* Excel Filter Strip */}
-          <div className="flex flex-wrap items-center gap-2 bg-card p-3 rounded-xl border border-border">
-            <select
-              value={dispatchScope}
-              onChange={(e) => {
-                setDispatchScope(e.target.value as any);
-                setPage(1);
-              }}
-              className="h-8 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded-lg px-2 focus:outline-none cursor-pointer"
-            >
-              <option value="production_dispatches">🚚 Production Dispatches Only</option>
-              <option value="all">📋 All Records (Inc. Pending)</option>
-              <option value="pending">⏳ Pending Dispatch Only</option>
-            </select>
-
-            <select
-              value={statusFilter}
-              onChange={(e) => {
-                setStatusFilter(e.target.value);
-                setPage(1);
-              }}
-              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-            >
-              {STATUSES.map((s) => (
-                <option key={s} value={s}>
-                  {s === "All" ? "All Statuses" : s.replace("_", " ").toUpperCase()}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={carrierFilter}
-              onChange={(e) => {
-                setCarrierFilter(e.target.value);
-                setPage(1);
-              }}
-              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-            >
-              {dynamicCarriers.map((c) => (
-                <option key={c} value={c}>
-                  {c === "All" ? "All Carriers" : c}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={oemFilter}
-              onChange={(e) => {
-                setOemFilter(e.target.value);
-                setPage(1);
-              }}
-              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-            >
-              {uniqueOems.map((oem) => (
-                <option key={oem} value={oem}>
-                  {oem === "All" ? "🏭 All OEMs" : oem}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={dealerFilter}
-              onChange={(e) => {
-                setDealerFilter(e.target.value);
-                setPage(1);
-              }}
-              className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none max-w-[170px] truncate"
-            >
-              {uniqueDealers.map((dealer) => (
-                <option key={dealer} value={dealer}>
-                  {dealer === "All" ? "📍 All Dealers / Dest" : dealer}
-                </option>
-              ))}
-            </select>
-          </div>
 
           {/* Mobile Cards View */}
           <div className="md:hidden space-y-3">
@@ -1694,82 +2105,6 @@ export default function DispatchPage() {
               const v = vehicleMap[String(d.vehicleId)];
               return <DispatchExpand record={d} vehicle={v} />;
             }}
-            extraFilters={
-              <>
-                <select
-                  value={dispatchScope}
-                  onChange={(e) => {
-                    setDispatchScope(e.target.value as any);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-semibold bg-primary/10 text-primary border border-primary/20 rounded-lg px-2 focus:outline-none cursor-pointer"
-                >
-                  <option value="production_dispatches">🚚 Production Dispatches Only</option>
-                  <option value="all">📋 All Records (Inc. Pending)</option>
-                  <option value="pending">⏳ Pending Dispatch Only</option>
-                </select>
-
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s === "All" ? "All Statuses" : s.replace("_", " ").toUpperCase()}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={carrierFilter}
-                  onChange={(e) => {
-                    setCarrierFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-                >
-                  {dynamicCarriers.map((c) => (
-                    <option key={c} value={c}>
-                      {c === "All" ? "All Carriers" : c}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={oemFilter}
-                  onChange={(e) => {
-                    setOemFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none"
-                >
-                  {uniqueOems.map((oem) => (
-                    <option key={oem} value={oem}>
-                      {oem === "All" ? "🏭 All OEMs" : oem}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={dealerFilter}
-                  onChange={(e) => {
-                    setDealerFilter(e.target.value);
-                    setPage(1);
-                  }}
-                  className="h-8 text-xs font-medium bg-muted/50 border border-border rounded-lg px-2 text-foreground focus:outline-none max-w-[170px] truncate"
-                >
-                  {uniqueDealers.map((dealer) => (
-                    <option key={dealer} value={dealer}>
-                      {dealer === "All" ? "📍 All Dealers / Dest" : dealer}
-                    </option>
-                  ))}
-                </select>
-              </>
-            }
           />
 
           <Pagination
@@ -1786,6 +2121,7 @@ export default function DispatchPage() {
           />
         </div>
       )}
+      </div>
 
       {/* EDIT RECORD DIALOG */}
       <EditRecordDialog
