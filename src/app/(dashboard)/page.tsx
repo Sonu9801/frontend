@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { KPICard } from "@/components/ui/KPICard";
 import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { useVehicles, useActivities, useWorkers } from "@/hooks/useQueries";
 import { useUIStore } from "@/store/uiStore";
 import Link from "next/link";
 import { useAuthStore } from "@/store/authStore";
+import { VehicleLookupBottomSheet } from "@/components/vehicles/VehicleLookupBottomSheet";
 import {
   Activity,
   AlertTriangle,
@@ -30,8 +31,10 @@ import {
   Building2,
   Bell,
   Settings,
+  ChevronLeft,
   ChevronRight,
   Flame,
+  Search,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import type { Vehicle, ActivityEvent, Stage } from "@/types";
@@ -43,6 +46,7 @@ interface AdminTabItem {
   color: string;
   category: "core" | "workforce" | "finance" | "system";
   desc: string;
+  isAction?: boolean;
 }
 
 // 8 most-used modules as defined in Option D reference
@@ -51,13 +55,14 @@ const mostUsedModules: AdminTabItem[] = [
   { label: "Received", href: "/production/received", icon: Inbox, color: "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/40", category: "core", desc: "Vehicle intake & checks" },
   { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/40", category: "core", desc: "Quality inspection" },
   { label: "Dispatch", href: "/dispatch", icon: Truck, color: "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/40", category: "core", desc: "Gate pass & delivery" },
+  { label: "Track 4-Digit", href: "#lookup", icon: Search, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "core", desc: "Check dealer & dispatch status", isAction: true },
   { label: "Workers", href: "/workers", icon: Users, color: "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40", category: "workforce", desc: "Active staff & skills" },
   { label: "Attendance", href: "/attendance", icon: Clock, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "workforce", desc: "Live biometric shifts" },
   { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/40", category: "workforce", desc: "BOM inventory & parts" },
-  { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/40", category: "workforce", desc: "Wages & overtime" },
 ];
 
 const remainingModules: AdminTabItem[] = [
+  { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/40", category: "workforce", desc: "Wages & overtime" },
   { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "finance", desc: "Customer tax invoices" },
   { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "finance", desc: "Vendor invoices & bills" },
   { label: "Reports", href: "/reports", icon: FileBarChart, color: "bg-cyan-50 text-cyan-600 border-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-900/40", category: "finance", desc: "Audit logs & exports" },
@@ -262,6 +267,77 @@ export default function DashboardPage() {
   const adminName = name ? name.split(" ")[0] : "Admin";
 
   const [showAllModules, setShowAllModules] = useState(false);
+  const [showVehicleLookup, setShowVehicleLookup] = useState(false);
+
+  // Month navigation state for Production Flow (auto-aggregates daily counts)
+  const getCurrentMonthKey = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  };
+
+  const [selectedMonth, setSelectedMonth] = useState<string>(getCurrentMonthKey);
+  const isCurrentMonth = selectedMonth === getCurrentMonthKey();
+
+  const handlePrevMonth = () => {
+    setSelectedMonth((prev) => {
+      const [yearStr, monthStr] = prev.split("-");
+      let year = parseInt(yearStr, 10);
+      let month = parseInt(monthStr, 10) - 1;
+      if (month < 1) {
+        month = 12;
+        year -= 1;
+      }
+      return `${year}-${String(month).padStart(2, "0")}`;
+    });
+  };
+
+  const handleNextMonth = () => {
+    setSelectedMonth((prev) => {
+      const [yearStr, monthStr] = prev.split("-");
+      let year = parseInt(yearStr, 10);
+      let month = parseInt(monthStr, 10) + 1;
+      if (month > 12) {
+        month = 1;
+        year += 1;
+      }
+      return `${year}-${String(month).padStart(2, "0")}`;
+    });
+  };
+
+  const resetToCurrentMonth = () => {
+    setSelectedMonth(getCurrentMonthKey());
+  };
+
+  const formatMonthDisplay = (ym: string) => {
+    try {
+      const [yearStr, monthStr] = ym.split("-");
+      const d = new Date(parseInt(yearStr, 10), parseInt(monthStr, 10) - 1, 1);
+      return d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    } catch {
+      return ym;
+    }
+  };
+
+  const getMonthKey = (dateStr?: string | null): string | null => {
+    if (!dateStr) return null;
+    const str = String(dateStr).trim();
+    if (/^\d{4}-\d{2}/.test(str)) {
+      return str.slice(0, 7);
+    }
+    try {
+      const d = parseUTCDate(str);
+      if (isNaN(d.getTime())) return null;
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    } catch {
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#lookup") {
+      setShowVehicleLookup(true);
+    }
+  }, []);
 
   const isLoading = isLoadingVehicles || isLoadingActivities;
 
@@ -282,14 +358,75 @@ export default function DashboardPage() {
   // Group vehicles by stage
   const vehiclesByStage = STAGE_ORDER.reduce<Partial<Record<Stage, Vehicle[]>>>(
     (acc, stage) => {
-      // Stage strings on backend can be lowercase or title case
-      acc[stage] = filteredVehicles.filter(
-        (v: Vehicle) => (v.currentStage || "").toLowerCase() === (stage || "").toLowerCase()
-      );
+      acc[stage] = filteredVehicles.filter((v: Vehicle) => {
+        const s = (v.currentStage || "").toLowerCase().trim();
+        if (stage === "dispatch") {
+          return s === "dispatch" || s === "dispatched" || s === "delivered";
+        }
+        if (stage === "rtd") {
+          return s === "rtd" || s === "readytodispatch";
+        }
+        if (stage === "received") {
+          return s === "received" || s === "incoming_verification" || s === "supervisor_verification";
+        }
+        return s === (stage || "").toLowerCase();
+      });
       return acc;
     },
     { oem: [], rejected: [], received: [], fabrication: [], paint: [], rtd: [], dispatch: [] }
   );
+
+  // Compute month-wise stage statistics (daily numbers automatically accumulate)
+  const monthlyStageStats = useMemo<Record<string, number>>(() => {
+    const isCurrent = selectedMonth === getCurrentMonthKey();
+
+    // 1. Received in selected month
+    const received = filteredVehicles.filter((v: Vehicle) => {
+      const m = getMonthKey(v.receivedAt) || getMonthKey(v.arrivalTime) || getMonthKey(v.submittedAt);
+      return m === selectedMonth;
+    });
+
+    // 2. Dispatched in selected month
+    const dispatch = filteredVehicles.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase().trim();
+      const isDisp = s === "dispatch" || s === "dispatched" || s === "delivered";
+      if (!isDisp) return false;
+      const dMonth = getMonthKey(v.dispatchDateTime) || getMonthKey(v.receivedAt);
+      return dMonth === selectedMonth;
+    });
+
+    // 3. Fabrication
+    const fabrication = filteredVehicles.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase().trim();
+      if (s !== "fabrication") return false;
+      if (isCurrent) return true;
+      return getMonthKey(v.receivedAt) === selectedMonth;
+    });
+
+    // 4. Paint
+    const paint = filteredVehicles.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase().trim();
+      if (s !== "paint") return false;
+      if (isCurrent) return true;
+      return getMonthKey(v.receivedAt) === selectedMonth;
+    });
+
+    // 5. Assembly (rtd)
+    const rtd = filteredVehicles.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase().trim();
+      if (s !== "rtd" && s !== "readytodispatch") return false;
+      if (isCurrent) return true;
+      return getMonthKey(v.receivedAt) === selectedMonth;
+    });
+
+    return {
+      received: received.length,
+      fabrication: fabrication.length,
+      paint: paint.length,
+      rtd: rtd.length,
+      dispatch: dispatch.length,
+    };
+  }, [filteredVehicles, selectedMonth]);
 
   // Compute live KPI Stats
   const stats = {
@@ -477,6 +614,14 @@ export default function DashboardPage() {
                     </span>
                   </motion.div>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setShowVehicleLookup(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-xs"
+                >
+                  <Search size={13} strokeWidth={2.4} />
+                  <span>Track Vehicle (4-Digit)</span>
+                </button>
                 {stats.delayedOrders > 0 && (
                   <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
                     <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
@@ -581,9 +726,34 @@ export default function DashboardPage() {
             </div>
           </div>
 
-
-
-
+          {/* 2. QUICK VEHICLE 4-DIGIT LOOKUP BANNER TAB */}
+          <div
+            onClick={() => setShowVehicleLookup(true)}
+            className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 border border-blue-500/25 hover:border-primary/50 cursor-pointer active:scale-[0.99] transition-all shadow-2xs group"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                <Search size={20} strokeWidth={2.5} />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-foreground tracking-tight">
+                    Track Vehicle (Last 4 Digits)
+                  </span>
+                  <span className="text-[9.5px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0">
+                    INSTANT
+                  </span>
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium truncate mt-0.5">
+                  Check Dealer & Dispatched / Received status
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 text-[11px] font-bold text-primary bg-background/90 px-3 py-1.5 rounded-full border border-primary/25 group-hover:bg-primary group-hover:text-primary-foreground transition-all shadow-2xs shrink-0">
+              <span>Track</span>
+              <ArrowRight size={12} className="stroke-[2.5]" />
+            </div>
+          </div>
 
           {/* 4. QUICK ACTIONS (8 MOST-USED MODULES) */}
           <div>
@@ -596,7 +766,7 @@ export default function DashboardPage() {
                 onClick={() => setShowAllModules(!showAllModules)}
                 className="text-xs font-semibold text-primary hover:underline flex items-center gap-1 active:scale-95 transition-all"
               >
-                <span>{showAllModules ? "Show Less" : "View All 16"}</span>
+                <span>{showAllModules ? "Show Less" : "View All 17"}</span>
                 <ArrowRight size={12} className={cn("transition-transform duration-200", showAllModules && "rotate-90")} />
               </button>
             </div>
@@ -604,6 +774,28 @@ export default function DashboardPage() {
             <div className="grid grid-cols-4 gap-x-2 gap-y-3.5">
               {(showAllModules ? [...mostUsedModules, ...remainingModules] : mostUsedModules).map((item, idx) => {
                 const Icon = item.icon;
+                if (item.isAction) {
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setShowVehicleLookup(true)}
+                      className="flex flex-col items-center justify-center gap-1.5 group cursor-pointer select-none text-center"
+                    >
+                      <div
+                        className={cn(
+                          "w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-150 group-active:scale-90 shadow-2xs border",
+                          item.color
+                        )}
+                      >
+                        <Icon size={24} strokeWidth={2.3} />
+                      </div>
+                      <span className="text-[10.5px] font-bold text-foreground text-center leading-tight line-clamp-1 group-active:text-primary transition-colors">
+                        {item.label}
+                      </span>
+                    </button>
+                  );
+                }
                 return (
                   <Link
                     key={idx}
@@ -627,25 +819,58 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 5. PRODUCTION FLOW (TODAY) */}
+          {/* 5. PRODUCTION FLOW (MONTH-WISE WITH AUTO-ACCUMULATION & BACK-MONTH NAV) */}
           <div className="p-3.5 rounded-2xl bg-card border border-border/80 shadow-2xs">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-lg bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center">
                   <Activity size={14} />
                 </div>
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-bold text-foreground">Production Flow</span>
-                  <span className="text-[11px] text-muted-foreground font-medium">(Today)</span>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-bold text-foreground">Production Flow</span>
+                    {isCurrentMonth ? (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400">
+                        Live Month
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={resetToCurrentMonth}
+                        className="text-[10px] font-semibold text-primary hover:underline"
+                        title="Jump back to current month"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-              <Link
-                href="/production"
-                className="text-xs font-semibold text-primary hover:underline flex items-center gap-0.5"
-              >
-                <span>View Board</span>
-                <ArrowRight size={11} />
-              </Link>
+
+              {/* Month Navigator Controls */}
+              <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-xl border border-border/70">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  aria-label="Previous Month"
+                  className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  title="Previous Month"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-[11px] font-bold text-foreground px-1.5 min-w-[72px] text-center whitespace-nowrap">
+                  {formatMonthDisplay(selectedMonth)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  aria-label="Next Month"
+                  className="w-6 h-6 rounded-lg flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  title="Next Month"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
 
             <div className="flex items-center justify-between gap-1 pt-1">
@@ -658,7 +883,7 @@ export default function DashboardPage() {
                   Received
                 </span>
                 <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
-                  {(vehiclesByStage.received || []).length}
+                  {monthlyStageStats.received ?? 0}
                 </span>
               </Link>
 
@@ -672,8 +897,8 @@ export default function DashboardPage() {
                 <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
                   Fabrication
                 </span>
-                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
-                  {(vehiclesByStage.fabrication || []).length}
+                <span className="text-sm font-black text-purple-600 dark:text-purple-400 font-display tabular-nums">
+                  {monthlyStageStats.fabrication ?? 0}
                 </span>
               </Link>
 
@@ -687,8 +912,8 @@ export default function DashboardPage() {
                 <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
                   Paint
                 </span>
-                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
-                  {(vehiclesByStage.paint || []).length}
+                <span className="text-sm font-black text-rose-600 dark:text-rose-400 font-display tabular-nums">
+                  {monthlyStageStats.paint ?? 0}
                 </span>
               </Link>
 
@@ -702,8 +927,8 @@ export default function DashboardPage() {
                 <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
                   Assembly
                 </span>
-                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
-                  {(vehiclesByStage.rtd || []).length}
+                <span className="text-sm font-black text-amber-600 dark:text-amber-400 font-display tabular-nums">
+                  {monthlyStageStats.rtd ?? 0}
                 </span>
               </Link>
 
@@ -717,10 +942,20 @@ export default function DashboardPage() {
                 <span className="text-[9.5px] font-semibold text-muted-foreground mt-1 truncate">
                   Dispatch
                 </span>
-                <span className="text-sm font-black text-blue-600 dark:text-blue-400 font-display tabular-nums">
-                  {(vehiclesByStage.dispatch || []).length}
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-display tabular-nums">
+                  {monthlyStageStats.dispatch ?? 0}
                 </span>
               </Link>
+            </div>
+
+            {/* Monthly Auto-accumulate Footer */}
+            <div className="mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-[11px]">
+              <span className="text-muted-foreground">
+                {isCurrentMonth ? "Daily entries auto-accumulate in monthly total" : `Historical total for ${formatMonthDisplay(selectedMonth)}`}
+              </span>
+              <span className="font-semibold text-foreground tabular-nums">
+                {monthlyStageStats.received ?? 0} In · {monthlyStageStats.dispatch ?? 0} Out
+              </span>
             </div>
           </div>
 
@@ -852,9 +1087,48 @@ export default function DashboardPage() {
           data-ocid="dashboard.stage_flow"
         >
           <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">
-              Production Flow
-            </h2>
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-semibold text-foreground">
+                Production Flow
+              </h2>
+              {/* Desktop Month Navigator */}
+              <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/70">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  aria-label="Previous Month"
+                  className="w-6 h-6 rounded flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  title="Previous Month"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="text-xs font-bold text-foreground px-2 min-w-[84px] text-center whitespace-nowrap">
+                  {formatMonthDisplay(selectedMonth)}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  aria-label="Next Month"
+                  className="w-6 h-6 rounded flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  title="Next Month"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+              {isCurrentMonth ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  Live Monthly Accumulation
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={resetToCurrentMonth}
+                  className="text-xs text-primary font-semibold hover:underline"
+                >
+                  Reset to Current Month
+                </button>
+              )}
+            </div>
             <Link
               href="/production"
               className="text-xs text-primary hover:underline flex items-center gap-1"
@@ -875,7 +1149,7 @@ export default function DashboardPage() {
                   )}
                 >
                   <span className="text-2xl font-bold font-display tabular-nums leading-none">
-                    {(vehiclesByStage[stage] || []).length}
+                    {monthlyStageStats[stage] ?? 0}
                   </span>
                   <span className="text-[11px] font-medium whitespace-nowrap">
                     {STAGE_LABELS[stage]}
@@ -1077,6 +1351,12 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* VEHICLE 4-DIGIT LOOKUP BOTTOM SHEET MODAL */}
+      <VehicleLookupBottomSheet
+        open={showVehicleLookup}
+        onOpenChange={setShowVehicleLookup}
+      />
     </motion.div>
   );
 }

@@ -13,6 +13,7 @@ import { DispatchVehicleDialog, type DispatchFormValues } from "@/components/veh
 import { Pagination } from "@/components/ui/Pagination";
 import type { DispatchRecord, Vehicle, Priority } from "@/types";
 import { useAuthStore } from "@/store/authStore";
+import { VehicleLookupBottomSheet } from "@/components/vehicles/VehicleLookupBottomSheet";
 import { exportToCSV, exportToExcel, exportToPDF } from "../reports/components/exportUtils";
 import { isDateInFilterRange } from "../reports/components/dateFilterUtils";
 import { useRouter } from "next/navigation";
@@ -270,6 +271,7 @@ export default function DispatchPage() {
   const [editRecord, setEditRecord] = useState<DispatchRecord | null>(null);
   const [historyRecord, setHistoryRecord] = useState<DispatchRecord | null>(null);
   const [pendingDispatchVehicle, setPendingDispatchVehicle] = useState<Vehicle | null>(null);
+  const [showVehicleLookup, setShowVehicleLookup] = useState(false);
 
   const userRole = (useAuthStore((state: any) => state.role) || "operator").toLowerCase();
   const canEdit = ["admin", "owner", "manager", "supervisor", "dispatcher", "dispatch"].includes(userRole);
@@ -1134,6 +1136,15 @@ export default function DispatchPage() {
           }
           actions={
             <div className="flex items-center gap-2 w-full sm:w-auto">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowVehicleLookup(true)}
+                className="gap-1.5 h-9 text-xs font-semibold cursor-pointer border-primary/30 text-primary hover:bg-primary/10 shadow-2xs"
+              >
+                <Search size={14} className="stroke-[2.5]" />
+                <span>Track 4-Digit</span>
+              </Button>
               {canEdit && (
                 <Button
                   type="button"
@@ -1169,6 +1180,28 @@ export default function DispatchPage() {
             </div>
           }
         />
+
+        {/* Mobile Quick 4-Digit Lookup Banner for Dispatch Team */}
+        <div
+          onClick={() => setShowVehicleLookup(true)}
+          className="sm:hidden flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 border border-blue-500/25 text-xs cursor-pointer active:scale-[0.99] transition-all shadow-2xs group"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0">
+              <Search size={15} strokeWidth={2.5} />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="font-bold text-foreground text-xs">Track Vehicle (Last 4 Digits)</span>
+                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                  FAST
+                </span>
+              </div>
+              <div className="text-[10.5px] text-muted-foreground truncate">Verify Dealer, Gatepass & Status</div>
+            </div>
+          </div>
+          <span className="text-[11px] font-bold text-primary shrink-0 pl-1">Track →</span>
+        </div>
 
         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
           {/* Search Input */}
@@ -2546,6 +2579,12 @@ export default function DispatchPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* VEHICLE 4-DIGIT LOOKUP BOTTOM SHEET MODAL */}
+      <VehicleLookupBottomSheet
+        open={showVehicleLookup}
+        onOpenChange={setShowVehicleLookup}
+      />
     </div>
   );
 }

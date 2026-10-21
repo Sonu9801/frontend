@@ -33,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { motion, AnimatePresence } from "motion/react";
 import { authApi } from "@/lib/api";
 import { useTheme } from "next-themes";
+import { VehicleLookupBottomSheet } from "@/components/vehicles/VehicleLookupBottomSheet";
 
 interface ModuleItem {
   label: string;
@@ -53,6 +54,7 @@ const allModulesList: ModuleItem[] = [
   { label: "All Vehicles", href: "/production", icon: Factory, color: "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/20", category: "Production" },
   { label: "Received Vehicles", href: "/production/received", icon: Inbox, color: "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/20", category: "Production" },
   { label: "Dispatch Hub", href: "/dispatch", icon: Truck, color: "bg-cyan-500/15 text-cyan-600 dark:text-cyan-400 border-cyan-500/20", category: "Production" },
+  { label: "Track 4-Digit", href: "/#lookup", icon: Search, color: "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/20", category: "Production" },
   
   // Workforce
   { label: "Workers Directory", href: "/workers", icon: Users, color: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20", category: "Workforce" },
@@ -80,6 +82,7 @@ export function MobileBottomNav() {
   const currentRole = role?.toLowerCase() || "manager";
   const [showProfileSheet, setShowProfileSheet] = useState(false);
   const [showModulesSheet, setShowModulesSheet] = useState(false);
+  const [showLookupSheet, setShowLookupSheet] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
 
   const isAdminRole = ["admin", "manager", "owner"].includes(currentRole);
@@ -107,6 +110,7 @@ export function MobileBottomNav() {
     navItems = [
       { label: "Received", href: "/production?category=All+Categories", icon: Factory },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
+      { label: "Track 4-Digit", href: "#lookup", icon: Search, isAction: true },
       { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else if (currentRole === "supervisor") {
@@ -114,7 +118,7 @@ export function MobileBottomNav() {
       { label: "Home", href: "/workforce/supervisor", icon: LayoutDashboard },
       { label: "Production", href: "/production", icon: Factory },
       { label: "Dispatch", href: "/dispatch", icon: Truck },
-      { label: "Workers", href: "/workers", icon: Users },
+      { label: "Track 4-Digit", href: "#lookup", icon: Search, isAction: true },
       { label: "Profile", href: "#profile", icon: User, isAction: true },
     ];
   } else {
@@ -156,12 +160,19 @@ export function MobileBottomNav() {
             const Icon = item.icon;
             
             if (item.isAction) {
-              const isActive = showProfileSheet || pathname === "/settings";
+              const isLookup = item.href === "#lookup";
+              const isActive = isLookup ? showLookupSheet : (showProfileSheet || pathname === "/settings");
               return (
                 <button
                   key={item.label}
                   type="button"
-                  onClick={() => setShowProfileSheet(!showProfileSheet)}
+                  onClick={() => {
+                    if (isLookup) {
+                      setShowLookupSheet(true);
+                    } else {
+                      setShowProfileSheet(!showProfileSheet);
+                    }
+                  }}
                   className={cn(
                     "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all select-none relative",
                     isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
@@ -537,7 +548,11 @@ export function MobileBottomNav() {
                                 type="button"
                                 onClick={() => {
                                   setShowModulesSheet(false);
-                                  router.push(item.href);
+                                  if (item.href === "/#lookup" || item.href === "#lookup") {
+                                    setShowLookupSheet(true);
+                                  } else {
+                                    router.push(item.href);
+                                  }
                                 }}
                                 className={cn(
                                   "flex items-center gap-3 p-3 rounded-2xl border text-left transition-all active:scale-95 duration-150",
@@ -600,6 +615,12 @@ export function MobileBottomNav() {
           </>
         )}
       </AnimatePresence>
+
+      {/* GLOBAL 4-DIGIT VEHICLE LOOKUP BOTTOM SHEET */}
+      <VehicleLookupBottomSheet
+        open={showLookupSheet}
+        onOpenChange={setShowLookupSheet}
+      />
     </>
   );
 }

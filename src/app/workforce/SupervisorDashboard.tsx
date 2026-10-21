@@ -41,6 +41,7 @@ import { getTranslation } from "./i18n";
 import { ProductionTab } from "./ProductionTab";
 import { InvoiceTab } from "./InvoiceTab";
 import { cn } from "@/lib/utils";
+import { VehicleLookupBottomSheet } from "@/components/vehicles/VehicleLookupBottomSheet";
 
 // Geofence constants
 const COMPANY_LAT = 28.475117;
@@ -109,6 +110,7 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | string | null>(null);
   const [selectedWorkerIds, setSelectedWorkerIds] = useState<number[]>([]);
   const [selectedStage, setSelectedStage] = useState<string>("assembly");
+  const [showVehicleLookup, setShowVehicleLookup] = useState(false);
   const queryClient = useQueryClient();
   const router = useRouter();
 
@@ -619,6 +621,35 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
               </div>
             </div>
 
+            {/* QUICK VEHICLE 4-DIGIT LOOKUP BANNER */}
+            <div
+              onClick={() => setShowVehicleLookup(true)}
+              className="flex items-center justify-between p-3.5 rounded-2xl bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-teal-500/10 border border-blue-500/25 hover:border-primary/50 cursor-pointer active:scale-[0.99] transition-all shadow-2xs group mb-4"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-xs group-hover:scale-105 transition-transform shrink-0">
+                  <Search size={18} strokeWidth={2.5} />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-black text-foreground tracking-tight">
+                      Track Vehicle (Last 4 Digits)
+                    </span>
+                    <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shrink-0">
+                      INSTANT
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground font-medium truncate mt-0.5">
+                    Verify Destination Dealer & Dispatched / Received status
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 text-[11px] font-bold text-primary bg-background/90 px-2.5 py-1 rounded-full border border-primary/25 group-hover:bg-primary group-hover:text-primary-foreground transition-all shadow-2xs shrink-0">
+                <span>Track</span>
+                <ChevronRight size={13} className="stroke-[2.5]" />
+              </div>
+            </div>
+
             {/* 3. QUICK ACTIONS (4-per-row Grid) */}
             <div>
               <h2 className="text-sm font-bold text-gray-800 dark:text-gray-200 mb-3 px-1">Quick Actions</h2>
@@ -641,6 +672,12 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
                     label: "Dispatch", 
                     color: "bg-amber-100 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400", 
                     onClick: () => handleTabChange("production", "dispatch", "table", null) 
+                  },
+                  { 
+                    icon: Search, 
+                    label: "Track 4-Digit", 
+                    color: "bg-sky-100 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400", 
+                    onClick: () => setShowVehicleLookup(true) 
                   },
                   { icon: Receipt, label: "Invoices", color: "bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400", onClick: () => handleTabChange('invoice') },
                   { icon: CalendarCheck, label: "Attendance", color: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400", onClick: () => handleTabChange('my_attendance') },
@@ -1087,6 +1124,12 @@ export function SupervisorDashboard({ worker, onLogout }: { worker?: any; onLogo
           </Dialog>
         )}
       </AnimatePresence>
+
+      {/* VEHICLE 4-DIGIT LOOKUP BOTTOM SHEET MODAL */}
+      <VehicleLookupBottomSheet
+        open={showVehicleLookup}
+        onOpenChange={setShowVehicleLookup}
+      />
 
     </div>
   );
