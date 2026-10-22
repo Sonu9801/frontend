@@ -133,7 +133,10 @@ export function KPICard({
       )}
     >
       <div className="flex items-center justify-between gap-1.5">
-        <span className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate">
+        <span
+          className="text-[10.5px] sm:text-xs font-bold text-muted-foreground uppercase tracking-wider truncate"
+          title={typeof title === "string" ? title : undefined}
+        >
           {title}
         </span>
         {icon && (

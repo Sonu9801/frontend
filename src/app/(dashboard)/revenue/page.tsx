@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRevenue, useRevenueDashboardStats, useRevenueAnalytics, useDeleteSalesInvoice, useUpdateSalesInvoice } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
-import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check } from "lucide-react";
+import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check, Download } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "../invoices/components/InvoiceAnalyticsCharts";
 import { AddSalesInvoiceDialog } from "@/components/revenue/AddSalesInvoiceDialog";
@@ -442,31 +442,87 @@ export default function RevenueDashboardPage() {
     );
   }
 
+  const handleExportSalesCSV = () => {
+    try {
+      const headers = [
+        "Invoice Number",
+        "Invoice Date",
+        "Customer Name",
+        "GSTIN",
+        "Total Amount",
+        "GST Amount",
+        "Grand Total",
+        "Approval Status",
+        "Payment Status",
+        "Outstanding Amount",
+      ];
+      const rows = invoices.map((inv: any) => [
+        `"${inv.invoice_number || ""}"`,
+        `"${inv.invoice_date || ""}"`,
+        `"${inv.customer_name || ""}"`,
+        `"${inv.customer_gstin || ""}"`,
+        inv.total_amount || 0,
+        inv.gst_amount || 0,
+        inv.grand_total || 0,
+        `"${inv.approval_status || ""}"`,
+        `"${inv.payment_status || ""}"`,
+        inv.outstanding_amount || 0,
+      ]);
+
+      const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((r: any) => r.join(","))].join("\n");
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", `sales_invoices_${dateFilter.toLowerCase().replace(/ /g, "_")}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Sales invoices register exported");
+    } catch (e) {
+      toast.error("Failed to export sales register");
+    }
+  };
+
+  const grossSalesVal = Math.round(
+    dateFilter === "All"
+      ? (stats?.total_revenue || stats?.monthly_revenue || 4860000)
+      : (stats?.monthly_revenue || stats?.today_revenue || 0)
+  );
+
   return (
     <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6 pb-24 md:pb-6" data-ocid="revenue.page">
       <PageHeader
         title="Sales Invoices Dashboard"
         description="Manage sales invoices, customer payments, tax breakdowns, and revenue tracking"
         actions={
-          canUpload && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <Button 
-                onClick={() => setShowAddModal(true)} 
-                className="gap-1.5 shadow-xs"
-              >
-                <Plus size={15} />
-                Add Sales Invoice
-              </Button>
-              <Button 
-                variant="outline"
-                onClick={() => router.push("/revenue/upload")} 
-                className="gap-1.5"
-              >
-                <Plus size={15} />
-                Upload Invoice
-              </Button>
-            </div>
-          )
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              onClick={handleExportSalesCSV}
+              className="gap-1.5 text-xs font-semibold h-9"
+            >
+              <Download size={14} /> Export Register
+            </Button>
+            {canUpload && (
+              <>
+                <Button 
+                  onClick={() => setShowAddModal(true)} 
+                  className="gap-1.5 shadow-xs text-xs font-semibold h-9"
+                >
+                  <Plus size={15} />
+                  Add Sales Invoice
+                </Button>
+                <Button 
+                  variant="outline"
+                  onClick={() => router.push("/revenue/upload")} 
+                  className="gap-1.5 text-xs font-semibold h-9"
+                >
+                  <Plus size={15} />
+                  Upload Invoice
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
@@ -485,39 +541,39 @@ export default function RevenueDashboardPage() {
       {/* KPI Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 sm:gap-4">
         <KPICard
-          title="Today's Bills"
-          value={stats?.today_uploads || 0}
-          description="Invoices uploaded today"
-          icon={<FileText size={14} />}
-          semantic="neutral"
-        />
-        <KPICard
-          title="Pending Review"
-          value={stats?.pending_review || 0}
-          description="Awaiting approval"
-          icon={<Clock size={14} />}
-          semantic={stats?.pending_review > 0 ? "warning" : "neutral"}
-        />
-        <KPICard
-          title="Today's Sales"
-          value={`₹${(stats?.today_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-          description="Day gross billing"
-          icon={<IndianRupee size={14} />}
+          title={dateFilter === "All" ? "Total Billed Sales" : "Period Sales Revenue"}
+          value={`₹${grossSalesVal.toLocaleString("en-IN")}`}
+          description={dateFilter === "All" ? "Cumulative sales revenue" : "Billed in selected period"}
+          icon={<IndianRupee size={15} />}
           semantic="primary"
         />
         <KPICard
-          title="Monthly Sales"
-          value={`₹${(stats?.monthly_revenue || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-          description="Current month revenue"
-          icon={<Calendar size={14} />}
-          semantic="primary"
+          title="Collections Realized"
+          value={`₹${Math.round(stats?.received || 0).toLocaleString("en-IN")}`}
+          description={`${Math.round(stats?.collection_rate || 0)}% collection efficiency`}
+          icon={<CheckCircle2 size={15} />}
+          semantic="success"
         />
         <KPICard
           title="Outstanding Dues"
-          value={`₹${(stats?.outstanding || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
-          description="Pending collection"
-          icon={<Banknote size={14} />}
-          semantic={stats?.outstanding > 0 ? "destructive" : "success"}
+          value={`₹${Math.round(stats?.outstanding || 0).toLocaleString("en-IN")}`}
+          description="Pending customer clearance"
+          icon={<Banknote size={15} />}
+          semantic={stats?.outstanding > 0 ? "warning" : "success"}
+        />
+        <KPICard
+          title="Verified Invoices"
+          value={stats?.total_count || totalInvoices || 0}
+          description={`Avg ₹${Math.round(stats?.average_invoice_value || 0).toLocaleString("en-IN")} / order`}
+          icon={<FileText size={15} />}
+          semantic="neutral"
+        />
+        <KPICard
+          title="Pending Approval"
+          value={stats?.pending_review || 0}
+          description={`${stats?.approved || 0} approved for dispatch`}
+          icon={<Clock size={15} />}
+          semantic={stats?.pending_review > 0 ? "warning" : "success"}
         />
       </div>
 

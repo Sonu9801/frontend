@@ -530,40 +530,81 @@ function OrderCard({
 }
 
 // ─── Dashboard Stats ──────────────────────────────────────────────────────────
-function DashboardStats({ vehicles, dispatchRecords }: { vehicles: Vehicle[], dispatchRecords: DispatchRecord[] }) {
+function DashboardStats({ 
+  vehicles, 
+  dispatchRecords,
+  activeFilter,
+  onSelectFilter
+}: { 
+  vehicles: Vehicle[]; 
+  dispatchRecords: DispatchRecord[];
+  activeFilter: string;
+  onSelectFilter: (filter: string) => void;
+}) {
   const total = vehicles.length;
   const inProduction = vehicles.filter(v => v.currentStage === "fabrication" || v.currentStage === "paint").length;
   const qcPending = vehicles.filter(v => v.qcStatus === "Pending").length;
   const rtd = vehicles.filter(v => normalizeStage(v.currentStage) === "rtd").length;
   const dispatched = vehicles.filter(v => normalizeStage(v.currentStage) === "dispatch").length;
   const delivered = dispatchRecords.filter(d => d.status.toLowerCase() === "delivered").length;
+  const inTransit = Math.max(0, dispatched - delivered);
   const delayed = vehicles.filter(isDelayed).length;
 
   const kpis = [
-    { label: "Total Orders", value: total, icon: <Package size={16}/>, color: "text-foreground", bg: "bg-muted" },
-    { label: "In Production", value: inProduction, icon: <PenTool size={16}/>, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { label: "QC Pending", value: qcPending, icon: <Activity size={16}/>, color: "text-orange-500", bg: "bg-orange-500/10" },
-    { label: "Ready to Ship", value: rtd, icon: <CheckCircle2 size={16}/>, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { label: "In Transit", value: dispatched - delivered, icon: <Truck size={16}/>, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-    { label: "Delivered", value: delivered, icon: <MapPin size={16}/>, color: "text-success", bg: "bg-success/10" },
+    { id: "all", label: "Total Orders", value: total, icon: <Package size={16}/>, color: "text-foreground", bg: "bg-muted" },
+    { id: "in_production", label: "In Production", value: inProduction, icon: <PenTool size={16}/>, color: "text-blue-500", bg: "bg-blue-500/10" },
+    { id: "qc_pending", label: "QC Pending", value: qcPending, icon: <Activity size={16}/>, color: "text-orange-500", bg: "bg-orange-500/10" },
+    { id: "rtd", label: "Ready to Ship", value: rtd, icon: <CheckCircle2 size={16}/>, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { id: "in_transit", label: "In Transit", value: inTransit, icon: <Truck size={16}/>, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+    { id: "delivered", label: "Delivered", value: delivered, icon: <MapPin size={16}/>, color: "text-success", bg: "bg-success/10" },
   ];
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-      {kpis.map((kpi, i) => (
-        <div key={i} className="bg-card border border-border rounded-xl p-4 shadow-sm flex flex-col items-center text-center">
-          <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 ${kpi.bg} ${kpi.color}`}>
-            {kpi.icon}
-          </div>
-          <p className="text-2xl font-black text-foreground leading-none mb-1">{kpi.value}</p>
-          <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{kpi.label}</p>
-        </div>
-      ))}
+    <div className="space-y-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        {kpis.map((kpi) => {
+          const isSelected = activeFilter === kpi.id;
+          return (
+            <button
+              key={kpi.id}
+              type="button"
+              onClick={() => onSelectFilter(kpi.id)}
+              className={`p-3.5 sm:p-4 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center group ${
+                isSelected 
+                  ? "bg-card border-primary ring-2 ring-primary/20 shadow-sm" 
+                  : "bg-card border-border hover:border-border/80 hover:bg-muted/30"
+              }`}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center mb-2 transition-transform group-hover:scale-105 ${kpi.bg} ${kpi.color}`}>
+                {kpi.icon}
+              </div>
+              <p className="text-2xl font-black text-foreground leading-none mb-1">{kpi.value}</p>
+              <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">{kpi.label}</p>
+            </button>
+          );
+        })}
+      </div>
+      
       {delayed > 0 && (
-         <div className="col-span-2 md:col-span-3 lg:col-span-6 bg-warning/10 border border-warning/30 rounded-xl p-3 flex items-center justify-center gap-2">
-            <AlertTriangle size={16} className="text-warning" />
-            <p className="text-sm text-warning font-semibold">{delayed} orders are currently delayed past their estimated delivery date.</p>
-         </div>
+        <button
+          type="button"
+          onClick={() => onSelectFilter(activeFilter === "delayed" ? "all" : "delayed")}
+          className={`w-full rounded-xl p-3 flex items-center justify-between border transition-all cursor-pointer ${
+            activeFilter === "delayed"
+              ? "bg-warning/20 border-warning ring-2 ring-warning/30"
+              : "bg-warning/10 border-warning/30 hover:bg-warning/15"
+          }`}
+        >
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle size={16} className="text-warning shrink-0" />
+            <p className="text-xs sm:text-sm text-warning font-semibold text-left">
+              {delayed} orders are currently delayed past their estimated delivery date.
+            </p>
+          </div>
+          <span className="text-xs font-bold text-warning underline shrink-0 ml-2">
+            {activeFilter === "delayed" ? "Clear Filter" : "View Delayed Orders →"}
+          </span>
+        </button>
       )}
     </div>
   );
@@ -579,6 +620,7 @@ export default function OEMPortalPage() {
   const search = useUIStore(state => state.searchQuery);
   const setSearch = useUIStore(state => state.setSearchQuery);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
 
   const userRole = useAuthStore((state: any) => state.role) || "operator";
   const canEdit = ["admin", "owner"].includes(userRole);
@@ -593,19 +635,46 @@ export default function OEMPortalPage() {
   const filtered = useMemo(() => {
     let list = [...vehicles];
     
-    // Sort by newest first
-    list.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+    // Status filter
+    if (statusFilter === "in_production") {
+      list = list.filter(v => v.currentStage === "fabrication" || v.currentStage === "paint");
+    } else if (statusFilter === "qc_pending") {
+      list = list.filter(v => v.qcStatus === "Pending");
+    } else if (statusFilter === "rtd") {
+      list = list.filter(v => normalizeStage(v.currentStage) === "rtd");
+    } else if (statusFilter === "in_transit") {
+      list = list.filter(v => {
+        const isDispatched = normalizeStage(v.currentStage) === "dispatch";
+        const d = dispatchRecords.find((rec: any) => String(rec.vehicleId) === String(v.id));
+        const isDelivered = d && d.status.toLowerCase() === "delivered";
+        return isDispatched && !isDelivered;
+      });
+    } else if (statusFilter === "delivered") {
+      list = list.filter(v => {
+        const d = dispatchRecords.find((rec: any) => String(rec.vehicleId) === String(v.id));
+        return d && d.status.toLowerCase() === "delivered";
+      });
+    } else if (statusFilter === "delayed") {
+      list = list.filter(isDelayed);
+    }
 
+    // Search query
     if (search.trim()) {
       const q = search.toLowerCase();
       list = list.filter(v => 
-        v.trackingId.toLowerCase().includes(q) ||
-        v.vehicleNumber.toLowerCase().includes(q) ||
-        v.productCategory.toLowerCase().includes(q)
+        (v.trackingId || "").toLowerCase().includes(q) ||
+        (v.vehicleNumber || "").toLowerCase().includes(q) ||
+        (v.productCategory || "").toLowerCase().includes(q) ||
+        (v.oemName || "").toLowerCase().includes(q) ||
+        (v.model || "").toLowerCase().includes(q)
       );
     }
+
+    // Sort by newest first
+    list.sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
     return list;
-  }, [vehicles, search]);
+  }, [vehicles, search, statusFilter, dispatchRecords]);
 
   const isSearching = search.trim().length > 0;
 
@@ -624,6 +693,36 @@ export default function OEMPortalPage() {
         setHistoryRecord(vehicle);
         break;
     }
+  };
+
+  const handleExportCSV = () => {
+    if (filtered.length === 0) {
+      return;
+    }
+    const headers = ["Tracking ID", "Vehicle Number", "OEM Name", "Model", "Category", "Current Stage", "QC Status", "Estimated Delivery", "Status"];
+    const rows = filtered.map(v => {
+      const d = dispatchRecords.find((rec: any) => String(rec.vehicleId) === String(v.id));
+      const status = d?.status || v.currentStage;
+      return [
+        `"${v.trackingId || ""}"`,
+        `"${v.vehicleNumber || ""}"`,
+        `"${v.oemName || ""}"`,
+        `"${v.model || ""}"`,
+        `"${v.productCategory || ""}"`,
+        `"${v.currentStage || ""}"`,
+        `"${v.qcStatus || ""}"`,
+        `"${v.estimatedDelivery || ""}"`,
+        `"${status}"`
+      ].join(",");
+    });
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `oem_fleet_tracking_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (isLoadingVehicles || isLoadingDispatch) {
@@ -645,15 +744,27 @@ export default function OEMPortalPage() {
             title="Live Tracking Portal"
             subtitle="Real-time vehicle manufacturing milestones, logistics & delivery tracking"
             actions={
-              <Button
-                size="sm"
-                onClick={() => setShowAddModal(true)}
-                className="gap-1.5 shadow-sm"
-              >
-                <Plus size={14} />
-                <span className="hidden sm:inline">Add Vehicle Dispatch</span>
-                <span className="sm:hidden">Add</span>
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleExportCSV}
+                  className="gap-1.5 shadow-sm"
+                >
+                  <Package size={14} />
+                  <span className="hidden sm:inline">Export Fleet CSV</span>
+                  <span className="sm:hidden">Export</span>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => setShowAddModal(true)}
+                  className="gap-1.5 shadow-sm"
+                >
+                  <Plus size={14} />
+                  <span className="hidden sm:inline">Add Vehicle Dispatch</span>
+                  <span className="sm:hidden">Add</span>
+                </Button>
+              </div>
             }
           />
         </div>
@@ -662,21 +773,57 @@ export default function OEMPortalPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         {/* Top-Level KPIs */}
         {!isSearching && (
-          <DashboardStats vehicles={vehicles} dispatchRecords={dispatchRecords} />
+          <DashboardStats 
+            vehicles={vehicles} 
+            dispatchRecords={dispatchRecords} 
+            activeFilter={statusFilter}
+            onSelectFilter={setStatusFilter}
+          />
         )}
 
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search
-            size={16}
-            className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-          />
-          <Input
-            placeholder="Search by tracking ID, vehicle number, product category..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-10 h-11 bg-card rounded-xl border-border text-sm shadow-xs"
-          />
+        {/* Search & Quick Filter Chips */}
+        <div className="space-y-3 mb-6">
+          <div className="relative">
+            <Search
+              size={16}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              placeholder="Search by tracking ID, vehicle number, product category, OEM or model..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-10 h-11 bg-card rounded-xl border-border text-sm shadow-xs"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[
+              { id: "all", label: "All Vehicles", count: vehicles.length },
+              { id: "in_transit", label: "In Transit", count: dispatchRecords.filter((d: any) => d.status.toLowerCase() !== "delivered").length },
+              { id: "rtd", label: "Ready to Ship", count: vehicles.filter((v: any) => normalizeStage(v.currentStage) === "rtd").length },
+              { id: "in_production", label: "In Production", count: vehicles.filter((v: any) => v.currentStage === "fabrication" || v.currentStage === "paint").length },
+              { id: "delayed", label: "Delayed", count: vehicles.filter(isDelayed).length },
+              { id: "delivered", label: "Delivered", count: dispatchRecords.filter((d: any) => d.status.toLowerCase() === "delivered").length },
+            ].map(chip => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setStatusFilter(chip.id)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+                  statusFilter === chip.id
+                    ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                    : "bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                <span>{chip.label}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+                  statusFilter === chip.id ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                }`}>
+                  {chip.count}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Vehicle List */}
@@ -686,9 +833,12 @@ export default function OEMPortalPage() {
               <EmptyState
                 icon={Search}
                 title="No orders found"
-                description={isSearching ? "No vehicles matched your search query. Try adjusting your search keywords." : "You have not submitted any vehicle orders yet."}
+                description={isSearching || statusFilter !== "all" ? "No vehicles matched your current filter/search criteria. Try resetting filters." : "You have not submitted any vehicle orders yet."}
                 action={
-                  !isSearching ? {
+                  statusFilter !== "all" ? {
+                    label: "Clear Filter",
+                    onClick: () => setStatusFilter("all")
+                  } : !isSearching ? {
                     label: "Submit Vehicle",
                     onClick: () => setShowAddModal(true)
                   } : undefined

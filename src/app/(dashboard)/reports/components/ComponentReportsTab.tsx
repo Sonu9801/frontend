@@ -47,8 +47,14 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
   const { data: allComponents = [], isLoading: isLoadingComponents } = useQuery({
     queryKey: ["allComponents"],
     queryFn: async () => {
-      return await componentsApi.getAllTasks();
+      try {
+        return await componentsApi.getAllTasks();
+      } catch (e) {
+        console.error("Failed to load components:", e);
+        return [];
+      }
     },
+    placeholderData: (prev: any) => prev ?? [],
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
@@ -56,15 +62,21 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
   const { data: allJobs = [], isLoading: isLoadingJobs } = useQuery({
     queryKey: ["allJobs"],
     queryFn: async () => {
-      return await jobsApi.getAll();
+      try {
+        return await jobsApi.getAll();
+      } catch (e) {
+        console.error("Failed to load jobs:", e);
+        return [];
+      }
     },
+    placeholderData: (prev: any) => prev ?? [],
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
   });
 
   const { data: workersData } = useWorkers({ pageSize: 1000 });
 
-  const isLoading = isLoadingComponents || isLoadingJobs;
+  const isInitialLoading = (isLoadingComponents && (!allComponents || (allComponents as any).length === 0)) && (isLoadingJobs && (!allJobs || (allJobs as any).length === 0));
 
   // Combine component tasks and production jobs
   const combinedItems = useMemo(() => {
@@ -239,10 +251,22 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
     else exportToPDF(filename, "Component Production Report", headers, tableData, { dateRange, summary: "Combined Component & Worker PWA Production Report." });
   };
 
-  if (isLoading) {
+  // Metrics
+  const totalOps = filteredComponents.length;
+  const completedOps = filteredComponents.filter((c: any) => c.status === "completed").length;
+  const activeOps = filteredComponents.filter((c: any) => c.status === "in_progress" || c.status === "assigned" || c.status === "not_started").length;
+  const completionRate = totalOps > 0 ? Math.round((completedOps / totalOps) * 100) : 0;
+
+  if (isInitialLoading) {
     return (
-      <div className="flex justify-center p-12">
-        <Loader2 className="animate-spin text-primary w-8 h-8" />
+      <div className="space-y-4 animate-pulse">
+        <div className="h-28 bg-card border border-border rounded-xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-24 bg-card border border-border rounded-xl" />
+          ))}
+        </div>
+        <div className="h-72 bg-card border border-border rounded-xl" />
       </div>
     );
   }
@@ -371,29 +395,64 @@ export function ComponentReportsTab({ dateRange = "All Time", filters }: Compone
         </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {/* 4 Balanced KPI Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <KPICard
           title="Total Operations"
-          value={filteredComponents.length}
+          value={totalOps}
           description="Total tasks & PWA logs"
           icon={<Boxes size={14} />}
-          semantic="neutral"
+          semantic="primary"
         />
         <KPICard
           title="Completed Tasks"
-          value={filteredComponents.filter((c: any) => c.status === "completed").length}
-          description="Work finished"
+          value={completedOps}
+          description="Verified & signed off"
           icon={<CheckCircle2 size={14} />}
           semantic="success"
         />
         <KPICard
           title="Active Operations"
-          value={filteredComponents.filter((c: any) => c.status === "in_progress" || c.status === "assigned" || c.status === "not_started").length}
-          description="In progress or assigned"
+          value={activeOps}
+          description="Floor execution active"
           icon={<Clock size={14} />}
           semantic="warning"
         />
+        <KPICard
+          title="Completion Rate"
+          value={`${completionRate}%`}
+          description={`${completedOps} of ${totalOps} completed`}
+          icon={<CheckCircle2 size={14} />}
+          semantic={completionRate >= 50 ? "success" : "neutral"}
+        />
+      </div>
+
+      {/* Quick Status Filter Chips */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {[
+          { label: "All Items", value: "All", count: combinedItems.length },
+          { label: "Completed", value: "completed", count: combinedItems.filter((c: any) => c.status === "completed").length },
+          { label: "In Progress", value: "in_progress", count: combinedItems.filter((c: any) => c.status === "in_progress").length },
+          { label: "Assigned", value: "assigned", count: combinedItems.filter((c: any) => c.status === "assigned").length },
+        ].map((chip) => (
+          <button
+            key={chip.value}
+            type="button"
+            onClick={() => setSelectedStatus(chip.value)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-lg border whitespace-nowrap transition-all flex items-center gap-1.5 cursor-pointer ${
+              selectedStatus === chip.value
+                ? "bg-primary text-primary-foreground border-primary shadow-xs"
+                : "bg-card text-muted-foreground border-border hover:bg-muted/50 hover:text-foreground"
+            }`}
+          >
+            <span>{chip.label}</span>
+            <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
+              selectedStatus === chip.value ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+            }`}>
+              {chip.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Main Data Table & Mobile Cards */}

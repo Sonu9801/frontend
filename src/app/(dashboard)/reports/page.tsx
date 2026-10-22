@@ -84,7 +84,7 @@ export default function ReportsPage() {
     }
   };
 
-  const isLoading = isLoadingVehicles || isLoadingWorkers || isLoadingQC || isLoadingDispatch || isLoadingActivities || isLoadingInvoices;
+  const isLoading = (isLoadingVehicles && !vehiclesData) && (isLoadingWorkers && !workersData);
 
   // Security Filtering
   const filteredVehicles = role === "oem" 
@@ -258,7 +258,7 @@ export default function ReportsPage() {
       <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6">
         <div className="max-w-7xl mx-auto">
           <Tabs defaultValue={isWorker ? "attendance" : "executive"} className="w-full">
-            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 flex flex-wrap sm:flex-nowrap sm:overflow-x-auto gap-1 rounded-xl border border-border/50 no-scrollbar">
+            <TabsList className="mb-6 w-full justify-start h-auto p-1 bg-muted/50 flex flex-wrap sm:flex-nowrap sm:overflow-x-auto gap-1 rounded-xl border border-border/50 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {!isWorker && (
                 <TabsTrigger value="executive" className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm min-w-max">Executive Dashboard</TabsTrigger>
               )}

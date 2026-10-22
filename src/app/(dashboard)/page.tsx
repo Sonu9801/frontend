@@ -473,105 +473,125 @@ export default function DashboardPage() {
     ? Math.max(0, Math.round(((stats.vehiclesReceived - stats.delayedOrders) / stats.vehiclesReceived) * 100))
     : 92;
 
-  const kpiCards = [
-    {
-      title: "Vehicles Received",
-      value: stats.vehiclesReceived,
-      trend: "up" as const,
-      trendValue: "+8%",
-      sparklineData: [110, 125, 118, 130, 135, 140, 148],
-      sparklineColor: "oklch(var(--primary))",
-      icon: <Factory size={14} />,
-      semantic: "primary" as const,
-    },
-    {
-      title: "In Fabrication",
-      value: stats.inFabrication,
-      trend: "up" as const,
-      trendValue: "+5%",
-      sparklineData: [60, 65, 70, 68, 72, 74, 75],
-      sparklineColor: "oklch(var(--primary))",
-      icon: <Activity size={14} />,
-      semantic: "primary" as const,
-    },
-    {
-      title: "In Paint",
-      value: stats.inPaint,
-      trend: "down" as const,
-      trendValue: "-3%",
-      accentClass: "text-purple-600 dark:text-purple-400",
-      sparklineData: [38, 35, 36, 34, 33, 32, 32],
-      sparklineColor: "#a855f7",
-    },
-    {
-      title: "Ready to Dispatch",
-      value: stats.readyToDispatch,
-      trend: "up" as const,
-      trendValue: "+12%",
-      semantic: "success" as const,
-      sparklineData: [70, 75, 80, 82, 85, 88, 91],
-      sparklineColor: "oklch(var(--success))",
-      icon: <CheckCircle2 size={14} />,
-    },
-    {
-      title: "Dispatch Today",
-      value: stats.dispatchToday,
-      trend: "up" as const,
-      trendValue: "+18%",
-      semantic: "success" as const,
-      sparklineData: [90, 95, 100, 105, 108, 112, 115],
-      sparklineColor: "oklch(var(--success))",
-      icon: <Truck size={14} />,
-    },
-    {
-      title: "Delayed Orders",
-      value: stats.delayedOrders,
-      trend: stats.delayedOrders > 0 ? ("down" as const) : ("neutral" as const),
-      trendValue: stats.delayedOrders > 0 ? `-${stats.delayedOrders}` : undefined,
-      semantic: stats.delayedOrders > 0 ? ("warning" as const) : ("neutral" as const),
-      sparklineData: [16, 15, 14, 14, 13, 13, 12],
-      sparklineColor: stats.delayedOrders > 0 ? "oklch(var(--warning))" : undefined,
-      highlight: stats.delayedOrders > 0 ? "warning" : undefined,
-      icon: <AlertTriangle size={14} />,
-    },
-    {
-      title: "Emergency",
-      value: stats.emergencyOrders,
-      trend: stats.emergencyOrders > 0 ? ("up" as const) : ("neutral" as const),
-      trendValue: stats.emergencyOrders > 0 ? `+${stats.emergencyOrders}` : undefined,
-      semantic: stats.emergencyOrders > 0 ? ("destructive" as const) : ("neutral" as const),
-      sparklineData: stats.emergencyOrders > 0 ? [2, 2, 3, 3, 4, 4, 4] : undefined,
-      sparklineColor: stats.emergencyOrders > 0 ? "oklch(var(--destructive))" : undefined,
-      highlight: stats.emergencyOrders > 0 ? "destructive" : undefined,
-      icon: <Zap size={14} />,
-    },
-  ];
+  // Active in-plant vehicles (WIP currently physically inside the factory)
+  const activeInPlantVehicles = useMemo(() => {
+    return vehicles.filter((v: Vehicle) => {
+      const s = (v.currentStage || "").toLowerCase().trim();
+      return s !== "dispatch" && s !== "dispatched" && s !== "delivered";
+    });
+  }, [vehicles]);
+
+  // Delayed vehicles requiring urgent manager action
+  const delayedVehicles = useMemo(() => {
+    return vehicles.filter((v: Vehicle) => {
+      const stage = (v.currentStage || "").toLowerCase().trim();
+      return (
+        v.estimatedDelivery &&
+        new Date(v.estimatedDelivery) < new Date() &&
+        stage !== "dispatch" &&
+        stage !== "dispatched" &&
+        stage !== "delivered"
+      );
+    });
+  }, [vehicles]);
+
+  // Emergency priority vehicles
+  const emergencyVehicles = useMemo(() => {
+    return vehicles.filter((v: Vehicle) => {
+      const priority = (v.priority || "").toLowerCase();
+      const stage = (v.currentStage || "").toLowerCase().trim();
+      return (
+        priority === "urgent" &&
+        stage !== "dispatch" &&
+        stage !== "dispatched" &&
+        stage !== "delivered"
+      );
+    });
+  }, [vehicles]);
+
+  // Live real-time physical counts at each stage
+  const liveStageCounts = useMemo(() => {
+    return {
+      received: vehicles.filter((v: Vehicle) => {
+        const s = (v.currentStage || "").toLowerCase().trim();
+        return s === "received" || s === "incoming_verification" || s === "supervisor_verification";
+      }).length,
+      fabrication: vehicles.filter((v: Vehicle) => (v.currentStage || "").toLowerCase().trim() === "fabrication").length,
+      paint: vehicles.filter((v: Vehicle) => (v.currentStage || "").toLowerCase().trim() === "paint").length,
+      rtd: vehicles.filter((v: Vehicle) => {
+        const s = (v.currentStage || "").toLowerCase().trim();
+        return s === "rtd" || s === "readytodispatch";
+      }).length,
+      dispatch: vehicles.filter((v: Vehicle) => {
+        const s = (v.currentStage || "").toLowerCase().trim();
+        return s === "dispatch" || s === "dispatched" || s === "delivered";
+      }).length,
+    };
+  }, [vehicles]);
+
+  // Command Center Interactive State
+  const [pipelineMode, setPipelineMode] = useState<"live" | "monthly">("live");
+  const [selectedStageFilter, setSelectedStageFilter] = useState<string>("all");
+  const [boardSearch, setBoardSearch] = useState<string>("");
+  const [rightPanelTab, setRightPanelTab] = useState<"activity" | "delayed">("activity");
+
+  // Computed vehicles to show in the active shopfloor queue
+  const boardVehicles = useMemo(() => {
+    let list = activeInPlantVehicles;
+    if (selectedStageFilter === "delayed") {
+      list = delayedVehicles;
+    } else if (selectedStageFilter === "emergency") {
+      list = emergencyVehicles;
+    } else if (selectedStageFilter !== "all") {
+      list = (vehiclesByStage[selectedStageFilter as Stage] || []).filter((v: Vehicle) => {
+        const s = (v.currentStage || "").toLowerCase().trim();
+        return s !== "dispatch" && s !== "dispatched" && s !== "delivered";
+      });
+    }
+
+    if (boardSearch.trim()) {
+      const q = boardSearch.toLowerCase().trim();
+      list = list.filter((v: Vehicle) => {
+        return (
+          (v.vehicleNumber || "").toLowerCase().includes(q) ||
+          (v.trackingId || "").toLowerCase().includes(q) ||
+          (v.oemName || "").toLowerCase().includes(q) ||
+          (v.chassisNumber || "").toLowerCase().includes(q) ||
+          (v.vehicleModel || "").toLowerCase().includes(q)
+        );
+      });
+    }
+    return list;
+  }, [activeInPlantVehicles, delayedVehicles, emergencyVehicles, vehiclesByStage, selectedStageFilter, boardSearch]);
 
   if (isLoading) {
     return (
       <div className="flex h-full">
-        <div className="flex-1 min-w-0 overflow-y-auto p-6">
+        <div className="flex-1 min-w-0 overflow-y-auto p-4 md:p-6">
           <div className="mb-6">
-            <Skeleton className="h-7 w-64 mb-2" />
-            <Skeleton className="h-4 w-96" />
+            <Skeleton className="h-7 w-64 mb-2 rounded-lg" />
+            <Skeleton className="h-4 w-96 rounded-lg" />
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
-            {[1, 2, 3, 4, 5, 6, 7].map((k) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            {[1, 2, 3, 4].map((k) => (
               <div
                 key={k}
-                className="bg-card border border-border rounded-xl p-4 flex flex-col gap-3"
+                className="bg-card border border-border/70 rounded-2xl p-5 flex flex-col gap-3 shadow-2xs"
               >
-                <Skeleton className="h-3 w-20" />
-                <Skeleton className="h-8 w-16" />
-                <Skeleton className="h-8 w-full" />
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-4 w-28 rounded-md" />
+                  <Skeleton className="h-8 w-8 rounded-xl" />
+                </div>
+                <Skeleton className="h-8 w-20 rounded-lg" />
+                <Skeleton className="h-3.5 w-full rounded-md" />
               </div>
             ))}
           </div>
-          <div className="bg-card border border-border rounded-xl p-4">
-            <Skeleton className="h-4 w-40 mb-4" />
-            <div className="flex gap-3">
+          <div className="bg-card border border-border/70 rounded-2xl p-5 mb-6">
+            <Skeleton className="h-5 w-44 mb-4 rounded-md" />
+            <div className="grid grid-cols-5 gap-3">
               {[1, 2, 3, 4, 5].map((k) => (
-                <Skeleton key={k} className="h-14 flex-1 rounded-xl" />
+                <Skeleton key={k} className="h-20 rounded-xl" />
               ))}
             </div>
           </div>
@@ -602,33 +622,37 @@ export default function DashboardPage() {
             actions={
               <>
                 {stats.emergencyOrders > 0 && (
-                  <motion.div
-                    animate={{ scale: [1, 1.04, 1] }}
-                    transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 rounded-lg"
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStageFilter("emergency")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 rounded-lg transition-all cursor-pointer"
                     data-ocid="dashboard.emergency_alert"
                   >
                     <Zap size={14} className="text-rose-600 dark:text-rose-400" />
                     <span className="text-xs font-semibold text-rose-600 dark:text-rose-400">
                       {stats.emergencyOrders} Emergency
                     </span>
-                  </motion.div>
+                  </button>
                 )}
                 <button
                   type="button"
                   onClick={() => setShowVehicleLookup(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-xs"
+                  className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg text-xs font-bold transition-all active:scale-95 shadow-xs cursor-pointer"
                 >
                   <Search size={13} strokeWidth={2.4} />
                   <span>Track Vehicle (4-Digit)</span>
                 </button>
                 {stats.delayedOrders > 0 && (
-                  <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStageFilter("delayed")}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 rounded-lg transition-all cursor-pointer"
+                  >
                     <AlertTriangle size={13} className="text-amber-600 dark:text-amber-400" />
                     <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">
                       {stats.delayedOrders} Delayed
                     </span>
-                  </div>
+                  </button>
                 )}
               </>
             }
@@ -1029,326 +1053,593 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* KPI grid (Desktop Web Only) */}
-        <div className="hidden md:grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
-          {kpiCards.map((card, i) => (
-            <motion.div
-              key={card.title}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.07, duration: 0.4, ease: "easeOut" }}
-              whileHover={{
-                y: -2,
-                boxShadow: "0 8px 24px oklch(var(--primary) / 0.12)",
-              }}
-              className={cn(
-                "rounded-xl transition-smooth relative",
-                card.highlight === "warning" &&
-                  "ring-1 ring-warning/40 ring-offset-0",
-                card.highlight === "destructive" &&
-                  "ring-1 ring-destructive/40 ring-offset-0",
-              )}
-            >
-              <KPICard
-                title={card.title}
-                value={card.value}
-                trend={card.trend}
-                trendValue={card.trendValue}
-                sparklineData={card.sparklineData}
-                sparklineColor={card.sparklineColor}
-                accentClass={card.accentClass}
-                icon={card.icon}
-                className={cn(
-                  card.highlight === "warning" &&
-                    "bg-warning/5 border-warning/30",
-                  card.highlight === "destructive" &&
-                    "bg-destructive/5 border-destructive/30",
-                )}
-                data-ocid={`dashboard.kpi.${(card.title || "").toLowerCase().replace(/\s+/g, "-")}.card`}
-              />
-              {card.highlight === "destructive" && (
-                <motion.div
-                  className="absolute inset-0 rounded-xl pointer-events-none"
-                  animate={{ opacity: [0, 0.06, 0] }}
-                  transition={{
-                    repeat: Number.POSITIVE_INFINITY,
-                    duration: 2.5,
-                  }}
-                  style={{ background: "oklch(var(--destructive))" }}
-                />
-              )}
-            </motion.div>
-          ))}
+        {/* EXECUTIVE KPI METRIC CARDS (Desktop Web Only - 4 Spacious Balanced Cards) */}
+        <div className="hidden md:grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Card 1: Active Shopfloor WIP */}
+          <div
+            onClick={() => setSelectedStageFilter("all")}
+            className={cn(
+              "p-4 sm:p-5 rounded-2xl bg-card border transition-all cursor-pointer hover:shadow-subtle hover:border-primary/50 relative overflow-hidden group shadow-2xs",
+              selectedStageFilter === "all"
+                ? "border-primary/60 ring-2 ring-primary/20"
+                : "border-border/80"
+            )}
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Active Shopfloor WIP
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
+                <Factory size={16} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-3xl font-black font-display tabular-nums tracking-tight text-foreground">
+                {activeInPlantVehicles.length}
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20">
+                Live In-Plant
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate font-medium">
+              {liveStageCounts.received} Received · {liveStageCounts.fabrication} Fab · {liveStageCounts.paint} Paint · {liveStageCounts.rtd} RTD
+            </p>
+          </div>
+
+          {/* Card 2: Monthly Output */}
+          <Link
+            href="/dispatch"
+            className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 transition-all cursor-pointer hover:shadow-subtle hover:border-emerald-500/50 relative overflow-hidden group shadow-2xs"
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Monthly Dispatches
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+                <Truck size={16} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-3xl font-black font-display tabular-nums tracking-tight text-emerald-600 dark:text-emerald-400">
+                {monthlyStageStats.dispatch ?? 0}
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {formatMonthDisplay(selectedMonth)}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate font-medium">
+              {monthlyStageStats.received ?? 0} Intake · {Math.round(((monthlyStageStats.dispatch ?? 0) / (monthlyStageStats.received || 1)) * 100)}% Conversion
+            </p>
+          </Link>
+
+          {/* Card 3: Delayed / At-Risk Units */}
+          <div
+            onClick={() => setSelectedStageFilter(selectedStageFilter === "delayed" ? "all" : "delayed")}
+            className={cn(
+              "p-4 sm:p-5 rounded-2xl bg-card border transition-all cursor-pointer hover:shadow-subtle relative overflow-hidden group shadow-2xs",
+              delayedVehicles.length > 0
+                ? "border-amber-500/40 bg-amber-500/[0.04] hover:border-amber-500/70"
+                : "border-border/80",
+              selectedStageFilter === "delayed" && "ring-2 ring-amber-500/40"
+            )}
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">
+                Delayed / At-Risk Units
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 flex items-center justify-center border border-amber-500/30">
+                <AlertTriangle size={16} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-3xl font-black font-display tabular-nums tracking-tight text-amber-600 dark:text-amber-400">
+                {delayedVehicles.length}
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/25">
+                Action Needed
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate font-medium">
+              {emergencyVehicles.length > 0 ? `${emergencyVehicles.length} Urgent priority · ` : ""}Click to filter queue
+            </p>
+          </div>
+
+          {/* Card 4: Plant SLA & Crew */}
+          <Link
+            href="/workers"
+            className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 transition-all cursor-pointer hover:shadow-subtle hover:border-primary/50 relative overflow-hidden group shadow-2xs"
+          >
+            <div className="flex items-center justify-between mb-2.5">
+              <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                On-Time SLA & Crew
+              </span>
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center border border-purple-500/20">
+                <CheckCircle2 size={16} />
+              </div>
+            </div>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <span className="text-3xl font-black font-display tabular-nums tracking-tight text-foreground">
+                {onTimeRate}%
+              </span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                {onTimeRate >= 90 ? "Optimal" : "Attention"}
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground truncate font-medium">
+              {totalWorkersCount} Active Staff on Shift
+            </p>
+          </Link>
         </div>
 
-        {/* Stage Flow Pills (Desktop Web Only) */}
-        <div
-          className="hidden md:block bg-card border border-border rounded-xl shadow-subtle overflow-hidden mb-6"
-          data-ocid="dashboard.stage_flow"
-        >
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+        {/* INTERACTIVE PRODUCTION PIPELINE (Desktop Web Only) */}
+        <div className="hidden md:block bg-card border border-border/80 rounded-2xl p-4 sm:p-5 shadow-2xs mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-4 border-b border-border/60">
             <div className="flex items-center gap-3">
-              <h2 className="text-sm font-semibold text-foreground">
-                Production Flow
-              </h2>
-              {/* Desktop Month Navigator */}
-              <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/70">
-                <button
-                  type="button"
-                  onClick={handlePrevMonth}
-                  aria-label="Previous Month"
-                  className="w-6 h-6 rounded flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-                  title="Previous Month"
-                >
-                  <ChevronLeft size={14} />
-                </button>
-                <span className="text-xs font-bold text-foreground px-2 min-w-[84px] text-center whitespace-nowrap">
-                  {formatMonthDisplay(selectedMonth)}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleNextMonth}
-                  aria-label="Next Month"
-                  className="w-6 h-6 rounded flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
-                  title="Next Month"
-                >
-                  <ChevronRight size={14} />
-                </button>
+              <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center border border-primary/20">
+                <Activity size={17} />
               </div>
-              {isCurrentMonth ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400">
-                  Live Monthly Accumulation
-                </span>
-              ) : (
+              <div>
+                <h2 className="text-sm font-bold text-foreground tracking-tight">
+                  Shopfloor Material Flow
+                </h2>
+                <p className="text-xs text-muted-foreground">
+                  {pipelineMode === "live"
+                    ? "Live physical count at stations · Click any stage to filter active queue"
+                    : `Aggregated historical throughput for ${formatMonthDisplay(selectedMonth)}`}
+                </p>
+              </div>
+            </div>
+
+            {/* Toggle between Live Shopfloor & Monthly Accumulation */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border/70 text-xs font-bold">
                 <button
                   type="button"
-                  onClick={resetToCurrentMonth}
-                  className="text-xs text-primary font-semibold hover:underline"
-                >
-                  Reset to Current Month
-                </button>
-              )}
-            </div>
-            <Link
-              href="/production"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-              data-ocid="dashboard.stage_flow.view_board_link"
-            >
-              Open Board <span aria-hidden>→</span>
-            </Link>
-          </div>
-          <div className="flex items-center gap-0 p-4 overflow-x-auto no-scrollbar">
-            {STAGE_ORDER.map((stage, si) => (
-              <div key={stage} className="flex items-center flex-shrink-0">
-                <Link
-                  href="/production"
-                  data-ocid={`dashboard.stage_flow.${stage}.pill`}
+                  onClick={() => setPipelineMode("live")}
                   className={cn(
-                    "flex flex-col items-center gap-1.5 px-5 py-3 rounded-xl border transition-smooth cursor-pointer",
-                    STAGE_COLORS[stage],
+                    "px-3 py-1 rounded-lg transition-all",
+                    pipelineMode === "live"
+                      ? "bg-background text-foreground shadow-2xs font-extrabold"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <span className="text-2xl font-bold font-display tabular-nums leading-none">
-                    {monthlyStageStats[stage] ?? 0}
-                  </span>
-                  <span className="text-[11px] font-medium whitespace-nowrap">
-                    {STAGE_LABELS[stage]}
-                  </span>
-                </Link>
-                {si < STAGE_ORDER.length - 1 && (
-                  <div className="flex items-center px-2 text-muted-foreground/40">
-                    <svg
-                      width="20"
-                      height="12"
-                      viewBox="0 0 20 12"
-                      fill="none"
-                      role="img"
-                      aria-label="Next stage arrow"
-                    >
-                      <path
-                        d="M0 6h16M12 1l5 5-5 5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                  </div>
-                )}
+                  ⚡ Live In-Plant ({activeInPlantVehicles.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPipelineMode("monthly")}
+                  className={cn(
+                    "px-3 py-1 rounded-lg transition-all",
+                    pipelineMode === "monthly"
+                      ? "bg-background text-foreground shadow-2xs font-extrabold"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  📅 Monthly Total
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
 
-        {/* Production Board Preview (Desktop Web Only) */}
-        <div
-          className="hidden md:block bg-card border border-border rounded-xl shadow-subtle overflow-hidden"
-          data-ocid="dashboard.production_board"
-        >
-          <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-            <h2 className="text-sm font-semibold text-foreground">
-              Live Production Board
-            </h2>
-            <Link
-              href="/production"
-              className="text-xs text-primary hover:underline flex items-center gap-1"
-              data-ocid="dashboard.production_board.view_all_link"
-            >
-              View Full Board <ArrowRight size={11} />
-            </Link>
+              {pipelineMode === "monthly" && (
+                <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-xl border border-border/70">
+                  <button
+                    type="button"
+                    onClick={handlePrevMonth}
+                    aria-label="Previous Month"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
+                  <span className="text-xs font-bold text-foreground px-2 min-w-[76px] text-center">
+                    {formatMonthDisplay(selectedMonth)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextMonth}
+                    aria-label="Next Month"
+                    className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-card text-muted-foreground hover:text-foreground active:scale-95 transition-all"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
+              )}
+
+              <Link
+                href="/production"
+                className="text-xs font-bold text-primary hover:underline flex items-center gap-1 ml-2"
+              >
+                <span>Open Kanban Board</span>
+                <ArrowRight size={12} />
+              </Link>
+            </div>
           </div>
-          <div className="overflow-x-auto no-scrollbar">
-            <div className="flex gap-0 min-w-max">
-              {STAGE_ORDER.map((stage, si) => (
+
+          {/* 5 Stages Stepper */}
+          <div className="grid grid-cols-5 gap-2 lg:gap-3">
+            {STAGE_ORDER.map((stage, idx) => {
+              const isSelected = selectedStageFilter === stage;
+              const count = pipelineMode === "live"
+                ? (liveStageCounts[stage as keyof typeof liveStageCounts] ?? 0)
+                : (monthlyStageStats[stage] ?? 0);
+
+              const stageIcons: Record<string, React.ReactNode> = {
+                received: <Inbox size={16} />,
+                fabrication: <Factory size={16} />,
+                paint: <Flame size={16} />,
+                rtd: <Boxes size={16} />,
+                dispatch: <Truck size={16} />,
+              };
+
+              return (
                 <div
                   key={stage}
+                  onClick={() => {
+                    if (stage === "dispatch") return;
+                    setSelectedStageFilter(isSelected ? "all" : stage);
+                  }}
                   className={cn(
-                    "flex-1 min-w-48 border-r border-border/50 last:border-r-0",
-                    si % 2 === 1 && "bg-muted/20",
+                    "p-3 rounded-xl border transition-all cursor-pointer relative group flex flex-col justify-between min-h-[92px]",
+                    isSelected
+                      ? "border-primary bg-primary/10 shadow-xs ring-1 ring-primary/30"
+                      : "border-border/70 bg-card hover:border-primary/40 hover:bg-muted/30"
                   )}
                 >
-                  <div className="flex items-center justify-between px-3 py-2.5 border-b border-border/50">
-                    <span className="text-xs font-semibold text-foreground">
-                      {STAGE_LABELS[stage]}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-muted-foreground">
+                      0{idx + 1}. {STAGE_LABELS[stage]}
                     </span>
-                    <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded font-mono">
-                      {(vehiclesByStage[stage] || []).length}
+                    <div
+                      className={cn(
+                        "w-6 h-6 rounded-lg flex items-center justify-center border",
+                        isSelected
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : "bg-muted/60 text-muted-foreground border-border/50"
+                      )}
+                    >
+                      {stageIcons[stage]}
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline justify-between mt-2">
+                    <span
+                      className={cn(
+                        "text-2xl font-black font-display tabular-nums tracking-tight",
+                        count > 0 ? "text-foreground" : "text-muted-foreground/60"
+                      )}
+                    >
+                      {count}
+                    </span>
+                    <span className="text-[10px] font-semibold text-muted-foreground group-hover:text-primary transition-colors">
+                      {stage === "dispatch" ? "Total Out" : "Filter Queue →"}
                     </span>
                   </div>
-                  <div className="p-2 space-y-2 max-h-64 overflow-y-auto">
-                    {(vehiclesByStage[stage] || []).slice(0, 4).map((vehicle, vi) => (
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* OPERATIONS BOARD & INTELLIGENCE SPLIT (Desktop Web Only) */}
+        <div className="hidden md:grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Column: Active Shopfloor Queue (col-span-8) */}
+          <div className="lg:col-span-8 space-y-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-2xs">
+              {/* Header and Filter Tabs */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-sm font-bold text-foreground tracking-tight">
+                      {selectedStageFilter === "delayed"
+                        ? "Delayed & At-Risk Vehicles"
+                        : selectedStageFilter === "emergency"
+                          ? "Emergency Priority Vehicles"
+                          : selectedStageFilter === "all"
+                            ? "Active Shopfloor Queue"
+                            : `${STAGE_LABELS[selectedStageFilter as Stage]} Stage Queue`}
+                    </h3>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                      {boardVehicles.length} Units
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Click on any vehicle card to inspect live jobs, QC records, or update stage
+                  </p>
+                </div>
+
+                {/* Filter Pills */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStageFilter("all")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border",
+                      selectedStageFilter === "all"
+                        ? "bg-foreground text-background border-foreground shadow-2xs"
+                        : "bg-muted/50 text-muted-foreground border-border hover:text-foreground"
+                    )}
+                  >
+                    All Active ({activeInPlantVehicles.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStageFilter("received")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border",
+                      selectedStageFilter === "received"
+                        ? "bg-foreground text-background border-foreground shadow-2xs"
+                        : "bg-muted/50 text-muted-foreground border-border hover:text-foreground"
+                    )}
+                  >
+                    Received ({liveStageCounts.received})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedStageFilter("delayed")}
+                    className={cn(
+                      "px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1",
+                      selectedStageFilter === "delayed"
+                        ? "bg-amber-600 text-white border-amber-600 shadow-2xs"
+                        : "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
+                    )}
+                  >
+                    <AlertTriangle size={11} />
+                    <span>Delayed ({delayedVehicles.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Search Bar inside Queue */}
+              <div className="relative mb-4">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={boardSearch}
+                  onChange={(e) => setBoardSearch(e.target.value)}
+                  placeholder="Filter by VIN / Vehicle number, OEM name, Chassis, or tracking ID..."
+                  className="w-full pl-9 pr-4 py-2 bg-muted/40 border border-border rounded-xl text-xs font-medium placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary transition-all"
+                />
+                {boardSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setBoardSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground hover:text-foreground"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              {/* Vehicle Cards Grid */}
+              {boardVehicles.length === 0 ? (
+                <EmptyState
+                  compact
+                  title="No vehicles found"
+                  description={
+                    boardSearch
+                      ? `No vehicles match "${boardSearch}". Try clearing your search.`
+                      : `No vehicles currently in ${selectedStageFilter === "delayed" ? "Delayed" : (STAGE_LABELS[selectedStageFilter as Stage] || selectedStageFilter)}.`
+                  }
+                  className="py-10 border-0 bg-transparent"
+                />
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[540px] overflow-y-auto pr-1">
+                  {boardVehicles.map((vehicle: Vehicle) => {
+                    const isDelayed = vehicle.estimatedDelivery && new Date(vehicle.estimatedDelivery) < new Date();
+                    const isUrgent = (vehicle.priority || "").toLowerCase() === "urgent";
+
+                    return (
                       <Link
                         key={vehicle.id}
                         href={`/vehicle/${vehicle.id}`}
-                        data-ocid={`production_board.${stage}.item.${vi + 1}`}
-                        className="block"
+                        className="group block"
                       >
-                        <motion.div
-                          whileHover={{ y: -1, scale: 1.005 }}
+                        <div
                           className={cn(
-                            "p-2.5 rounded-lg border bg-background hover:border-primary/40 transition-smooth cursor-pointer",
-                            (vehicle.priority || "").toLowerCase() === "urgent"
-                              ? "border-destructive/40"
-                              : (vehicle.priority || "").toLowerCase() === "high"
-                                ? "border-warning/30"
-                                : "border-border/60",
+                            "p-3.5 rounded-xl border bg-card hover:bg-muted/30 transition-all duration-150 cursor-pointer shadow-2xs group-hover:shadow-subtle group-hover:border-primary/50 relative",
+                            isUrgent
+                              ? "border-rose-500/40 bg-rose-500/[0.02]"
+                              : isDelayed
+                                ? "border-amber-500/40 bg-amber-500/[0.02]"
+                                : "border-border/80"
                           )}
                         >
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-xs font-semibold text-foreground truncate">
+                          {/* Row 1: Vehicle No & Priority */}
+                          <div className="flex items-center justify-between gap-2 mb-1.5">
+                            <span className="font-mono text-xs font-extrabold text-foreground tracking-tight group-hover:text-primary transition-colors">
                               {vehicle.vehicleNumber}
                             </span>
-                            <PriorityBadge
-                              priority={vehicle.priority}
-                              showLabel={false}
-                            />
+                            <PriorityBadge priority={vehicle.priority} showLabel={true} />
                           </div>
-                          <p className="text-[10px] text-muted-foreground mb-1.5 truncate">
-                            {vehicle.oemName}
-                          </p>
-                          <div className="flex items-center gap-1.5">
-                            <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{
-                                  width: `${vehicle.progressPercent}%`,
-                                }}
-                                transition={{ duration: 0.8, delay: si * 0.1 }}
-                                className={cn(
-                                  "h-full rounded-full",
-                                  vehicle.progressPercent >= 80
-                                    ? "bg-success"
-                                    : vehicle.progressPercent >= 40
-                                      ? "bg-primary"
-                                      : "bg-warning",
-                                )}
-                              />
-                            </div>
-                            <span className="text-[10px] text-muted-foreground tabular-nums">
-                              {vehicle.progressPercent}%
+
+                          {/* Row 2: OEM Name & Model */}
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground mb-2">
+                            <span className="font-semibold text-foreground/85 truncate">
+                              {vehicle.oemName || "OEM Unassigned"}
+                            </span>
+                            <span className="font-mono text-[10px] text-muted-foreground truncate">
+                              {vehicle.trackingId}
                             </span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground mt-1 font-mono truncate">
-                            {vehicle.trackingId}
-                          </p>
-                        </motion.div>
-                      </Link>
-                    ))}
-                    {(vehiclesByStage[stage] || []).length > 4 && (
-                      <Link
-                        href="/production"
-                        className="block text-[10px] text-primary hover:underline text-center py-1.5"
-                      >
-                        +{(vehiclesByStage[stage] || []).length - 4} more
-                      </Link>
-                    )}
-                    {(vehiclesByStage[stage] || []).length === 0 && (
-                      <EmptyState
-                        compact
-                        title="No vehicles"
-                        description={`No vehicles currently in ${STAGE_LABELS[stage]}`}
-                        className="py-6 border-0 bg-transparent"
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Activity panel */}
-      <div
-        className="w-80 flex-shrink-0 border-l border-border bg-card overflow-hidden hidden xl:flex flex-col"
-        data-ocid="dashboard.activity_panel"
-      >
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-border sticky top-0 bg-card z-10">
-          <div className="flex items-center gap-2">
-            <Activity size={14} className="text-primary" />
-            <span className="text-sm font-semibold text-foreground">
-              Live Factory Feed
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            <motion.div
-              animate={{ opacity: [1, 0.3, 1] }}
-              transition={{ repeat: Number.POSITIVE_INFINITY, duration: 2 }}
-              className="w-1.5 h-1.5 rounded-full bg-emerald-500"
-            />
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold">
-              Live
-            </span>
-          </div>
-        </div>
-        <div
-          className="flex-1 overflow-y-auto"
-          data-ocid="dashboard.activity_feed"
-        >
-          {activities.length === 0 ? (
-            <div className="p-6">
-              <EmptyState
-                compact
-                icon={<Activity size={20} className="text-muted-foreground" />}
-                title="No activity yet"
-                description="Live manufacturing events and status changes will appear here automatically."
-              />
+                          {/* Row 3: Progress Bar & Current Stage */}
+                          <div className="space-y-1 mb-2">
+                            <div className="flex items-center justify-between text-[10.5px]">
+                              <span className="font-bold text-muted-foreground uppercase text-[9.5px]">
+                                Stage: <strong className="text-foreground">{STAGE_LABELS[vehicle.currentStage] || vehicle.currentStage}</strong>
+                              </span>
+                              <span className="font-mono font-bold text-muted-foreground tabular-nums">
+                                {vehicle.progressPercent || 0}%
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full transition-all duration-500",
+                                  vehicle.progressPercent >= 80
+                                    ? "bg-emerald-500"
+                                    : vehicle.progressPercent >= 40
+                                      ? "bg-primary"
+                                      : "bg-amber-500"
+                                )}
+                                style={{ width: `${Math.max(4, vehicle.progressPercent || 0)}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Row 4: Timeline / Alert Badge & Link */}
+                          <div className="flex items-center justify-between text-[10px] pt-1.5 border-t border-border/40">
+                            {isDelayed ? (
+                              <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                                <AlertTriangle size={10} />
+                                <span>Delayed SLA</span>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                {vehicle.receivedAt ? `Received: ${getRelativeTime(vehicle.receivedAt)}` : "In Shopfloor"}
+                              </span>
+                            )}
+
+                            <span className="font-bold text-primary group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5">
+                              <span>Inspect</span>
+                              <ArrowRight size={10} />
+                            </span>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ) : (
-            <AnimatePresence initial={false}>
-              {activities.slice(0, 20).map((event: ActivityEvent) => (
-                <ActivityItem
-                  key={event.id}
-                  event={event}
-                />
-              ))}
-            </AnimatePresence>
-          )}
-        </div>
-        <div className="px-4 py-2.5 border-t border-border/50 bg-muted/20">
-          <p className="text-[10px] text-muted-foreground text-center">
-            Synchronized via live WebSockets
-          </p>
+          </div>
+
+          {/* Right Column: Dual Tab Panel (Live Feed & Delayed Action Queue) (col-span-4) */}
+          <div className="lg:col-span-4 space-y-4">
+            <div className="p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-2xs flex flex-col h-full min-h-[500px]">
+              {/* Header Tabs */}
+              <div className="flex items-center justify-between pb-3 border-b border-border/70 mb-3">
+                <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/70 text-xs font-bold w-full">
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelTab("activity")}
+                    className={cn(
+                      "flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5",
+                      rightPanelTab === "activity"
+                        ? "bg-background text-foreground shadow-2xs font-extrabold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>Live Feed</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRightPanelTab("delayed")}
+                    className={cn(
+                      "flex-1 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5",
+                      rightPanelTab === "delayed"
+                        ? "bg-background text-foreground shadow-2xs font-extrabold"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    <AlertTriangle size={12} className="text-amber-500" />
+                    <span>Delayed ({delayedVehicles.length})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tab 1: Live Activity Feed */}
+              {rightPanelTab === "activity" ? (
+                <div className="flex-1 overflow-y-auto max-h-[500px] space-y-2 pr-1">
+                  {activities.length === 0 ? (
+                    <EmptyState
+                      compact
+                      icon={<Activity size={20} className="text-muted-foreground" />}
+                      title="No events yet"
+                      description="Live factory activities will appear here automatically."
+                    />
+                  ) : (
+                    activities.slice(0, 15).map((event: ActivityEvent) => {
+                      const item = parseMobileActivity(event);
+                      const Icon = item.icon;
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex items-start gap-2.5 p-2 rounded-xl hover:bg-muted/30 transition-colors border border-transparent hover:border-border/50"
+                        >
+                          <div
+                            className={cn(
+                              "w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border mt-0.5",
+                              item.iconColor
+                            )}
+                          >
+                            <Icon size={14} strokeWidth={2.2} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <h4 className="text-xs font-bold text-foreground truncate">
+                                {item.title}
+                              </h4>
+                              <span className="text-[10px] text-muted-foreground whitespace-nowrap">
+                                {item.relTime}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-tight line-clamp-2 mt-0.5">
+                              {item.subtitle}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ) : (
+                /* Tab 2: Delayed Orders Quick Action Queue */
+                <div className="flex-1 overflow-y-auto max-h-[500px] space-y-2.5 pr-1">
+                  {delayedVehicles.length === 0 ? (
+                    <EmptyState
+                      compact
+                      title="All On Track"
+                      description="Zero orders currently delayed. Factory is operating within SLA."
+                    />
+                  ) : (
+                    delayedVehicles.map((v: Vehicle) => (
+                      <Link
+                        key={v.id}
+                        href={`/vehicle/${v.id}`}
+                        className="block p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/10 transition-all group"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-mono text-xs font-bold text-foreground group-hover:text-primary">
+                            {v.vehicleNumber}
+                          </span>
+                          <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                            Overdue
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center justify-between">
+                          <span>{v.oemName}</span>
+                          <span className="font-semibold text-foreground">
+                            {STAGE_LABELS[v.currentStage] || v.currentStage}
+                          </span>
+                        </div>
+                      </Link>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Sync Footer */}
+              <div className="pt-3 mt-auto border-t border-border/50 flex items-center justify-between text-[10px] text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>Synchronized with plant WebSockets</span>
+                </span>
+                <Link href="/activity-logs" className="font-bold text-primary hover:underline">
+                  View Logs →
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 

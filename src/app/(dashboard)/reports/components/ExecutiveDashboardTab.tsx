@@ -98,25 +98,76 @@ export function ExecutiveDashboardTab({
   const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
   const kpis = [
-    { title: "Total Vehicles", value: totalVehicles, icon: Truck, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Vehicles In Production", value: vehiclesInProduction, icon: Clock, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-    { title: "Ready For Dispatch", value: readyForDispatch, icon: CheckCircle, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-    { title: "Dispatched", value: dispatched, icon: Truck, color: "text-amber-500", bg: "bg-amber-500/10" },
-    { title: "Delivered", value: delivered, icon: CheckCircle, color: "text-blue-500", bg: "bg-blue-500/10" },
-    { title: "Delayed Vehicles", value: delayedVehicles, icon: AlertTriangle, color: "text-red-500", bg: "bg-red-500/10" },
-    { title: "QC Pass Rate", value: `${qcPassRate}%`, icon: ShieldCheck, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-    { title: "Present Workforce", value: `${presentWorkers} / ${workers.length}`, icon: Users, color: "text-teal-500", bg: "bg-teal-500/10" },
-    { title: "Total Payroll (M)", value: `₹${(totalPayrollCost / 100000).toFixed(2)}L`, icon: Clock, color: "text-orange-500", bg: "bg-orange-500/10" },
+    {
+      title: "Total Vehicles",
+      value: totalVehicles,
+      description: "Cumulative fleet in MES system",
+      icon: Truck,
+      semantic: "primary" as const,
+    },
+    {
+      title: "Active Production",
+      value: vehiclesInProduction,
+      description: "Fabrication & paint stages",
+      icon: Clock,
+      semantic: "warning" as const,
+    },
+    {
+      title: "Ready For Dispatch",
+      value: readyForDispatch,
+      description: "Final QC passed & yard staged",
+      icon: CheckCircle,
+      semantic: "success" as const,
+    },
+    {
+      title: "Dispatched & Delivered",
+      value: dispatched + delivered,
+      description: `${dispatched} in transit · ${delivered} completed`,
+      icon: Truck,
+      semantic: "primary" as const,
+    },
+    {
+      title: "Delayed Orders",
+      value: delayedVehicles,
+      description: "Past target delivery SLA",
+      icon: AlertTriangle,
+      semantic: delayedVehicles > 0 ? ("destructive" as const) : ("success" as const),
+    },
+    {
+      title: "QC Pass Rate",
+      value: `${qcPassRate}%`,
+      description: "First-time-right inspection score",
+      icon: ShieldCheck,
+      semantic: qcPassRate >= 80 ? ("success" as const) : ("warning" as const),
+    },
+    {
+      title: "Shopfloor Workforce",
+      value: `${presentWorkers} / ${workers.length}`,
+      description: "Present today on shift floor",
+      icon: Users,
+      semantic: "primary" as const,
+    },
+    {
+      title: "Monthly Labour Accrual",
+      value: `₹${(totalPayrollCost / 100000).toFixed(2)}L`,
+      description: "Estimated workforce liability",
+      icon: Clock,
+      semantic: "primary" as const,
+    },
   ];
 
   const handleExport = (type: "csv" | "excel" | "pdf") => {
     const filename = "Executive_Summary";
     const headers = ["Metric", "Value"];
-    const tableData = kpis.map(k => ({ Metric: k.title, Value: k.value }));
-    
+    const tableData = kpis.map((k) => ({ Metric: k.title, Value: k.value }));
+
     if (type === "csv") exportToCSV(filename, headers, tableData);
     else if (type === "excel") exportToExcel(filename, headers, tableData);
-    else exportToPDF(filename, "Executive Dashboard Summary", headers, tableData, { dateRange, summary: "High-level key performance indicators for the enterprise." });
+    else
+      exportToPDF(filename, "Executive Dashboard Summary", headers, tableData, {
+        dateRange,
+        summary: "High-level key performance indicators for the enterprise.",
+      });
   };
 
   return (
@@ -127,39 +178,29 @@ export function ExecutiveDashboardTab({
           <p className="text-sm text-muted-foreground">High-level enterprise metrics and performance.</p>
         </div>
         <div className="flex gap-2">
-           <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
-             <Download size={14} className="mr-2" /> CSV
-           </Button>
-           <Button variant="outline" size="sm" onClick={() => handleExport("excel")}>
-             <Download size={14} className="mr-2" /> Excel
-           </Button>
-           <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
-             <Download size={14} className="mr-2" /> PDF
-           </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport("csv")}>
+            <Download size={14} className="mr-2" /> CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport("excel")}>
+            <Download size={14} className="mr-2" /> Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleExport("pdf")}>
+            <Download size={14} className="mr-2" /> PDF
+          </Button>
         </div>
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-3">
-        {kpis.map((kpi, i) => {
-          const semantic = kpi.title.includes("Delayed")
-            ? "destructive"
-            : kpi.title.includes("Ready") || kpi.title.includes("Delivered")
-            ? "success"
-            : kpi.title.includes("Production") || kpi.title.includes("Workforce")
-            ? "warning"
-            : "primary";
-
-          return (
-            <KPICard
-              key={i}
-              title={kpi.title}
-              value={kpi.value}
-              description={kpi.title}
-              icon={<kpi.icon size={14} />}
-              semantic={semantic}
-            />
-          );
-        })}
+        {kpis.map((kpi, i) => (
+          <KPICard
+            key={i}
+            title={kpi.title}
+            value={kpi.value}
+            description={kpi.description}
+            icon={<kpi.icon size={14} />}
+            semantic={kpi.semantic}
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

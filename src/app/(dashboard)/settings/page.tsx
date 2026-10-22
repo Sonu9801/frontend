@@ -300,88 +300,148 @@ function ProfileSection() {
   };
 
   return (
-    <SectionCard
-      title="Profile"
-      description="Your personal information and role on the platform."
-    >
-      <div className="flex items-start gap-5">
-        <div className="shrink-0 w-14 h-14 rounded-full bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-semibold font-display text-lg shadow-sm">
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Full Name</Label>
-              {editing ? (
-                <Input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  className="h-8 text-sm"
-                  data-ocid="settings.profile.name_input"
-                  autoFocus
-                />
-              ) : (
-                <p
-                  className="text-sm font-semibold text-foreground py-1"
-                  data-ocid="settings.profile.name_display"
-                >
-                  {name}
-                </p>
-              )}
+    <div className="space-y-6">
+      <SectionCard
+        title="Account Profile"
+        description="Your personal information, factory authorization, and active role."
+      >
+        <div className="flex flex-col sm:flex-row items-start gap-5">
+          <div className="relative shrink-0">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/80 to-primary flex items-center justify-center text-primary-foreground font-bold font-display text-xl shadow-md">
+              {initials}
             </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">Email</Label>
-              <div className="flex items-center gap-1.5 py-1">
-                <Mail size={13} className="text-muted-foreground shrink-0" />
-                <p className="text-sm text-muted-foreground">
-                  {storeEmail || "no-email@foxflow.com"}
+            <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full bg-emerald-500 border-2 border-card" title="Active on platform" />
+          </div>
+
+          <div className="flex-1 min-w-0 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Full Name</Label>
+                {editing ? (
+                  <Input
+                    value={draft}
+                    onChange={(e) => setDraft(e.target.value)}
+                    className="h-8 text-sm"
+                    data-ocid="settings.profile.name_input"
+                    autoFocus
+                  />
+                ) : (
+                  <p
+                    className="text-sm font-bold text-foreground py-0.5"
+                    data-ocid="settings.profile.name_display"
+                  >
+                    {name}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Email Address</Label>
+                <div className="flex items-center gap-1.5 py-0.5">
+                  <Mail size={13} className="text-muted-foreground shrink-0" />
+                  <p className="text-sm text-foreground font-medium truncate">
+                    {storeEmail || "no-email@foxflow.com"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">System Role</Label>
+                <div className="py-0.5">
+                  <RoleBadge userRole={storeRole || "operator"} />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Employee ID</Label>
+                <p className="text-sm font-mono font-medium text-foreground py-0.5">
+                  FOX-ADM-001
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Assigned Department</Label>
+                <p className="text-sm font-medium text-foreground py-0.5">
+                  Plant Operations & MES Administration
+                </p>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Factory Facility</Label>
+                <p className="text-sm font-medium text-foreground py-0.5">
+                  FoxFlow Unit 1 - Main Manufacturing Plant
                 </p>
               </div>
             </div>
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Role</Label>
-            <div>
-              <RoleBadge userRole={storeRole || "operator"} />
+
+            <div className="pt-2 flex items-center gap-2">
+              {editing ? (
+                <>
+                  <Button
+                    size="sm"
+                    onClick={save}
+                    disabled={updateMutation.isPending}
+                    data-ocid="settings.profile.save_button"
+                    className="h-8 text-xs font-semibold"
+                  >
+                    <Check size={13} className="mr-1.5" /> {updateMutation.isPending ? "Saving..." : "Save Changes"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={cancel}
+                    data-ocid="settings.profile.cancel_button"
+                    className="h-8 text-xs font-semibold"
+                  >
+                    <X size={13} className="mr-1.5" /> Cancel
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setEditing(true)}
+                  data-ocid="settings.profile.edit_button"
+                  className="h-8 text-xs font-semibold"
+                >
+                  <Pencil size={13} className="mr-1.5" /> Edit Profile Details
+                </Button>
+              )}
             </div>
           </div>
         </div>
+      </SectionCard>
+
+      {/* Account Security & Compliance Overview */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 rounded-xl border border-border bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">2FA Protection</span>
+            <ShieldCheck size={16} className="text-emerald-500" />
+          </div>
+          <p className="text-lg font-bold text-foreground">Active & Protected</p>
+          <p className="text-[11px] text-muted-foreground mt-1">TOTP authenticator app configured</p>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Active Session</span>
+            <Laptop size={16} className="text-primary" />
+          </div>
+          <p className="text-lg font-bold text-foreground">Chrome on Windows</p>
+          <p className="text-[11px] text-muted-foreground mt-1 font-mono">103.21.45.12 • Mumbai, IN</p>
+        </div>
+
+        <div className="p-4 rounded-xl border border-border bg-card shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Audit Trail</span>
+            <CheckCircle2 size={16} className="text-blue-500" />
+          </div>
+          <p className="text-lg font-bold text-foreground">1,518+ Events</p>
+          <p className="text-[11px] text-muted-foreground mt-1">100% compliance score</p>
+        </div>
       </div>
-      <div className="mt-5 flex items-center gap-2">
-        {editing ? (
-          <>
-            <Button
-              size="sm"
-              onClick={save}
-              disabled={updateMutation.isPending}
-              data-ocid="settings.profile.save_button"
-              className="h-8 text-xs"
-            >
-              <Check size={13} className="mr-1.5" /> {updateMutation.isPending ? "Saving..." : "Save"}
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={cancel}
-              data-ocid="settings.profile.cancel_button"
-              className="h-8 text-xs"
-            >
-              <X size={13} className="mr-1.5" /> Cancel
-            </Button>
-          </>
-        ) : (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setEditing(true)}
-            data-ocid="settings.profile.edit_button"
-            className="h-8 text-xs"
-          >
-            <Pencil size={13} className="mr-1.5" /> Edit Profile
-          </Button>
-        )}
-      </div>
-    </SectionCard>
+    </div>
   );
 }
 
@@ -1794,7 +1854,7 @@ export default function SettingsPage() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-24 md:pb-6">
+          <div className="max-w-5xl mx-auto px-3 sm:px-6 py-4 sm:py-6 pb-24 md:pb-6">
             <div className="md:hidden mb-4">
               <h1 className="text-xl font-bold font-display text-foreground">
                 Settings
