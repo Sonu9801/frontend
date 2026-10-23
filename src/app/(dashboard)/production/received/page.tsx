@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import type { Priority, Vehicle } from "@/types";
+import { PriorityBadge } from "@/components/ui/PriorityBadge";
 import { 
   Inbox, 
   Plus, 
@@ -44,7 +45,8 @@ import {
   CheckCircle2,
   Package,
   RotateCcw,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  ExternalLink
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -57,6 +59,58 @@ const PRODUCT_CATEGORIES = [
   "Garbage Body",
   "Grocery Cart",
   "Food Cart",
+];
+
+const DEFAULT_OEM_OPTIONS = [
+  "EULER MOTORS",
+  "MONTRA ELECTRIC",
+  "BAJAJ AUTO",
+  "PIAGGIO",
+  "JUPITER ELECTRIC MOBILITY",
+  "TVS MOTORS",
+  "E NEXT MOBILITY",
+  "TATA MOTORS",
+  "MAHINDRA",
+];
+
+const DEFAULT_DEALER_OPTIONS = [
+  "Tech UP",
+  "Eco Edge",
+  "Smart Solution",
+  "Sincere Marketing",
+  "Bhutani Auto Cap",
+  "KK Auto mobile",
+  "SHREE BALAJI MOTORS",
+  "RAJAN AUTOTECH LLP",
+  "ALLIED EV SOLUTIONS",
+  "EULER MOTORS",
+];
+
+const DEFAULT_MODELS = [
+  "DV-120",
+  "DV-170",
+  "DV- 220 City",
+  "DV- 220 MAXX",
+  "DV- 260 Strom",
+  "DV-330",
+  "HD-120",
+  "HD-170",
+  "HD- 220 City",
+  "HD- 220 MAXX",
+  "HD- 260 Strom",
+  "HD-330",
+  "PV-120",
+  "PV-170",
+  "PV- 220 City",
+  "PV- 220 MAXX",
+  "PV- 260 Strom",
+  "PV-330",
+  "HILOAD",
+  "STROM",
+  "PIAGGIO",
+  "Montra Electric",
+  "TATA MOTORS",
+  "MAHINDRA",
 ];
 
 export default function ReceivedVehiclesPage() {
@@ -134,23 +188,115 @@ export default function ReceivedVehiclesPage() {
     return vehicles;
   }, [vehicles]);
 
-  // Dynamic OEMs
+  // Dynamic & Default OEMs
   const allOemOptions = useMemo(() => {
-    const set = new Set<string>();
-    receivedVehicles.forEach((v) => {
-      if (v.oemName) set.add(v.oemName.trim());
+    let customOems: string[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("custom_oem_names");
+        if (saved) customOems = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const map = new Map<string, string>();
+    DEFAULT_OEM_OPTIONS.forEach((oem) => {
+      const trimmed = oem.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
     });
-    return ["All OEMs", ...Array.from(set).sort()];
+    customOems.forEach((oem) => {
+      const trimmed = oem.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    receivedVehicles.forEach((v) => {
+      const trimmed = (v.oemName || "").trim();
+      if (trimmed && trimmed.toLowerCase() !== "all oems") {
+        map.set(trimmed.toLowerCase(), trimmed);
+      }
+    });
+    return ["All OEMs", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [receivedVehicles]);
 
-  // Dynamic Dealers
+  // Dynamic & Default Dealers
   const allDealerOptions = useMemo(() => {
-    const set = new Set<string>();
-    receivedVehicles.forEach((v) => {
-      if (v.dealerName) set.add(v.dealerName.trim());
+    let customDealers: string[] = [];
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("custom_dealer_names");
+        if (saved) customDealers = JSON.parse(saved);
+      } catch (e) {}
+    }
+
+    const map = new Map<string, string>();
+    DEFAULT_DEALER_OPTIONS.forEach((dealer) => {
+      const trimmed = dealer.trim();
+      if (trimmed) {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
     });
-    return ["All Dealers", ...Array.from(set).sort()];
+    customDealers.forEach((dealer) => {
+      const trimmed = dealer.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    receivedVehicles.forEach((v) => {
+      const trimmed = (v.dealerName || "").trim();
+      if (trimmed && trimmed.toLowerCase() !== "all dealers") {
+        if (trimmed.toLowerCase() === "sincear marketing") {
+          map.set("sincere marketing", "Sincere Marketing");
+        } else if (trimmed.toLowerCase() === "euler moters") {
+          map.set("euler motors", "EULER MOTORS");
+        } else {
+          map.set(trimmed.toLowerCase(), trimmed);
+        }
+      }
+    });
+    return ["All Dealers", ...Array.from(map.values()).sort((a, b) => a.localeCompare(b))];
   }, [receivedVehicles]);
+
+  // Dynamic & Default Models
+  const allModelOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    DEFAULT_MODELS.forEach((m) => {
+      const trimmed = m.trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    receivedVehicles.forEach((v) => {
+      const trimmed = (v.vehicleModel || (v as any).modelName || (v as any).model_name || "").trim();
+      if (trimmed) map.set(trimmed.toLowerCase(), trimmed);
+    });
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [receivedVehicles]);
+
+  const oemDropdownList = useMemo(() => {
+    const list = allOemOptions.filter((o) => o !== "All OEMs");
+    const curOem = editRecord?.oemName?.trim();
+    if (curOem && !list.some((o) => o.toLowerCase() === curOem.toLowerCase())) {
+      return [curOem, ...list];
+    }
+    return list;
+  }, [allOemOptions, editRecord]);
+
+  const dealerDropdownList = useMemo(() => {
+    const list = allDealerOptions.filter((d) => d !== "All Dealers");
+    const curDealer = editRecord?.dealerName?.trim();
+    if (curDealer && !list.some((d) => d.toLowerCase() === curDealer.toLowerCase())) {
+      return [curDealer, ...list];
+    }
+    return list;
+  }, [allDealerOptions, editRecord]);
+
+  const modelDropdownList = useMemo(() => {
+    const curModel = (editRecord?.vehicleModel || (editRecord as any)?.modelName || (editRecord as any)?.model_name || "").trim();
+    if (curModel && !allModelOptions.some((m) => m.toLowerCase() === curModel.toLowerCase())) {
+      return [curModel, ...allModelOptions];
+    }
+    return allModelOptions;
+  }, [allModelOptions, editRecord]);
 
   const getVehicleDate = (v: Vehicle): string | undefined => {
     return v.receivedAt || (v as any).received_at || v.arrivalTime || (v as any).arrival_time || v.gateEntryTime || (v as any).gate_entry_time || (v as any).submittedAt || (v as any).createdAt || (v as any).created_at;
@@ -178,22 +324,33 @@ export default function ReceivedVehiclesPage() {
       const matchPriority = priorityFilter === "all" || (v.priority || "Normal").toLowerCase() === priorityFilter.toLowerCase();
 
       const normStage = (v.currentStage || (v as any).current_stage || "received").toLowerCase().trim();
-      const isDispatched = normStage === "dispatch" || normStage === "dispatched" || normStage === "delivered";
+      const hasRealChallan = Boolean(
+        v.dispatchChallanNumber &&
+        String(v.dispatchChallanNumber).trim() !== "" &&
+        String(v.dispatchChallanNumber).trim() !== "N/A" &&
+        String(v.dispatchChallanNumber).trim() !== "-"
+      );
+      const isDispatched = normStage === "dispatch" || normStage === "dispatched" || normStage === "delivered" || hasRealChallan;
       const matchStatus =
         statusFilter === "All Statuses" ||
         (statusFilter === "Pending Only" && !isDispatched) ||
         (statusFilter === "Dispatched Only" && isDispatched);
 
       const vDateRaw = getVehicleDate(v);
-      const matchDate = isDateInFilterRange(vDateRaw, dateRange);
+      const matchDate = statusFilter === "Dispatched Only"
+        ? (isDateInFilterRange(v.dispatchDateTime, dateRange) || isDateInFilterRange(vDateRaw, dateRange))
+        : isDateInFilterRange(vDateRaw, dateRange);
 
       return matchSearch && matchCategory && matchOem && matchDealer && matchPriority && matchStatus && matchDate;
     }).sort((a, b) => {
       const stageA = (a.currentStage || (a as any).current_stage || "received").toLowerCase().trim();
       const stageB = (b.currentStage || (b as any).current_stage || "received").toLowerCase().trim();
 
-      const isDispatchedA = stageA === "dispatch" || stageA === "dispatched" || stageA === "delivered";
-      const isDispatchedB = stageB === "dispatch" || stageB === "dispatched" || stageB === "delivered";
+      const hasChallanA = Boolean(a.dispatchChallanNumber && String(a.dispatchChallanNumber).trim() !== "" && String(a.dispatchChallanNumber).trim() !== "N/A" && String(a.dispatchChallanNumber).trim() !== "-");
+      const hasChallanB = Boolean(b.dispatchChallanNumber && String(b.dispatchChallanNumber).trim() !== "" && String(b.dispatchChallanNumber).trim() !== "N/A" && String(b.dispatchChallanNumber).trim() !== "-");
+
+      const isDispatchedA = stageA === "dispatch" || stageA === "dispatched" || stageA === "delivered" || hasChallanA;
+      const isDispatchedB = stageB === "dispatch" || stageB === "dispatched" || stageB === "delivered" || hasChallanB;
 
       // Non-dispatched vehicles on top
       if (!isDispatchedA && isDispatchedB) return -1;
@@ -301,7 +458,7 @@ export default function ReceivedVehiclesPage() {
     try {
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return String(dateStr);
-      return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
     } catch {
       return String(dateStr);
     }
@@ -733,7 +890,7 @@ export default function ReceivedVehiclesPage() {
             <button
               type="button"
               onClick={() => {
-                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %"];
                 const tableRows = filteredVehicles.map((v) => ({
                   "Tracking ID": v.trackingId,
                   "Chassis / VIN": v.chassisNumber || v.vin || "-",
@@ -742,8 +899,9 @@ export default function ReceivedVehiclesPage() {
                   "Model Name": v.vehicleModel || (v as any).modelName || "-",
                   "Dealer Name": v.dealerName || "-",
                   "Category": v.productCategory,
+                  "Stage": v.currentStage || "received",
                   "Priority": v.priority || "Normal",
-                  "Stage": v.currentStage || "received"
+                  "Progress %": `${v.progressPercent ?? 0}%`
                 }));
                 exportToExcel("Received_Vehicles_Master", headers, tableRows);
               }}
@@ -756,7 +914,7 @@ export default function ReceivedVehiclesPage() {
             <button
               type="button"
               onClick={() => {
-                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %"];
                 const tableRows = filteredVehicles.map((v) => ({
                   "Tracking ID": v.trackingId,
                   "Chassis / VIN": v.chassisNumber || v.vin || "-",
@@ -765,8 +923,9 @@ export default function ReceivedVehiclesPage() {
                   "Model Name": v.vehicleModel || (v as any).modelName || "-",
                   "Dealer Name": v.dealerName || "-",
                   "Category": v.productCategory,
+                  "Stage": v.currentStage || "received",
                   "Priority": v.priority || "Normal",
-                  "Stage": v.currentStage || "received"
+                  "Progress %": `${v.progressPercent ?? 0}%`
                 }));
                 exportToPDF("Received_Vehicles_Master", "Received Vehicles Report", headers, tableRows, {
                   summary: `Total ${filteredVehicles.length} received vehicles shown.`
@@ -781,7 +940,7 @@ export default function ReceivedVehiclesPage() {
             <button
               type="button"
               onClick={() => {
-                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Priority", "Stage"];
+                const headers = ["Tracking ID", "Chassis / VIN", "Received Date", "OEM Name", "Model Name", "Dealer Name", "Category", "Stage", "Priority", "Progress %"];
                 const tableRows = filteredVehicles.map((v) => ({
                   "Tracking ID": v.trackingId,
                   "Chassis / VIN": v.chassisNumber || v.vin || "-",
@@ -790,8 +949,9 @@ export default function ReceivedVehiclesPage() {
                   "Model Name": v.vehicleModel || (v as any).modelName || "-",
                   "Dealer Name": v.dealerName || "-",
                   "Category": v.productCategory,
+                  "Stage": v.currentStage || "received",
                   "Priority": v.priority || "Normal",
-                  "Stage": v.currentStage || "received"
+                  "Progress %": `${v.progressPercent ?? 0}%`
                 }));
                 exportToCSV("Received_Vehicles_Master", headers, tableRows);
               }}
@@ -839,18 +999,7 @@ export default function ReceivedVehiclesPage() {
                         {v.currentStage}
                       </span>
                     </div>
-                    <span
-                      className={cn(
-                        "font-bold px-2 py-0.5 rounded-full text-[10px] shrink-0",
-                        pNorm === "urgent"
-                          ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
-                          : pNorm === "high"
-                          ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
-                          : "bg-muted text-muted-foreground"
-                      )}
-                    >
-                      {v.priority || "Normal"}
-                    </span>
+                    <PriorityBadge priority={v.priority} showLabel={true} className="shrink-0" />
                   </div>
 
                   {/* Body Info Grid */}
@@ -869,14 +1018,23 @@ export default function ReceivedVehiclesPage() {
                       <span className="text-foreground truncate block">{v.dealerName || "-"}</span>
                     </div>
                     <div>
-                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Received Date</span>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Date</span>
                       <span className="text-muted-foreground truncate block">{vDateFormatted}</span>
                     </div>
                   </div>
 
-                  {/* Category */}
-                  <div className="flex items-center justify-between pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
-                    <span className="truncate">{v.productCategory}</span>
+                  {/* Progress Bar & Category */}
+                  <div className="pt-2 border-t border-border/40 space-y-1.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground truncate">{v.productCategory}</span>
+                      <span className="font-mono font-semibold text-foreground">{v.progressPercent ?? 0}%</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-300"
+                        style={{ width: `${v.progressPercent ?? 0}%` }}
+                      />
+                    </div>
                   </div>
 
                   {/* Action Buttons */}
@@ -887,16 +1045,16 @@ export default function ReceivedVehiclesPage() {
                       onClick={() => router.push(`/vehicle/${v.id}`)}
                       className="h-8 px-2.5 text-xs font-semibold cursor-pointer"
                     >
-                      View
+                      <ExternalLink size={12} className="mr-1" /> View Details
                     </Button>
                     {canEdit && (
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setPendingDispatchVehicle(v)}
-                        className="h-8 px-2.5 text-xs font-semibold gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-500/30 cursor-pointer"
+                        onClick={() => setEditRecord(v)}
+                        className="h-8 px-2.5 text-xs font-semibold cursor-pointer"
                       >
-                        <Truck size={12} /> Dispatch
+                        <Edit size={12} className="mr-1" /> Edit
                       </Button>
                     )}
                     <DropdownMenu>
@@ -910,10 +1068,18 @@ export default function ReceivedVehiclesPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         {canEdit && (
+                          <DropdownMenuItem onClick={() => setPendingDispatchVehicle(v)}>
+                            <Truck className="w-3.5 h-3.5 mr-2 text-emerald-600" /> Dispatch Vehicle
+                          </DropdownMenuItem>
+                        )}
+                        {canEdit && (
                           <DropdownMenuItem onClick={() => setEditRecord(v)}>
                             <Edit className="w-3.5 h-3.5 mr-2" /> Edit Details
                           </DropdownMenuItem>
                         )}
+                        <DropdownMenuItem onClick={() => router.push(`/vehicle/${v.id}`)}>
+                          <ExternalLink className="w-3.5 h-3.5 mr-2" /> View Details
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setHistoryRecord(v)}>
                           <History className="w-3.5 h-3.5 mr-2" /> View Audit History
                         </DropdownMenuItem>
@@ -935,26 +1101,27 @@ export default function ReceivedVehiclesPage() {
                 <th className="px-4 py-3.5">#</th>
                 <th className="px-4 py-3.5">Tracking ID</th>
                 <th className="px-4 py-3.5">Chassis / VIN</th>
-                <th className="px-4 py-3.5">Received Date</th>
+                <th className="px-4 py-3.5">Date</th>
                 <th className="px-4 py-3.5">OEM Name</th>
                 <th className="px-4 py-3.5">Model Name</th>
                 <th className="px-4 py-3.5">Dealer</th>
                 <th className="px-4 py-3.5">Category</th>
                 <th className="px-4 py-3.5">Stage</th>
                 <th className="px-4 py-3.5">Priority</th>
+                <th className="px-4 py-3.5">Progress</th>
                 <th className="px-4 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/60">
               {isLoading ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground animate-pulse">
+                  <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground animate-pulse">
                     Loading received vehicles...
                   </td>
                 </tr>
               ) : filteredVehicles.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-12 text-center text-muted-foreground">
+                  <td colSpan={12} className="px-4 py-12 text-center text-muted-foreground">
                     No received vehicles found matching your criteria.
                   </td>
                 </tr>
@@ -962,7 +1129,6 @@ export default function ReceivedVehiclesPage() {
                 filteredVehicles.map((v: Vehicle, idx: number) => {
                   const vDateRaw = (v as any).receivedAt || (v as any).arrivalTime || (v as any).submittedAt || (v as any).createdAt;
                   const vDateFormatted = formatReceivedDate(vDateRaw);
-                  const pNorm = (v.priority || "Normal").toLowerCase();
 
                   return (
                     <tr key={v.id} className="hover:bg-muted/30 transition-colors">
@@ -994,49 +1160,65 @@ export default function ReceivedVehiclesPage() {
                         </span>
                       </td>
                       <td className="px-4 py-3">
-                        <span
-                          className={cn(
-                            "font-bold px-2 py-0.5 rounded-full text-[10px]",
-                            pNorm === "urgent"
-                              ? "bg-rose-500/15 text-rose-600 border border-rose-500/30"
-                              : pNorm === "high"
-                              ? "bg-amber-500/15 text-amber-600 border border-amber-500/30"
-                              : "bg-muted text-muted-foreground"
-                          )}
-                        >
-                          {v.priority || "Normal"}
-                        </span>
+                        <PriorityBadge priority={v.priority} showLabel={true} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-primary rounded-full transition-all duration-300"
+                              style={{ width: `${v.progressPercent ?? 0}%` }}
+                            />
+                          </div>
+                          <span className="font-mono text-[10px] text-muted-foreground">{v.progressPercent ?? 0}%</span>
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
+                        <div className="flex items-center justify-end gap-1">
                           {canEdit && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setPendingDispatchVehicle(v)}
-                              className="h-7 px-2 text-[11px] gap-1 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 border-emerald-500/30 cursor-pointer"
-                              title="Dispatch Vehicle"
+                            <button
+                              type="button"
+                              onClick={() => setEditRecord(v)}
+                              className="p-1.5 rounded-lg hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                              title="Edit Vehicle"
                             >
-                              <Truck size={12} /> Dispatch
-                            </Button>
+                              <Edit size={14} />
+                            </button>
                           )}
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/vehicle/${v.id}`)}
+                            className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                            title="View Details"
+                          >
+                            <ExternalLink size={14} />
+                          </button>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button
                                 type="button"
-                                className="p-1 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
+                                className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                title="More Actions"
                               >
                                 <ChevronDown size={14} />
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               {canEdit && (
-                                <DropdownMenuItem onClick={() => setEditRecord(v)}>
-                                  <Edit className="w-3.5 h-3.5 mr-2" /> Edit Details
+                                <DropdownMenuItem onClick={() => setPendingDispatchVehicle(v)}>
+                                  <Truck className="mr-2 h-4 w-4 text-emerald-600" /> Dispatch Vehicle
                                 </DropdownMenuItem>
                               )}
+                              {canEdit && (
+                                <DropdownMenuItem onClick={() => setEditRecord(v)}>
+                                  <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Details
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem onClick={() => router.push(`/vehicle/${v.id}`)}>
+                                <ExternalLink className="mr-2 h-4 w-4" /> View Details
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setHistoryRecord(v)}>
-                                <History className="w-3.5 h-3.5 mr-2" /> View Audit History
+                                <History className="mr-2 h-4 w-4 text-muted-foreground" /> View Audit History
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -1129,9 +1311,9 @@ export default function ReceivedVehiclesPage() {
         title={`Edit Received Vehicle: ${editRecord?.trackingId || editRecord?.vehicleNumber}`}
         fields={[
           { name: "chassisNumber", label: "Chassis / VIN", type: "text", defaultValue: editRecord?.chassisNumber || editRecord?.vin || "" },
-          { name: "oemName", label: "OEM Name", type: "text", defaultValue: editRecord?.oemName || "" },
-          { name: "vehicleModel", label: "Model Name", type: "text", defaultValue: editRecord?.vehicleModel || (editRecord as any)?.modelName || "" },
-          { name: "dealerName", label: "Dealer Name", type: "text", defaultValue: editRecord?.dealerName || "" },
+          { name: "oemName", label: "OEM Name", type: "select", defaultValue: editRecord?.oemName || "", options: oemDropdownList },
+          { name: "vehicleModel", label: "Model Name", type: "select", defaultValue: editRecord?.vehicleModel || (editRecord as any)?.modelName || "", options: modelDropdownList },
+          { name: "dealerName", label: "Dealer Name", type: "select", defaultValue: editRecord?.dealerName || "", options: dealerDropdownList },
           { name: "productCategory", label: "Category", type: "select", defaultValue: editRecord?.productCategory || "Cargo Box", options: PRODUCT_CATEGORIES.filter(c => c !== "All Categories") },
           { name: "priority", label: "Priority", type: "select", defaultValue: editRecord?.priority || "Normal", options: ["Normal", "High", "Urgent"] },
         ]}

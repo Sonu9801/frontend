@@ -259,7 +259,7 @@ export default function DispatchPage() {
     pageSize: 1000,
   });
 
-  const dispatchRecords = dispatchData?.items ?? [];
+  const dispatchRecords = Array.isArray(dispatchData) ? dispatchData : (dispatchData?.items ?? []);
 
   const { data: vehiclesData } = useVehicles({ pageSize: 1000 });
   const vehiclesList: Vehicle[] = Array.isArray(vehiclesData) ? vehiclesData : (vehiclesData?.items ?? []);
@@ -356,12 +356,6 @@ export default function DispatchPage() {
       const vid = extractVehicleId(d);
       const matchingV = vid ? vehicleMap[vid] : undefined;
       const chassis = extractChassis(d, matchingV);
-
-      // Exclude vehicles that are still strictly in 'received' stage (they belong on Received vehicles page, not Dispatch)
-      const vStage = ((matchingV?.currentStage || (matchingV as any)?.current_stage || d.currentStage || "") as string).toLowerCase().trim();
-      if (vStage === "received") {
-        return;
-      }
 
       if (vid && addedVehicleIds.has(vid)) return;
       if (chassis && addedChassisNumbers.has(chassis)) return;
@@ -655,7 +649,7 @@ export default function DispatchPage() {
 
   // Overall Stats calculation strictly based on filtered dataset (matching received page)
   const stats = useMemo(() => {
-    const total = filteredRecords.length;
+    let dispatched = 0;
     let scheduled = 0;
     let inTransit = 0;
     let delivered = 0;
@@ -667,28 +661,42 @@ export default function DispatchPage() {
     const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
     filteredRecords.forEach((d: any) => {
-      const st = (d.status || "pending").toLowerCase();
-      if (st === "dispatched" || st === "delivered") delivered++;
-      else if (st === "in_transit" || st === "intransit") inTransit++;
-      else if (st === "scheduled") scheduled++;
-      else pending++;
+      const st = (d.status || "pending").toLowerCase().trim();
+      const isDispatched = st === "dispatched" || st === "delivered";
+
+      if (isDispatched) {
+        dispatched++;
+        delivered++;
+      } else if (st === "in_transit" || st === "intransit") {
+        dispatched++;
+        inTransit++;
+      } else if (st === "scheduled") {
+        scheduled++;
+      } else {
+        pending++;
+      }
 
       const v = vehicleMap[String(d.vehicleId)];
-      const p = ((v?.priority || (d as any).priority || "Normal") as string).toLowerCase();
-      if (p === "urgent") urgent++;
-      if (p === "high") high++;
+      const p = ((v?.priority || (d as any).priority || "Normal") as string).toLowerCase().trim();
 
-      const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time || v?.dispatchDateTime;
-      if (dDate) {
-        const dObj = new Date(dDate);
-        if (!isNaN(dObj.getTime())) {
-          const dStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}-${String(dObj.getDate()).padStart(2, "0")}`;
-          if (dStr === todayStr) todayCount++;
+      // Priority and Today's counts strictly for dispatched vehicles
+      if (isDispatched) {
+        if (p === "urgent") urgent++;
+        if (p === "high") high++;
+
+        const dDate = d.scheduledDate || (d as any).dispatchDate || (d as any).dispatch_date_time || v?.dispatchDateTime;
+        if (dDate) {
+          const dObj = new Date(dDate);
+          if (!isNaN(dObj.getTime())) {
+            const dStr = `${dObj.getFullYear()}-${String(dObj.getMonth() + 1).padStart(2, "0")}-${String(dObj.getDate()).padStart(2, "0")}`;
+            if (dStr === todayStr) todayCount++;
+          }
         }
       }
     });
 
-    return { total, scheduled, pending, inTransit, delivered, urgent, high, todayCount };
+    const total = filteredRecords.length;
+    return { total, dispatched, scheduled, pending, inTransit, delivered, urgent, high, todayCount };
   }, [filteredRecords, vehicleMap]);
 
   const isFiltered = Boolean(
@@ -1205,7 +1213,7 @@ export default function DispatchPage() {
 
         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
           {/* Search Input */}
-          <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
+          <div className="relative w-full sm:w-[210px] md:w-[230px] shrink-0">
             <Search
               size={14}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -1224,7 +1232,7 @@ export default function DispatchPage() {
           </div>
 
           {/* Date Range & Custom Month Filter Selector */}
-          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto">
+          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto shrink-0">
             <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
             <select 
               value={selectedDatePreset}
@@ -1284,7 +1292,7 @@ export default function DispatchPage() {
           </div>
 
           {/* Priority Tabs */}
-          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border">
+          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border shrink-0">
             {(["all", "normal", "high", "urgent"] as const).map((f) => (
               <button
                 key={f}
@@ -1377,9 +1385,9 @@ export default function DispatchPage() {
                   setShowOemDropdown(!cur);
                 }}
                 data-ocid="dispatch.oem.select"
-                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[110px] shadow-2xs cursor-pointer"
               >
-                <span className="truncate">{oemFilter === "All" || oemFilter === "All OEMs" ? "All OEMs" : `OEM: ${oemFilter}`}</span>
+                <span className="truncate">{oemFilter === "All" || oemFilter === "All OEMs" ? "All OEMs" : oemFilter}</span>
                 <ChevronDown
                   size={12}
                   className={cn(
@@ -1432,9 +1440,9 @@ export default function DispatchPage() {
                   setShowDealerDropdown(!cur);
                 }}
                 data-ocid="dispatch.dealer.select"
-                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[110px] shadow-2xs cursor-pointer"
               >
-                <span className="truncate">{dealerFilter === "All" || dealerFilter === "All Dealers" ? "All Dealers" : `Dealer: ${dealerFilter}`}</span>
+                <span className="truncate">{dealerFilter === "All" || dealerFilter === "All Dealers" ? "All Dealers" : dealerFilter}</span>
                 <ChevronDown
                   size={12}
                   className={cn(
@@ -1477,61 +1485,6 @@ export default function DispatchPage() {
               </AnimatePresence>
             </div>
 
-            {/* Carrier / Transporter Filter Dropdown */}
-            <div className="relative w-full sm:w-auto z-30">
-              <button
-                type="button"
-                onClick={() => {
-                  const cur = showCarrierDropdown;
-                  closeAllDropdowns();
-                  setShowCarrierDropdown(!cur);
-                }}
-                data-ocid="dispatch.carrier.select"
-                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
-              >
-                <span className="truncate">{carrierFilter === "All" || carrierFilter === "All Carriers" ? "All Carriers" : `Carrier: ${carrierFilter}`}</span>
-                <ChevronDown
-                  size={12}
-                  className={cn(
-                    "shrink-0 transition-transform text-muted-foreground",
-                    showCarrierDropdown && "rotate-180",
-                  )}
-                />
-              </button>
-              <AnimatePresence>
-                {showCarrierDropdown && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
-                    data-ocid="dispatch.carrier.dropdown_menu"
-                  >
-                    {dynamicCarriers.map((carrier) => (
-                      <button
-                        key={carrier}
-                        type="button"
-                        onClick={() => {
-                          setCarrierFilter(carrier);
-                          setShowCarrierDropdown(false);
-                          setPage(1);
-                        }}
-                        className={cn(
-                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
-                          carrierFilter === carrier
-                            ? "bg-primary/10 text-primary font-semibold"
-                            : "text-foreground hover:bg-muted",
-                        )}
-                      >
-                        {carrier === "All" ? "All Carriers" : carrier}
-                      </button>
-                    ))}
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
             {/* Status Filter Dropdown */}
             <div className="relative w-full sm:w-auto z-30">
               <button
@@ -1542,7 +1495,7 @@ export default function DispatchPage() {
                   setShowStatusDropdown(!cur);
                 }}
                 data-ocid="dispatch.status.select"
-                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[130px] shadow-2xs cursor-pointer"
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[110px] shadow-2xs cursor-pointer"
               >
                 <span className="truncate">
                   {statusFilter === "All" || statusFilter === "All Statuses"
@@ -1621,8 +1574,12 @@ export default function DispatchPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
           <KPICard
             title="Total Dispatches"
-            value={stats.total}
-            description={isFiltered ? `Matching filter (${stats.total} of ${allDispatchedItems.length})` : "Outbound vehicles recorded"}
+            value={statusFilter === "pending" ? stats.pending : stats.dispatched}
+            description={
+              isFiltered
+                ? `Dispatched vehicles matching filter${stats.pending > 0 ? ` (${stats.pending} pending staging)` : ""}`
+                : `Total outbound dispatches recorded${stats.pending > 0 ? ` (${stats.pending} pending staging)` : ""}`
+            }
             icon={<Truck size={14} />}
             semantic="primary"
           />
@@ -1636,14 +1593,14 @@ export default function DispatchPage() {
           <KPICard
             title="Urgent Priority"
             value={stats.urgent}
-            description={isFiltered ? "Filtered urgent vehicles" : "Immediate attention required"}
+            description={isFiltered ? "Filtered urgent dispatches" : "Immediate attention required"}
             icon={<AlertTriangle size={14} />}
             semantic={stats.urgent > 0 ? "destructive" : "neutral"}
           />
           <KPICard
             title="High Priority"
             value={stats.high}
-            description={isFiltered ? "Filtered high priority" : "Fast-track dispatches"}
+            description={isFiltered ? "Filtered high priority dispatches" : "Fast-track dispatches"}
             icon={<Clock size={14} />}
             semantic={stats.high > 0 ? "warning" : "neutral"}
           />
@@ -1660,7 +1617,7 @@ export default function DispatchPage() {
                 </div>
                 <div>
                   <h3 className="text-xs sm:text-sm font-bold text-foreground truncate">Dispatch Vehicles Master List (Excel View)</h3>
-                  <p className="text-[11px] text-muted-foreground">{filteredRecords.length} vehicles matching filter</p>
+                  <p className="text-[11px] text-muted-foreground">{stats.dispatched} dispatched{stats.pending > 0 ? ` • ${stats.pending} pending` : ""} ({filteredRecords.length} total)</p>
                 </div>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto">

@@ -94,6 +94,9 @@ export function EditRecordDialog({
                     className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     <option value="" disabled>Select {field.label}</option>
+                    {values[field.name] && !field.options?.some((opt) => (typeof opt === 'string' ? opt : opt.value).toLowerCase() === String(values[field.name]).toLowerCase()) && (
+                      <option value={values[field.name]}>{values[field.name]}</option>
+                    )}
                     {field.options?.map((opt) => {
                       const value = typeof opt === 'string' ? opt : opt.value;
                       const label = typeof opt === 'string' ? opt : opt.label;
