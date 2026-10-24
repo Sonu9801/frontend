@@ -170,16 +170,16 @@ export function MobileBottomNav() {
                     if (isLookup) {
                       setShowLookupSheet(true);
                     } else {
-                      setShowProfileSheet(!showProfileSheet);
+                      setShowProfileSheet((prev) => !prev);
                     }
                   }}
                   className={cn(
-                    "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all select-none relative",
+                    "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-transform duration-100 select-none relative touch-manipulation",
                     isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
                   <div className={cn(
-                    "relative p-1 rounded-xl transition-all",
+                    "relative p-1 rounded-xl transition-colors duration-100",
                     isActive ? "bg-primary/10 text-primary" : ""
                   )}>
                     <Icon size={21} strokeWidth={isActive ? 2.5 : 2} className={cn(isActive && "drop-shadow-[0_0_8px_rgba(var(--primary),0.5)]")} />
@@ -209,7 +209,7 @@ export function MobileBottomNav() {
                   setShowModulesSheet(false);
                 }}
                 className={cn(
-                  "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all select-none",
+                  "flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-transform duration-100 select-none touch-manipulation",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}
               >
@@ -232,9 +232,9 @@ export function MobileBottomNav() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setShowProfileSheet(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden"
+              className="fixed inset-0 bg-black/60 z-[60] md:hidden"
             />
 
             {/* Profile Bottom Sheet Modal */}
@@ -242,8 +242,9 @@ export function MobileBottomNav() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 max-h-[88vh] bg-card border-t border-border rounded-t-[28px] shadow-2xl z-[70] flex flex-col md:hidden pb-safe"
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{ willChange: "transform" }}
+              className="fixed inset-x-0 bottom-0 max-h-[88vh] bg-card border-t border-border rounded-t-[28px] shadow-2xl z-[70] flex flex-col md:hidden pb-safe transform-gpu"
             >
               {/* Sheet Drag Handle & Header */}
               <div className="pt-3 pb-3 px-5 flex flex-col border-b border-border/60">
@@ -453,9 +454,9 @@ export function MobileBottomNav() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setShowModulesSheet(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] md:hidden"
+              className="fixed inset-0 bg-black/60 z-[60] md:hidden"
             />
 
             {/* Bottom Sheet Modal */}
@@ -463,8 +464,9 @@ export function MobileBottomNav() {
               initial={{ y: "100%" }}
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed inset-x-0 bottom-0 max-h-[88vh] bg-card border-t border-border rounded-t-[28px] shadow-2xl z-[70] flex flex-col md:hidden pb-safe"
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{ willChange: "transform" }}
+              className="fixed inset-x-0 bottom-0 max-h-[88vh] bg-card border-t border-border rounded-t-[28px] shadow-2xl z-[70] flex flex-col md:hidden pb-safe transform-gpu"
             >
               {/* Sheet Drag Handle & Header */}
               <div className="pt-3 pb-2 px-4 flex flex-col border-b border-border/60">

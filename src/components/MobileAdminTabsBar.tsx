@@ -81,7 +81,7 @@ export function MobileAdminTabsBar() {
     >
       <div 
         ref={containerRef}
-        className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x"
+        className="flex items-center gap-1.5 px-3 py-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden touch-pan-x [-webkit-overflow-scrolling:touch] overscroll-x-contain"
       >
         {adminTabs.map((tab) => {
           const Icon = tab.icon;
@@ -95,7 +95,7 @@ export function MobileAdminTabsBar() {
               ref={isActive ? activeTabRef : null}
               href={tab.href}
               className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 select-none active:scale-95",
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all duration-150 shrink-0 select-none active:scale-95 touch-manipulation",
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm shadow-primary/25 font-bold"
                   : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50"

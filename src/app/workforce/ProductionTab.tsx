@@ -56,6 +56,26 @@ const VEHICLE_EDIT_FIELDS: FieldDefinition[] = [
   { name: "priority", label: "Priority", type: "select", options: ["normal", "medium", "high", "urgent"] },
 ];
 
+const PRODUCT_CATEGORIES = [
+  "All Categories",
+  "Cargo Box",
+  "Cargo Box / Air Cutter / Battery Box",
+  "Cargo Box / Air Cutter",
+  "Cargo Box / Battery Box",
+  "Garbage Body",
+  "Grocery Cart",
+  "Food Cart",
+];
+
+const STATUS_OPTIONS = [
+  { id: "All Statuses", label: "All Statuses" },
+  { id: "received", label: "📥 Received / Inward" },
+  { id: "in_assembly", label: "⚙️ In Assembly / Production" },
+  { id: "quality", label: "🔍 Quality Inspection" },
+  { id: "rtd", label: "📦 Ready to Dispatch (RTD)" },
+  { id: "dispatched", label: "🚚 Dispatched" },
+];
+
 export function ProductionTab({ activeUser, initialStage = "all", initialViewMode = "kanban", autoOpenForm }: ProductionTabProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -71,9 +91,60 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
   const [searchQuery, setSearchQuery] = useState("");
   const [stageFilter, setStageFilter] = useState<string>(initialStage);
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
+  const [categoryFilter, setCategoryFilter] = useState<string>("All Categories");
   const [oemFilter, setOemFilter] = useState<string>("All OEMs");
   const [dealerFilter, setDealerFilter] = useState<string>("All Dealers");
+  const [statusFilter, setStatusFilter] = useState<string>("All Statuses");
+
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showOemDropdown, setShowOemDropdown] = useState(false);
+  const [showDealerDropdown, setShowDealerDropdown] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+
+  const closeAllDropdowns = () => {
+    setShowCategoryDropdown(false);
+    setShowOemDropdown(false);
+    setShowDealerDropdown(false);
+    setShowStatusDropdown(false);
+  };
+
   const [dateRange, setDateRange] = useState<string>("All Time");
+  const [selectedDatePreset, setSelectedDatePreset] = useState("All Time");
+  const [customMonth, setCustomMonth] = useState(
+    () => new Date().toISOString().slice(0, 7)
+  );
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+
+  const handleDatePresetChange = (preset: string) => {
+    setSelectedDatePreset(preset);
+    if (preset === "Custom Month") {
+      setDateRange(`Month: ${customMonth}`);
+    } else if (preset === "Custom Range") {
+      if (startDate && endDate) {
+        setDateRange(`Custom: ${startDate} to ${endDate}`);
+      } else {
+        setDateRange("All Time");
+      }
+    } else {
+      setDateRange(preset);
+    }
+  };
+
+  const handleCustomMonthChange = (monthVal: string) => {
+    setCustomMonth(monthVal);
+    if (selectedDatePreset === "Custom Month") {
+      setDateRange(`Month: ${monthVal}`);
+    }
+  };
+
+  const handleCustomDateChange = (start: string, end: string) => {
+    setStartDate(start);
+    setEndDate(end);
+    if (selectedDatePreset === "Custom Range" && start && end) {
+      setDateRange(`Custom: ${start} to ${end}`);
+    }
+  };
 
   const currentMonthKey = useMemo(() => {
     const now = new Date();
@@ -343,6 +414,31 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
     // Dealer filter
     if (dealerFilter && dealerFilter !== "All Dealers") {
       list = list.filter((p: any) => (p.dealerName || p.dealer_name || "").toLowerCase() === dealerFilter.toLowerCase());
+    }
+
+    // Category filter
+    if (categoryFilter && categoryFilter !== "All Categories") {
+      const cf = categoryFilter.toLowerCase();
+      list = list.filter((p: any) => {
+        const cat = (p.productCategory || p.product_category || "Cargo Box").toLowerCase();
+        return cat === cf || cat.includes(cf);
+      });
+    }
+
+    // Status filter
+    if (statusFilter && statusFilter !== "All Statuses") {
+      const sf = statusFilter.toLowerCase();
+      list = list.filter((p: any) => {
+        const curr = (p.currentStage || p.current_stage || p.stage || "").toLowerCase();
+        if (sf === "received") return curr === "received" || curr === "oem" || curr === "incoming_verification" || curr === "supervisor_verification";
+        if (sf === "in_assembly") return ["fabrication", "paint", "quality", "assembly", "chassis assembly", "battery installation"].includes(curr);
+        if (sf === "quality") return curr === "quality" || curr === "qc";
+        if (sf === "rtd") return curr === "rtd" || curr === "readytodispatch";
+        if (sf === "dispatched" || sf === "dispatch") return curr === "dispatch" || curr === "dispatched" || curr === "delivered";
+        if (sf === "pending only" || sf === "pending") return curr !== "dispatch" && curr !== "dispatched" && curr !== "delivered";
+        if (sf === "dispatched only") return curr === "dispatch" || curr === "dispatched" || curr === "delivered";
+        return curr === sf;
+      });
     }
 
     // Date range filter
@@ -715,75 +811,310 @@ export function ProductionTab({ activeUser, initialStage = "all", initialViewMod
         )}
       </div>
 
+      {/* Click outside backdrop for custom dropdowns */}
+      {(showCategoryDropdown || showOemDropdown || showDealerDropdown || showStatusDropdown) && (
+        <div
+          className="fixed inset-0 z-20"
+          onClick={closeAllDropdowns}
+        />
+      )}
+
       {/* ─── FILTER CONTROL BAR & EXPORT STRIP ─── */}
       <div className="bg-white dark:bg-zinc-900 p-3 sm:p-4 rounded-2xl border border-gray-200 dark:border-zinc-800 shadow-xs mb-5 space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2.5">
+        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-2">
           {/* Search Bar */}
-          <div className="relative sm:col-span-2 lg:col-span-2">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
-            <Input 
+          <div className="relative w-full sm:flex-1 sm:min-w-[180px] sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={14} />
+            <input 
               placeholder="Search Chassis, VIN, Tracking ID, Model, OEM, Dealer..." 
-              className="pl-9 bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700 rounded-xl h-9 text-xs"
+              className="w-full pl-9 pr-3 h-9 text-xs bg-muted/50 border border-input rounded-xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all shadow-2xs"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
 
-          {/* Month Dropdown */}
-          <div>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
+          {/* Date Range & Custom Month Selector */}
+          <div className="flex items-center gap-1.5 px-2.5 h-9 bg-muted/50 rounded-xl border border-border w-full sm:w-auto">
+            <CalendarIcon size={14} className="text-muted-foreground shrink-0" />
+            <select 
+              value={selectedDatePreset}
+              onChange={(e) => handleDatePresetChange(e.target.value)}
+              className="bg-transparent text-xs font-semibold text-foreground outline-none cursor-pointer w-full sm:w-auto"
             >
-              <option value="all">📅 All Months (All-Time)</option>
-              {availableMonths.map(([key, label]) => (
-                <option key={key} value={key}>
-                  📅 {label} {key === currentMonthKey ? "(Current)" : ""}
-                </option>
-              ))}
+              <option value="All Time">All Time (All Dates)</option>
+              <option value="Today">Today</option>
+              <option value="Yesterday">Yesterday</option>
+              <option value="This Week">This Week</option>
+              <option value="Last 7 Days">Last 7 Days</option>
+              <option value="Last 30 Days">Last 30 Days</option>
+              <option value="This Month">This Month</option>
+              <option value="Last Month">Last Month</option>
+              <option value="Custom Month">Select Month (Custom)</option>
+              <option value="Custom Range">Custom Date Range</option>
             </select>
+
+            {selectedDatePreset === "Custom Month" && (
+              <input 
+                type="month"
+                value={customMonth}
+                onChange={(e) => handleCustomMonthChange(e.target.value)}
+                className="bg-background border border-input rounded px-2 py-0.5 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
+              />
+            )}
+
+            {selectedDatePreset === "Custom Range" && (
+              <div className="flex items-center gap-1">
+                <input 
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => handleCustomDateChange(e.target.value, endDate)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+                <span className="text-[10px] text-muted-foreground">to</span>
+                <input 
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => handleCustomDateChange(startDate, e.target.value)}
+                  className="bg-background border border-input rounded px-1.5 py-0.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+            )}
           </div>
 
-          {/* OEM Dropdown */}
-          <div>
-            <select
-              value={oemFilter}
-              onChange={(e) => setOemFilter(e.target.value)}
-              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
-            >
-              {oemList.map((oem) => (
-                <option key={oem} value={oem}>{oem}</option>
-              ))}
-            </select>
+          {/* Priority Tabs */}
+          <div className="grid grid-cols-4 sm:flex items-center w-full sm:w-auto gap-1 bg-muted/50 rounded-xl p-1 border border-border">
+            {(["all", "normal", "high", "urgent"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setPriorityFilter(f)}
+                className={cn(
+                  "px-1.5 sm:px-2.5 py-1 rounded-lg text-[11px] font-semibold capitalize transition-all duration-150 whitespace-nowrap text-center truncate cursor-pointer",
+                  priorityFilter === f
+                    ? f === "urgent"
+                      ? "bg-destructive text-white shadow-xs"
+                      : f === "high"
+                        ? "bg-warning text-white shadow-xs"
+                        : "bg-card text-foreground shadow-xs border border-border"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {f === "all" ? `All (${platformsList.length})` : f}
+              </button>
+            ))}
           </div>
 
-          {/* Dealer Dropdown */}
-          <div>
-            <select
-              value={dealerFilter}
-              onChange={(e) => setDealerFilter(e.target.value)}
-              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
-            >
-              {dealerList.map((dealer) => (
-                <option key={dealer} value={dealer}>{dealer}</option>
-              ))}
-            </select>
-          </div>
+          {/* Dropdown Filters: Clean 2x2 Grid on Mobile, Inline Flex on Desktop */}
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* Category Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showCategoryDropdown;
+                  closeAllDropdowns();
+                  setShowCategoryDropdown(!cur);
+                }}
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{categoryFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showCategoryDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showCategoryDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                  >
+                    {PRODUCT_CATEGORIES.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => {
+                          setCategoryFilter(cat);
+                          setShowCategoryDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors cursor-pointer",
+                          categoryFilter === cat
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
 
-          {/* Priority Dropdown */}
-          <div>
-            <select
-              value={priorityFilter}
-              onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full h-9 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-2.5 text-xs font-semibold text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer"
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">🚨 Urgent Priority</option>
-              <option value="high">🔥 High Priority</option>
-              <option value="medium">⚡ Medium Priority</option>
-              <option value="normal">Normal Priority</option>
-            </select>
+            {/* OEM Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showOemDropdown;
+                  closeAllDropdowns();
+                  setShowOemDropdown(!cur);
+                }}
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{oemFilter === "All" || oemFilter === "All OEMs" ? "All OEMs" : oemFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showOemDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showOemDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                  >
+                    {oemList.map((oem) => (
+                      <button
+                        key={oem}
+                        type="button"
+                        onClick={() => {
+                          setOemFilter(oem);
+                          setShowOemDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          oemFilter === oem
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {oem}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Dealer Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showDealerDropdown;
+                  closeAllDropdowns();
+                  setShowDealerDropdown(!cur);
+                }}
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[110px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">{dealerFilter === "All" || dealerFilter === "All Dealers" ? "All Dealers" : dealerFilter}</span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showDealerDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showDealerDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full left-0 right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[180px] max-h-60 overflow-y-auto"
+                  >
+                    {dealerList.map((dealer) => (
+                      <button
+                        key={dealer}
+                        type="button"
+                        onClick={() => {
+                          setDealerFilter(dealer);
+                          setShowDealerDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          dealerFilter === dealer
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {dealer}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Status Filter Dropdown */}
+            <div className="relative w-full sm:w-auto z-30">
+              <button
+                type="button"
+                onClick={() => {
+                  const cur = showStatusDropdown;
+                  closeAllDropdowns();
+                  setShowStatusDropdown(!cur);
+                }}
+                className="flex items-center justify-between gap-1.5 px-2.5 h-9 text-[11px] font-medium bg-muted/50 border border-border rounded-xl text-foreground hover:border-primary/40 transition-all w-full min-w-0 sm:min-w-[110px] shadow-2xs cursor-pointer"
+              >
+                <span className="truncate">
+                  {statusFilter === "All Statuses" ? "All Statuses" : STATUS_OPTIONS.find((s) => s.id === statusFilter)?.label || statusFilter}
+                </span>
+                <ChevronDown
+                  size={12}
+                  className={cn(
+                    "shrink-0 transition-transform text-muted-foreground",
+                    showStatusDropdown && "rotate-180",
+                  )}
+                />
+              </button>
+              <AnimatePresence>
+                {showStatusDropdown && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -6 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute top-full right-0 sm:right-auto mt-1.5 bg-card border border-border rounded-xl shadow-xl z-30 py-1 min-w-[170px]"
+                  >
+                    {STATUS_OPTIONS.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setStatusFilter(item.id);
+                          setShowStatusDropdown(false);
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 text-xs transition-colors truncate cursor-pointer",
+                          statusFilter === item.id
+                            ? "bg-primary/10 text-primary font-semibold"
+                            : "text-foreground hover:bg-muted",
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
 

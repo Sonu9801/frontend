@@ -381,4 +381,19 @@ body[data-scroll-locked] .floating-home-bar {
   animation: dispatch-blink-dark 1.25s ease-in-out infinite;
 }
 
+/* Mobile Touch & Smooth Interaction Optimizations */
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+button, a, [role="button"], input, select, textarea {
+  touch-action: manipulation;
+}
+
+/* Native inertia scrolling on touch devices */
+.overflow-x-auto, .overflow-y-auto, .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+}
+
 

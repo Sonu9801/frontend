@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useRevenue, useRevenueDashboardStats, useRevenueAnalytics, useDeleteSalesInvoice, useUpdateSalesInvoice } from "@/hooks/useQueries";
 import { Pagination } from "@/components/ui/Pagination";
-import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check, Download } from "lucide-react";
+import { Banknote, CheckCircle2, Search, Plus, Calendar, Clock, IndianRupee, FileText, MoreHorizontal, Eye, Trash2, Edit, ChevronDown, Check, Download, Upload } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { InvoiceAnalyticsCharts } from "../invoices/components/InvoiceAnalyticsCharts";
 import { AddSalesInvoiceDialog } from "@/components/revenue/AddSalesInvoiceDialog";
@@ -495,30 +495,34 @@ export default function RevenueDashboardPage() {
         title="Sales Invoices Dashboard"
         description="Manage sales invoices, customer payments, tax breakdowns, and revenue tracking"
         actions={
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0 overflow-x-auto no-scrollbar py-0.5">
             <Button
               variant="outline"
               onClick={handleExportSalesCSV}
-              className="gap-1.5 text-xs font-semibold h-9"
+              className="gap-1 sm:gap-1.5 text-xs font-semibold h-8 sm:h-9 px-2.5 sm:px-3 shrink-0 rounded-xl"
             >
-              <Download size={14} /> Export Register
+              <Download size={14} className="shrink-0" />
+              <span className="hidden sm:inline">Export Register</span>
+              <span className="sm:hidden">Export</span>
             </Button>
             {canUpload && (
               <>
                 <Button 
                   onClick={() => setShowAddModal(true)} 
-                  className="gap-1.5 shadow-xs text-xs font-semibold h-9"
+                  className="gap-1 sm:gap-1.5 shadow-xs text-xs font-semibold h-8 sm:h-9 px-2.5 sm:px-3.5 shrink-0 rounded-xl"
                 >
-                  <Plus size={15} />
-                  Add Sales Invoice
+                  <Plus size={14} className="shrink-0" />
+                  <span className="hidden sm:inline">Add Sales Invoice</span>
+                  <span className="sm:hidden">Add Invoice</span>
                 </Button>
                 <Button 
                   variant="outline"
                   onClick={() => router.push("/revenue/upload")} 
-                  className="gap-1.5 text-xs font-semibold h-9"
+                  className="gap-1 sm:gap-1.5 text-xs font-semibold h-8 sm:h-9 px-2.5 sm:px-3 shrink-0 rounded-xl border-primary/30 text-primary hover:bg-primary/5"
                 >
-                  <Plus size={15} />
-                  Upload Invoice
+                  <Upload size={14} className="shrink-0" />
+                  <span className="hidden sm:inline">Upload Invoice</span>
+                  <span className="sm:hidden">Upload</span>
                 </Button>
               </>
             )}

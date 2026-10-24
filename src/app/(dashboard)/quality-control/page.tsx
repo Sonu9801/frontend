@@ -140,7 +140,7 @@ function QCDetailsDrawer({
 
   return (
     <Sheet open={open} onOpenChange={(val) => !val && onClose()}>
-      <SheetContent className="sm:max-w-xl overflow-y-auto">
+      <SheetContent className="w-full max-w-[100vw] sm:max-w-xl overflow-y-auto">
         {record && (
           <>
             <SheetHeader className="mb-4">

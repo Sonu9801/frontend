@@ -241,7 +241,7 @@ export function MobileTopBar() {
           <button
             type="button"
             onClick={() => setShowDrawer(true)}
-            className="p-2 rounded-full text-muted-foreground hover:bg-muted active:scale-95 transition-all"
+            className="p-2 rounded-full text-muted-foreground hover:bg-muted active:scale-95 transition-all touch-manipulation"
           >
             <Menu size={20} />
           </button>
@@ -256,16 +256,17 @@ export function MobileTopBar() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
+              transition={{ duration: 0.15 }}
               onClick={() => setShowDrawer(false)}
-              className="fixed inset-0 bg-background/80 backdrop-blur-sm z-[60] md:hidden"
+              className="fixed inset-0 bg-black/60 z-[60] md:hidden"
             />
             <motion.div 
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
-              transition={{ type: "tween", duration: 0.3, ease: "easeInOut" }}
-              className="fixed inset-y-0 right-0 w-3/4 max-w-sm bg-card border-l border-border shadow-2xl z-[70] flex flex-col md:hidden pt-safe"
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              style={{ willChange: "transform" }}
+              className="fixed inset-y-0 right-0 w-3/4 max-w-sm bg-card border-l border-border shadow-2xl z-[70] flex flex-col md:hidden pt-safe transform-gpu"
             >
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div className="flex items-center gap-3">

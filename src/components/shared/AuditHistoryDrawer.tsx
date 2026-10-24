@@ -36,7 +36,7 @@ export function AuditHistoryDrawer({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-md overflow-y-auto">
+      <SheetContent className="w-full max-w-[100vw] sm:max-w-md overflow-y-auto">
         <SheetHeader className="mb-6">
           <SheetTitle>{title || "Audit History"}</SheetTitle>
         </SheetHeader>

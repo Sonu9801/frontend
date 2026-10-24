@@ -753,68 +753,68 @@ export default function PayrollEmployeesTab() {
 
       {/* PAYROLL DETAILS DRAWER */}
       <Sheet open={!!selectedEmp} onOpenChange={(open) => !open && setSelectedEmp(null)}>
-        <SheetContent className="w-[500px] sm:w-[600px] overflow-y-auto" side="right">
+        <SheetContent className="w-full max-w-[100vw] sm:max-w-lg overflow-y-auto p-4 sm:p-6" side="right">
           {selectedEmp && (
             <>
-              <SheetHeader className="mb-6">
-                <SheetTitle className="text-2xl font-bold flex items-center gap-3">
-                  {selectedEmp.employeeName}
-                  <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30">{selectedEmp.status}</Badge>
+              <SheetHeader className="p-0 mb-4 sm:mb-6">
+                <SheetTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center gap-2 sm:gap-3">
+                  <span>{selectedEmp.employeeName}</span>
+                  <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">{selectedEmp.status}</Badge>
                 </SheetTitle>
-                <SheetDescription>
+                <SheetDescription className="text-xs sm:text-sm">
                   {selectedEmp.employeeId} • {selectedEmp.department} • {selectedEmp.role}
                 </SheetDescription>
               </SheetHeader>
 
-              <div className="space-y-6">
+              <div className="space-y-5 sm:space-y-6">
                 
                 {/* Actions */}
-                <div className="flex gap-3 pb-6 border-b border-border">
+                <div className="flex gap-2 sm:gap-3 pb-4 sm:pb-6 border-b border-border">
                   {canEdit && (
-                    <Button className="flex-1 bg-primary text-primary-foreground" onClick={() => { setSelectedEmp(null); setEditRecord(selectedEmp); }}>Edit Payroll</Button>
+                    <Button className="flex-1 bg-primary text-primary-foreground text-xs sm:text-sm h-9 sm:h-10" onClick={() => { setSelectedEmp(null); setEditRecord(selectedEmp); }}>Edit Payroll</Button>
                   )}
-                  <Button variant="secondary" className="flex-1" onClick={() => generatePayslipPDF(selectedEmp)}><Download size={16} className="mr-2"/> Payslip</Button>
+                  <Button variant="secondary" className="flex-1 text-xs sm:text-sm h-9 sm:h-10" onClick={() => generatePayslipPDF(selectedEmp)}><Download size={15} className="mr-1.5 sm:mr-2"/> Payslip</Button>
                 </div>
 
                 {/* Attendance Summary */}
                 <div>
-                  <h4 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2"><CalendarDays size={16}/> Attendance Summary</h4>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="bg-success/10 border border-success/20 p-3 rounded-xl text-center">
-                      <p className="text-2xl font-black text-success">{selectedEmp.presentDays}</p>
-                      <p className="text-xs font-semibold text-success/80">Present</p>
+                  <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4 flex items-center gap-2"><CalendarDays size={15}/> Attendance Summary</h4>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="bg-success/10 border border-success/20 p-2.5 sm:p-3 rounded-xl text-center">
+                      <p className="text-xl sm:text-2xl font-black text-success">{selectedEmp.presentDays}</p>
+                      <p className="text-[11px] sm:text-xs font-semibold text-success/80">Present</p>
                     </div>
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded-xl text-center">
-                      <p className="text-2xl font-black text-yellow-600">{selectedEmp.halfDays}</p>
-                      <p className="text-xs font-semibold text-yellow-600/80">Half Days</p>
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-2.5 sm:p-3 rounded-xl text-center">
+                      <p className="text-xl sm:text-2xl font-black text-yellow-600">{selectedEmp.halfDays}</p>
+                      <p className="text-[11px] sm:text-xs font-semibold text-yellow-600/80">Half Days</p>
                     </div>
-                    <div className="bg-destructive/10 border border-destructive/20 p-3 rounded-xl text-center">
-                      <p className="text-2xl font-black text-destructive">{selectedEmp.absentDays}</p>
-                      <p className="text-xs font-semibold text-destructive/80">Absent</p>
+                    <div className="bg-destructive/10 border border-destructive/20 p-2.5 sm:p-3 rounded-xl text-center">
+                      <p className="text-xl sm:text-2xl font-black text-destructive">{selectedEmp.absentDays}</p>
+                      <p className="text-[11px] sm:text-xs font-semibold text-destructive/80">Absent</p>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-3 mt-3">
-                    <div className="bg-orange-500/10 border border-orange-500/20 p-3 rounded-xl flex justify-between items-center">
-                      <span className="text-xs font-semibold text-orange-600">OT Hours</span>
-                      <span className="font-black text-orange-600">{selectedEmp.otHours}h</span>
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2.5 sm:mt-3">
+                    <div className="bg-orange-500/10 border border-orange-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
+                      <span className="text-[11px] sm:text-xs font-semibold text-orange-600">OT Hours</span>
+                      <span className="font-black text-orange-600 text-sm sm:text-base">{selectedEmp.otHours}h</span>
                     </div>
-                    <div className="bg-purple-500/10 border border-purple-500/20 p-3 rounded-xl flex justify-between items-center">
-                      <span className="text-xs font-semibold text-purple-600">Sunday / Festival Hrs</span>
-                      <span className="font-black text-purple-600">{selectedEmp.sundayHours}h</span>
+                    <div className="bg-purple-500/10 border border-purple-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
+                      <span className="text-[11px] sm:text-xs font-semibold text-purple-600 truncate mr-1">Sun/Fest Hrs</span>
+                      <span className="font-black text-purple-600 text-sm sm:text-base shrink-0">{selectedEmp.sundayHours}h</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Salary Breakdown */}
                 <div>
-                  <h4 className="font-bold text-sm text-muted-foreground uppercase tracking-wider mb-4 mt-8">Salary Breakdown</h4>
-                  <div className="bg-muted/30 border border-border rounded-xl p-5 space-y-3 font-mono text-sm">
+                  <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4">Salary Breakdown</h4>
+                  <div className="bg-muted/30 border border-border rounded-xl p-3.5 sm:p-5 space-y-2.5 sm:space-y-3 font-mono text-xs sm:text-sm">
                     <div className="flex justify-between"><span>Base Salary</span><span>₹{selectedEmp.baseSalary}</span></div>
                     <div className="flex justify-between text-orange-500"><span>Overtime Pay</span><span>+ ₹{selectedEmp.otAmount}</span></div>
                     <div className="flex justify-between text-purple-500"><span>Sunday / Festival Pay</span><span>+ ₹{selectedEmp.sundayAmount}</span></div>
                     <div className="flex justify-between text-emerald-500"><span>Bonus</span><span>+ ₹{selectedEmp.bonusAmount}</span></div>
                     <div className="flex justify-between text-destructive"><span>Deductions</span><span>- ₹{selectedEmp.deductions}</span></div>
-                    <div className="pt-3 mt-3 border-t border-border flex justify-between text-lg font-bold text-foreground">
+                    <div className="pt-2.5 sm:pt-3 mt-2.5 sm:mt-3 border-t border-border flex justify-between text-base sm:text-lg font-bold text-foreground">
                       <span>Final Salary</span><span>₹{selectedEmp.finalSalary}</span>
                     </div>
                   </div>

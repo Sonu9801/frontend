@@ -1143,46 +1143,51 @@ export default function DispatchPage() {
             </span>
           }
           actions={
-            <div className="flex items-center gap-2 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-nowrap shrink-0 overflow-x-auto no-scrollbar w-full sm:w-auto py-0.5">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setShowVehicleLookup(true)}
-                className="gap-1.5 h-9 text-xs font-semibold cursor-pointer border-primary/30 text-primary hover:bg-primary/10 shadow-2xs"
+                className="gap-1 sm:gap-1.5 h-8 sm:h-9 px-2 sm:px-3 text-xs font-semibold shrink-0 cursor-pointer border-primary/30 text-primary hover:bg-primary/10 shadow-2xs rounded-xl"
               >
-                <Search size={14} className="stroke-[2.5]" />
-                <span>Track 4-Digit</span>
+                <Search size={14} className="stroke-[2.5] shrink-0" />
+                <span className="hidden sm:inline">Track 4-Digit</span>
+                <span className="sm:hidden">Track</span>
               </Button>
               {canEdit && (
                 <Button
                   type="button"
                   onClick={() => setShowSelectVehicleModal(true)}
-                  className="flex-1 sm:flex-initial gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs h-9 text-xs font-semibold cursor-pointer"
+                  className="gap-1 sm:gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs h-8 sm:h-9 px-2.5 sm:px-3.5 text-xs font-semibold shrink-0 rounded-xl cursor-pointer"
                 >
-                  <Truck size={14} /> Dispatch Vehicle
+                  <Truck size={14} className="shrink-0" />
+                  <span className="hidden sm:inline">Dispatch Vehicle</span>
+                  <span className="sm:hidden">Dispatch</span>
                 </Button>
               )}
-              <div className="flex items-center bg-muted/60 p-1 rounded-xl border border-border">
+              <div className="flex items-center bg-muted/60 p-0.5 sm:p-1 rounded-xl border border-border shrink-0">
                 <button
                   type="button"
                   onClick={() => setActiveTab("standard")}
                   className={cn(
-                    "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer",
+                    "px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer",
                     activeTab === "standard" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  Standard View
+                  <span className="hidden sm:inline">Standard View</span>
+                  <span className="sm:hidden">Standard</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveTab("excel")}
                   className={cn(
-                    "px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1.5 cursor-pointer",
+                    "px-2 sm:px-2.5 py-1 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap flex items-center gap-1 sm:gap-1.5 cursor-pointer",
                     activeTab === "excel" ? "bg-card text-foreground shadow-xs font-bold" : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <FileSpreadsheet size={13} className="text-emerald-600" />
-                  Table View
+                  <FileSpreadsheet size={13} className="text-emerald-600 shrink-0" />
+                  <span className="hidden sm:inline">Table View</span>
+                  <span className="sm:hidden">Table</span>
                 </button>
               </div>
             </div>
@@ -1620,27 +1625,32 @@ export default function DispatchPage() {
                   <p className="text-[11px] text-muted-foreground">{stats.dispatched} dispatched{stats.pending > 0 ? ` • ${stats.pending} pending` : ""} ({filteredRecords.length} total)</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={handleExportExcel}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-all cursor-pointer whitespace-nowrap"
                 >
-                  <Download size={13} /> Export Excel
+                  <Download size={13} className="shrink-0" />
+                  <span className="hidden sm:inline">Export Excel</span>
+                  <span className="sm:hidden">Excel</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleExportPDF}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold rounded-lg bg-rose-600 text-white hover:bg-rose-700 shadow-sm transition-all cursor-pointer whitespace-nowrap"
                 >
-                  <FileText size={13} /> Export PDF
+                  <FileText size={13} className="shrink-0" />
+                  <span className="hidden sm:inline">Export PDF</span>
+                  <span className="sm:hidden">PDF</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleExportCSV}
-                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer"
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-all cursor-pointer whitespace-nowrap border border-border"
                 >
-                  <Download size={13} /> CSV
+                  <Download size={13} className="shrink-0" />
+                  <span>CSV</span>
                 </button>
               </div>
             </div>
