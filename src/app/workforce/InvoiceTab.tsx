@@ -3,7 +3,7 @@
 import React, { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { invoicesApi } from "@/lib/api";
-import { useInvoiceDashboardStats } from "@/hooks/useQueries";
+import { useInvoiceDashboardStats, useUpdateInvoice } from "@/hooks/useQueries";
 import { 
   Receipt, IndianRupee, Clock, CheckCircle2, FileText, Download, Plus, 
   UploadCloud, Search, ExternalLink, Calendar, Filter, X
@@ -23,6 +23,9 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
   const [statusFilter, setStatusFilter] = useState("All");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [updatingId, setUpdatingId] = useState<number | null>(null);
+
+  const updateInvoice = useUpdateInvoice();
 
   const { data: invoicesData, isLoading } = useQuery({
     queryKey: ["invoices", 1, 1000],
@@ -44,22 +47,68 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
       );
     }
     if (statusFilter !== "All") {
-      list = list.filter((inv: any) => (inv.status || "").toLowerCase() === statusFilter.toLowerCase());
+      list = list.filter((inv: any) => {
+        const isPaid = (inv.payment_status || "").toLowerCase() === "paid" || (inv.status || "").toLowerCase() === "paid";
+        if (statusFilter.toLowerCase() === "paid") return isPaid;
+        if (statusFilter.toLowerCase() === "pending") return !isPaid;
+        return (inv.status || inv.approval_status || "").toLowerCase() === statusFilter.toLowerCase();
+      });
     }
     return list;
   }, [invoices, search, statusFilter]);
 
-  const getStatusBadge = (status: string) => {
-    const s = (status || "").toLowerCase();
-    switch (s) {
-      case "paid":
-        return <span className="px-2.5 py-1 bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 rounded-full text-[11px] font-bold flex items-center gap-1"><CheckCircle2 size={12}/> Paid</span>;
-      case "pending":
-        return <span className="px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-[11px] font-bold flex items-center gap-1"><Clock size={12}/> Pending</span>;
-      case "overdue":
-        return <span className="px-2.5 py-1 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-full text-[11px] font-bold flex items-center gap-1"><Clock size={12}/> Overdue</span>;
-      default:
-        return <span className="px-2.5 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400 rounded-full text-[11px] font-bold">{status || "Pending"}</span>;
+  const getStatusBadge = (inv: any) => {
+    const isOct = inv.invoice_date ? new Date(inv.invoice_date) >= new Date("2026-10-01") : true;
+    const isPaid = (inv.payment_status || "").toLowerCase() === "paid";
+
+    if (isOct) {
+      if (isPaid) {
+        return (
+          <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-[11px] font-bold flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+            <CheckCircle2 size={12}/> Paid (Approved)
+          </span>
+        );
+      }
+      return (
+        <span className="px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-[11px] font-bold flex items-center gap-1 border border-amber-300 dark:border-amber-800">
+          <Clock size={12}/> Pending Review
+        </span>
+      );
+    }
+
+    // Historical pre-October invoices
+    if (isPaid || inv.approval_status === "Approved") {
+      return (
+        <span className="px-2.5 py-1 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-full text-[11px] font-bold flex items-center gap-1 border border-emerald-300 dark:border-emerald-800">
+          <CheckCircle2 size={12}/> Approved
+        </span>
+      );
+    }
+
+    return (
+      <span className="px-2.5 py-1 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded-full text-[11px] font-bold flex items-center gap-1 border border-amber-300 dark:border-amber-800">
+        <Clock size={12}/> Pending
+      </span>
+    );
+  };
+
+  const handleTogglePayment = async (inv: any, newStatus: string) => {
+    setUpdatingId(inv.id);
+    const isOct = inv.invoice_date ? new Date(inv.invoice_date) >= new Date("2026-10-01") : true;
+    const payload: any = { payment_status: newStatus };
+    if (newStatus === "Paid") {
+      payload.approval_status = "Approved";
+    } else if (newStatus === "Unpaid" && isOct) {
+      payload.approval_status = "Pending Review";
+    }
+
+    try {
+      await updateInvoice.mutateAsync({ id: inv.id, data: payload });
+      toast.success(newStatus === "Paid" ? "Invoice marked as Paid & Approved!" : "Invoice set back to Pending Review");
+    } catch (err: any) {
+      toast.error(err.response?.data?.detail || "Failed to update status");
+    } finally {
+      setUpdatingId(null);
     }
   };
 
@@ -68,8 +117,9 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
     const exportData = filteredInvoices.map((inv: any) => ({
       "Invoice Number": inv.invoice_number,
       "OEM / Vendor": inv.vendor_name || inv.oem_name || "-",
-      "Amount (INR)": inv.amount || 0,
-      "Status": inv.status || "Pending",
+      "Amount (INR)": inv.grand_total ?? inv.amount ?? 0,
+      "Payment Status": inv.payment_status || "Unpaid",
+      "Approval Status": inv.approval_status || "Pending Review",
       "Due Date": inv.due_date ? format(new Date(inv.due_date), "yyyy-MM-dd") : "-",
       "Invoice Date": inv.invoice_date ? format(new Date(inv.invoice_date), "yyyy-MM-dd") : "-",
     }));
@@ -81,8 +131,9 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
     const exportData = filteredInvoices.map((inv: any) => ({
       "Invoice Number": inv.invoice_number,
       "OEM / Vendor": inv.vendor_name || inv.oem_name || "-",
-      "Amount (INR)": inv.amount || 0,
-      "Status": inv.status || "Pending",
+      "Amount (INR)": inv.grand_total ?? inv.amount ?? 0,
+      "Payment Status": inv.payment_status || "Unpaid",
+      "Approval Status": inv.approval_status || "Pending Review",
       "Due Date": inv.due_date ? format(new Date(inv.due_date), "yyyy-MM-dd") : "-",
       "Invoice Date": inv.invoice_date ? format(new Date(inv.invoice_date), "yyyy-MM-dd") : "-",
     }));
@@ -226,18 +277,24 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
               const fileUrl = inv.file_url || inv.document_url || inv.documentsUrl;
 
               return (
-                <div key={inv.id} className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-200 dark:border-zinc-800 flex flex-col justify-between gap-3">
+                <div key={inv.id} className="bg-white dark:bg-zinc-900 rounded-2xl p-4 shadow-xs border border-gray-200 dark:border-zinc-800 flex flex-col justify-between gap-3 hover:border-indigo-200 dark:hover:border-indigo-900/50 transition-all">
                   <div className="flex justify-between items-start gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
                         <FileText size={18} />
                       </div>
                       <div className="min-w-0">
-                        <p className="font-extrabold text-foreground text-sm font-mono truncate">{inv.invoice_number}</p>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/invoices/${inv.id}`)}
+                          className="font-extrabold text-foreground text-sm font-mono truncate text-left hover:text-indigo-600 transition-colors cursor-pointer block"
+                        >
+                          {inv.invoice_number || "PENDING OCR"}
+                        </button>
                         <p className="text-xs text-muted-foreground truncate">{inv.vendor_name || inv.oem_name || "OEM Vendor"}</p>
                       </div>
                     </div>
-                    {getStatusBadge(inv.status)}
+                    {getStatusBadge(inv)}
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100 dark:border-zinc-800/80">
@@ -248,29 +305,62 @@ export function InvoiceTab({ activeUser }: { activeUser: any }) {
                       </span>
                     </div>
                     <div className="text-right">
-                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Amount</span>
+                      <span className="text-[10px] text-muted-foreground block uppercase font-medium">Grand Total</span>
                       <span className="font-black text-indigo-600 dark:text-indigo-400 text-sm">
-                        ₹{(inv.amount || 0).toLocaleString()}
+                        ₹{(inv.grand_total ?? inv.amount ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800/60 text-xs">
-                    <span className="text-[11px] text-muted-foreground">
-                      {inv.invoice_date ? format(new Date(inv.invoice_date), "dd MMM yyyy") : ""}
-                    </span>
-                    {fileUrl ? (
-                      <a
-                        href={fileUrl.startsWith("http") || fileUrl.startsWith("/") ? fileUrl : "#"}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 font-semibold text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                  {/* Actions & Document links */}
+                  <div className="flex items-center justify-between pt-2 border-t border-gray-100 dark:border-zinc-800/60 text-xs gap-2">
+                    <div>
+                      {(inv.payment_status || "").toLowerCase() === "paid" ? (
+                        <button
+                          type="button"
+                          disabled={updatingId === inv.id}
+                          onClick={() => handleTogglePayment(inv, "Unpaid")}
+                          className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-lg text-xs font-bold flex items-center gap-1 transition-all cursor-pointer"
+                          title="Revert to Pending"
+                        >
+                          <Clock size={12} />
+                          {updatingId === inv.id ? "Updating..." : "Mark as Pending"}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={updatingId === inv.id}
+                          onClick={() => handleTogglePayment(inv, "Paid")}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer"
+                          title="Mark as Paid & Approve"
+                        >
+                          <CheckCircle2 size={12} />
+                          {updatingId === inv.id ? "Updating..." : "Mark as Paid"}
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/invoices/${inv.id}`)}
+                        className="inline-flex items-center gap-1 font-semibold text-xs text-gray-600 dark:text-gray-300 hover:text-indigo-600 hover:underline cursor-pointer"
                       >
-                        <ExternalLink size={12} /> View Document
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-gray-400">No file attached</span>
-                    )}
+                        Details
+                      </button>
+                      {fileUrl ? (
+                        <a
+                          href={fileUrl.startsWith("http") || fileUrl.startsWith("/") ? fileUrl : "#"}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-semibold text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                        >
+                          <ExternalLink size={12} /> View Doc
+                        </a>
+                      ) : (
+                        <span className="text-[10px] text-gray-400">No doc</span>
+                      )}
+                    </div>
                   </div>
                 </div>
               );

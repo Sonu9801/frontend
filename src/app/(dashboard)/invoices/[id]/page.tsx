@@ -93,9 +93,49 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
             {invoice.vendor_name} • {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString() : 'Unknown Date'}
           </p>
         </div>
-        <Button variant="outline" onClick={() => window.open(getFileUrl(invoice.file_path), '_blank')}>
-          <Download size={16} className="mr-2" /> Download File
-        </Button>
+        <div className="flex items-center gap-2">
+          {invoice.payment_status === "Paid" ? (
+            <Button 
+              variant="outline"
+              size="sm"
+              className="text-amber-600 border-amber-500/30 hover:bg-amber-500/10 font-bold"
+              onClick={async () => {
+                try {
+                  await updateMutation.mutateAsync({
+                    id: invoice.id,
+                    data: { payment_status: "Unpaid", approval_status: "Pending Review" },
+                  });
+                  toast.success("Invoice status updated to Pending / Unpaid");
+                } catch (e: any) {
+                  toast.error("Failed to update status");
+                }
+              }}
+            >
+              <Clock size={16} className="mr-1.5" /> Mark as Pending
+            </Button>
+          ) : (
+            <Button 
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+              onClick={async () => {
+                try {
+                  await updateMutation.mutateAsync({
+                    id: invoice.id,
+                    data: { payment_status: "Paid", approval_status: "Approved" },
+                  });
+                  toast.success("Invoice marked as Paid!");
+                } catch (e: any) {
+                  toast.error("Failed to mark as paid");
+                }
+              }}
+            >
+              <CheckCircle size={16} className="mr-1.5" /> Mark as Paid
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => window.open(getFileUrl(invoice.file_path), '_blank')}>
+            <Download size={16} className="mr-1.5" /> Download File
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -198,7 +238,11 @@ export default function InvoiceDetailsPage({ params }: { params: Promise<{ id: s
                   <select 
                     className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary/20"
                     value={editData.payment_status ?? "Unpaid"}
-                    onChange={(e) => setEditData({...editData, payment_status: e.target.value})}
+                    onChange={(e) => {
+                      const newPayment = e.target.value;
+                      const newApproval = newPayment === "Paid" ? "Approved" : editData.approval_status;
+                      setEditData({...editData, payment_status: newPayment, approval_status: newApproval});
+                    }}
                     disabled={!canEdit}
                   >
                     <option value="Unpaid">Unpaid</option>

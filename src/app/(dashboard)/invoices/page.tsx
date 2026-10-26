@@ -153,6 +153,31 @@ export default function InvoicesDashboardPage() {
   const totalPages = invoicesData?.total_pages ?? 1;
 
 
+  const handleTogglePayment = (d: any, targetStatus: "Paid" | "Unpaid") => {
+    const isPaying = targetStatus === "Paid";
+    updateInvoice.mutate(
+      {
+        id: d.id,
+        data: {
+          payment_status: targetStatus,
+          approval_status: isPaying ? "Approved" : "Pending Review",
+        },
+      },
+      {
+        onSuccess: () => {
+          toast.success(
+            isPaying
+              ? `Invoice #${d.invoice_number || d.id} marked as Paid!`
+              : `Invoice #${d.invoice_number || d.id} marked as Pending!`
+          );
+        },
+        onError: (err: any) => {
+          toast.error(err.response?.data?.detail || "Failed to update payment status");
+        },
+      }
+    );
+  };
+
   const columns: ColumnDef<any>[] = useMemo(() => [
     {
       id: "invoice_number",
@@ -259,14 +284,53 @@ export default function InvoicesDashboardPage() {
       id: "approval_status",
       header: "Status",
       accessor: (d: any) => {
-        let color = "bg-muted text-muted-foreground";
-        if (d.approval_status === "Approved") color = "bg-success/15 text-success";
-        if (d.approval_status === "Rejected") color = "bg-destructive/15 text-destructive";
-        if (d.approval_status === "Pending Review") color = "bg-warning/15 text-warning";
+        const isOctOnwards = !d.invoice_date || d.invoice_date >= "2026-10-01";
+        const isPaid = d.payment_status === "Paid";
+        
+        // For pre-October invoices: retain historical status (Approved)
+        if (!isOctOnwards) {
+          const isApproved = d.approval_status === "Approved" || isPaid;
+          return (
+            <span className={cn(
+              "text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap",
+              isApproved ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
+            )}>
+              {isApproved ? "Approved" : d.approval_status}
+            </span>
+          );
+        }
+
+        // For October onwards: must stay Pending until Paid
+        if (isPaid) {
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleTogglePayment(d, "Unpaid");
+              }}
+              title="Click to mark as Pending / Unpaid"
+              className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap bg-emerald-500/15 text-emerald-600 border border-emerald-500/30 hover:bg-emerald-500/25 transition-all cursor-pointer"
+            >
+              <CheckCircle2 size={10} className="stroke-[2.5]" />
+              <span>Paid</span>
+            </button>
+          );
+        }
+
         return (
-          <span className={cn("text-[10px] font-semibold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap", color)}>
-            {d.approval_status}
-          </span>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleTogglePayment(d, "Paid");
+            }}
+            title="Click to mark as Paid"
+            className="flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap bg-amber-500/15 text-amber-600 border border-amber-500/30 hover:bg-amber-500/25 transition-all cursor-pointer"
+          >
+            <Clock size={10} className="stroke-[2.5]" />
+            <span>Pending</span>
+          </button>
         );
       },
     },
@@ -275,6 +339,9 @@ export default function InvoicesDashboardPage() {
       header: "",
       accessor: (d: any) => {
         const canDelete = ["admin", "owner", "finance_manager"].includes(role);
+        const isOctOnwards = !d.invoice_date || d.invoice_date >= "2026-10-01";
+        const isPaid = d.payment_status === "Paid";
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -291,6 +358,30 @@ export default function InvoicesDashboardPage() {
               >
                 <Eye className="mr-2 h-4 w-4" /> View Details
               </DropdownMenuItem>
+
+              {/* Quick Paid/Pending Toggle */}
+              {isPaid ? (
+                <DropdownMenuItem 
+                  className="text-amber-600 font-semibold cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTogglePayment(d, "Unpaid");
+                  }}
+                >
+                  <Clock className="mr-2 h-4 w-4 text-amber-600" /> Mark as Pending
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem 
+                  className="text-emerald-600 font-semibold cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleTogglePayment(d, "Paid");
+                  }}
+                >
+                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" /> Mark as Paid
+                </DropdownMenuItem>
+              )}
+
               {canDelete && (
                 <>
                   <DropdownMenuSeparator />
@@ -323,7 +414,7 @@ export default function InvoicesDashboardPage() {
         );
       }
     }
-  ], [router, role, deleteInvoice]);
+  ], [router, role, deleteInvoice, updateInvoice]);
 
   if ((isLoadingInvoices && !invoicesData) || (isLoadingStats && !stats)) {
     return (
@@ -579,10 +670,17 @@ export default function InvoicesDashboardPage() {
 
                 const handleQuickPayment = (newStatus: string) => {
                   if (newStatus === inv.payment_status) return;
+                  const isOct = inv.invoice_date && new Date(inv.invoice_date) >= new Date("2026-10-01");
+                  const payload: any = { payment_status: newStatus };
+                  if (newStatus === "Paid") {
+                    payload.approval_status = "Approved";
+                  } else if (newStatus === "Unpaid" && isOct) {
+                    payload.approval_status = "Pending Review";
+                  }
                   updateInvoice.mutate(
-                    { id: inv.id, data: { payment_status: newStatus } },
+                    { id: inv.id, data: payload },
                     {
-                      onSuccess: () => toast.success(`Payment status updated to ${newStatus}`),
+                      onSuccess: () => toast.success(`Payment status updated to ${newStatus}${newStatus === "Paid" ? " (Auto-Approved)" : ""}`),
                       onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to update payment status"),
                     }
                   );
@@ -693,51 +791,90 @@ export default function InvoicesDashboardPage() {
                     </div>
 
                     {/* Footer Actions */}
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-border/60">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => router.push(`/invoices/${inv.id}`)}
-                        className="h-7 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
-                      >
-                        <Eye size={12} /> View Details
-                      </Button>
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/60">
+                      <div>
+                        {inv.payment_status === "Paid" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleQuickPayment("Unpaid")}
+                            className="h-7 px-2.5 text-[11px] font-bold gap-1 text-amber-600 border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 cursor-pointer"
+                            title="Revert to Pending"
+                          >
+                            <Clock size={12} /> Pending
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleQuickPayment("Paid")}
+                            className="h-7 px-2.5 text-[11px] font-bold gap-1 text-emerald-600 border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 hover:bg-emerald-100 cursor-pointer"
+                            title="Mark as Paid & Approve"
+                          >
+                            <CheckCircle2 size={12} /> Mark as Paid
+                          </Button>
+                        )}
+                      </div>
 
-                      {canUpload && (
+                      <div className="flex items-center gap-1.5">
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setEditRecord(inv)}
-                          className="h-7 px-2.5 text-xs font-semibold gap-1 text-primary hover:bg-primary/5 cursor-pointer"
+                          onClick={() => router.push(`/invoices/${inv.id}`)}
+                          className="h-7 px-2.5 text-xs font-semibold gap-1 cursor-pointer"
                         >
-                          <Edit size={12} /> Edit
+                          <Eye size={12} /> Details
                         </Button>
-                      )}
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0 cursor-pointer">
-                            <MoreHorizontal size={14} />
+                        {canUpload && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setEditRecord(inv)}
+                            className="h-7 px-2.5 text-xs font-semibold gap-1 text-primary hover:bg-primary/5 cursor-pointer"
+                          >
+                            <Edit size={12} /> Edit
                           </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          {canUpload && (
+                        )}
+
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 cursor-pointer">
+                              <MoreHorizontal size={14} />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
                             <DropdownMenuItem 
-                              className="text-red-600 cursor-pointer"
-                              onClick={() => {
-                                if (confirm("Are you sure you want to delete this purchase invoice?")) {
-                                  deleteInvoice.mutate(inv.id, {
-                                    onSuccess: () => toast.success("Purchase Invoice deleted successfully"),
-                                    onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete")
-                                  });
-                                }
-                              }}
+                              className="text-xs cursor-pointer text-emerald-600 focus:text-emerald-700"
+                              onClick={() => handleQuickPayment("Paid")}
                             >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete Invoice
+                              <CheckCircle2 className="mr-2 h-3.5 w-3.5" /> Mark as Paid
                             </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                            <DropdownMenuItem 
+                              className="text-xs cursor-pointer text-amber-600 focus:text-amber-700"
+                              onClick={() => handleQuickPayment("Unpaid")}
+                            >
+                              <Clock className="mr-2 h-3.5 w-3.5" /> Mark as Pending
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            {canUpload && (
+                              <DropdownMenuItem 
+                                className="text-red-600 cursor-pointer text-xs"
+                                onClick={() => {
+                                  if (confirm("Are you sure you want to delete this purchase invoice?")) {
+                                    deleteInvoice.mutate(inv.id, {
+                                      onSuccess: () => toast.success("Purchase Invoice deleted successfully"),
+                                      onError: (err: any) => toast.error(err.response?.data?.detail || "Failed to delete")
+                                    });
+                                  }
+                                }}
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" /> Delete Invoice
+                              </DropdownMenuItem>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
                   </div>
                 );

@@ -49,23 +49,29 @@ interface AdminTabItem {
   isAction?: boolean;
 }
 
-// 8 most-used modules as defined in Option D reference
+// 8 most-used modules (Line 1 & Line 2)
 const mostUsedModules: AdminTabItem[] = [
+  // Line 1: Production, Received, Dispatch, Sales Bill
   { label: "Production", href: "/production", icon: Factory, color: "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/40", category: "core", desc: "Live shopfloor & Kanban" },
   { label: "Received", href: "/production/received", icon: Inbox, color: "bg-emerald-50 text-emerald-600 border-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900/40", category: "core", desc: "Vehicle intake & checks" },
-  { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/40", category: "core", desc: "Quality inspection" },
   { label: "Dispatch", href: "/dispatch", icon: Truck, color: "bg-amber-50 text-amber-600 border-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900/40", category: "core", desc: "Gate pass & delivery" },
-  { label: "Track 4-Digit", href: "#lookup", icon: Search, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "core", desc: "Check dealer & dispatch status", isAction: true },
+  { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "finance", desc: "Customer tax invoices" },
+
+  // Line 2: Purchases, Payroll, Workers, Attendance
+  { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "finance", desc: "Vendor invoices & bills" },
+  { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/40", category: "workforce", desc: "Wages & overtime" },
   { label: "Workers", href: "/workers", icon: Users, color: "bg-indigo-50 text-indigo-600 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40", category: "workforce", desc: "Active staff & skills" },
   { label: "Attendance", href: "/attendance", icon: Clock, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "workforce", desc: "Live biometric shifts" },
-  { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/40", category: "workforce", desc: "BOM inventory & parts" },
 ];
 
 const remainingModules: AdminTabItem[] = [
-  { label: "Payroll", href: "/payroll", icon: Banknote, color: "bg-rose-50 text-rose-600 border-rose-100 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900/40", category: "workforce", desc: "Wages & overtime" },
-  { label: "Sales Bill", href: "/revenue", icon: Banknote, color: "bg-purple-50 text-purple-600 border-purple-100 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-900/40", category: "finance", desc: "Customer tax invoices" },
-  { label: "Purchases", href: "/invoices", icon: Receipt, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "finance", desc: "Vendor invoices & bills" },
+  // Line 3: QC Check, Components, Track 4-Digit, Reports
+  { label: "QC Check", href: "/quality-control", icon: CheckCircle2, color: "bg-teal-50 text-teal-600 border-teal-100 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-900/40", category: "core", desc: "Quality inspection" },
+  { label: "Components", href: "/components", icon: Boxes, color: "bg-orange-50 text-orange-600 border-orange-100 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-900/40", category: "workforce", desc: "BOM inventory & parts" },
+  { label: "Track 4-Digit", href: "#lookup", icon: Search, color: "bg-sky-50 text-sky-600 border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900/40", category: "core", desc: "Check dealer & dispatch status", isAction: true },
   { label: "Reports", href: "/reports", icon: FileBarChart, color: "bg-cyan-50 text-cyan-600 border-cyan-100 dark:bg-cyan-950/40 dark:text-cyan-300 dark:border-cyan-900/40", category: "finance", desc: "Audit logs & exports" },
+
+  // Line 4 & beyond: Analytics, Activity, OEM Portal, Alerts, Settings
   { label: "Analytics", href: "/analytics", icon: BarChart3, color: "bg-blue-50 text-blue-600 border-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900/40", category: "system", desc: "Performance metrics" },
   { label: "Activity", href: "/activity-logs", icon: Activity, color: "bg-red-50 text-red-600 border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900/40", category: "system", desc: "Real-time audit events" },
   { label: "OEM Portal", href: "/oem-portal", icon: Building2, color: "bg-indigo-50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-900/40", category: "system", desc: "Client self-service" },
