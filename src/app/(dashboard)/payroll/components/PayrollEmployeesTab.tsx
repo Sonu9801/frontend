@@ -1105,7 +1105,7 @@ function EditPayrollModal({
   });
 
   const otMultiplier = attendanceSettings?.enableOt ? (attendanceSettings?.otRateMultiplier || 1.5) : 0.0;
-  const sundayMultiplier = attendanceSettings?.enableSundayTracking ? (attendanceSettings?.sundayRateMultiplier || 2.0) : 1.0;
+  const sundayMultiplier = attendanceSettings?.enableSundayTracking ? (attendanceSettings?.sundayRateMultiplier ?? 1.0) : 1.0;
 
   React.useEffect(() => {
     if (record && open) {

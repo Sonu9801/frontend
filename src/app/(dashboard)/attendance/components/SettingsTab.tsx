@@ -340,12 +340,12 @@ export default function SettingsTab() {
                   {form.enableSundayTracking && (
                     <div className="grid grid-cols-2 gap-4 p-4 border border-border rounded-xl bg-muted/10">
                       <div>
-                        <Label>Sunday Rate Multiplier (e.g. 2.0x)</Label>
-                        <Input type="number" step="0.1" value={form.sundayRateMultiplier || 2.0} onChange={(e) => handleChange("sundayRateMultiplier", parseFloat(e.target.value))} className="mt-1" />
+                        <Label>Sunday Rate Multiplier (e.g. 1.0x)</Label>
+                        <Input type="number" step="0.1" value={form.sundayRateMultiplier !== undefined ? form.sundayRateMultiplier : 1.0} onChange={(e) => handleChange("sundayRateMultiplier", parseFloat(e.target.value))} className="mt-1" />
                       </div>
                       <div>
-                        <Label>Sunday OT Rate (e.g. 2.0x)</Label>
-                        <Input type="number" step="0.1" value={form.sundayOtRate || 2.0} onChange={(e) => handleChange("sundayOtRate", parseFloat(e.target.value))} className="mt-1" />
+                        <Label>Sunday OT Rate (e.g. 1.0x)</Label>
+                        <Input type="number" step="0.1" value={form.sundayOtRate !== undefined ? form.sundayOtRate : 1.0} onChange={(e) => handleChange("sundayOtRate", parseFloat(e.target.value))} className="mt-1" />
                       </div>
                     </div>
                   )}

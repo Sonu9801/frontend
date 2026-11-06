@@ -152,22 +152,20 @@ function TimeInput12h({ value24, onChange }: TimeInput12hProps) {
         <button
           type="button"
           onClick={() => update(h12, min, "AM")}
-          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${
-            ampm === "AM"
+          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${ampm === "AM"
               ? "bg-primary text-primary-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           AM
         </button>
         <button
           type="button"
           onClick={() => update(h12, min, "PM")}
-          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${
-            ampm === "PM"
+          className={`px-2.5 py-1 text-[11px] font-black rounded-md transition-all ${ampm === "PM"
               ? "bg-primary text-primary-foreground shadow-xs"
               : "text-muted-foreground hover:text-foreground"
-          }`}
+            }`}
         >
           PM
         </button>
@@ -176,7 +174,7 @@ function TimeInput12h({ value24, onChange }: TimeInput12hProps) {
   );
 }
 
-const calcOtAndWorking = (in24: string, out24: string, otStartStr: string = "18:30", shiftEndStr: string = "18:00") => {
+const calcOtAndWorking = (in24: string, out24: string, otStartStr: string = "18:30", shiftEndStr: string = "18:00", isSunday: boolean = false) => {
   if (!in24 || !out24 || !in24.includes(":") || !out24.includes(":")) {
     return { workingHours: 8.0, otHours: 0.0 };
   }
@@ -188,6 +186,17 @@ const calcOtAndWorking = (in24: string, out24: string, otStartStr: string = "18:
   const outMins = outH * 60 + (outM || 0);
 
   if (outMins <= inMins) return { workingHours: 8.0, otHours: 0.0 };
+
+  // For Sunday: automatic 8h workingHours if checkout <= 18:00, and checkout after 18:00 is OT
+  if (isSunday) {
+    const sundayThreshold = 18 * 60; // 6:00 PM
+    let otHrs = 0.0;
+    if (outMins > sundayThreshold) {
+      const otMins = outMins - sundayThreshold;
+      otHrs = Math.min(Math.round((otMins / 60.0) * 10) / 10, 8.0);
+    }
+    return { workingHours: 8.0, otHours: otHrs };
+  }
 
   // OT ONLY calculates if checkout is at or after 18:30 (OT Start Time threshold)
   const [otH, otM] = (otStartStr || "18:30").split(":").map(Number);
@@ -272,9 +281,10 @@ export default function EmployeeMonthlyAttendanceModal({
     setEditPunchIn(inStr);
     setEditPunchOut(outStr);
 
-    const calculated = calcOtAndWorking(inStr, outStr);
-    setEditWorkingHours(dayItem.net_working_hours > 0 ? dayItem.net_working_hours : calculated.workingHours);
-    setEditOtHours(dayItem.ot_hours > 0 ? dayItem.ot_hours : calculated.otHours);
+    const isSun = Boolean(dayItem.is_sunday || dayItem.status === "Sunday Work" || dayItem.day_name === "Sun" || dayItem.is_calendar_sunday);
+    const calculated = calcOtAndWorking(inStr, outStr, undefined, undefined, isSun);
+    setEditWorkingHours(isSun ? 8.0 : (dayItem.net_working_hours > 0 ? dayItem.net_working_hours : calculated.workingHours));
+    setEditOtHours(calculated.otHours > 0 ? calculated.otHours : (dayItem.ot_hours || 0));
     setEditIsSunday(Boolean(dayItem.is_sunday || dayItem.status === "Sunday Work" || dayItem.status === "Festival Work" || dayItem.status === "Holiday Work"));
     setEditReason("Manual Edit by Manager");
   };
@@ -438,7 +448,7 @@ export default function EmployeeMonthlyAttendanceModal({
                         return false;
                       })();
 
-                      const effectiveStatus = 
+                      const effectiveStatus =
                         (dayItem.status === "Not Punched" || dayItem.status === "Not Punched In") && isPastOrEvening
                           ? "Absent"
                           : dayItem.status;
@@ -488,19 +498,18 @@ export default function EmployeeMonthlyAttendanceModal({
                       }
 
                       const isSunOrFestWork = Boolean(
-                        dayItem.is_sunday || 
-                        dayItem.status === "Sunday Work" || 
-                        dayItem.status === "Festival Work" || 
-                        dayItem.status === "Holiday Work" || 
+                        dayItem.is_sunday ||
+                        dayItem.status === "Sunday Work" ||
+                        dayItem.status === "Festival Work" ||
+                        dayItem.status === "Holiday Work" ||
                         (dayItem.holiday_name && dayItem.net_working_hours > 0)
                       );
 
                       return (
                         <tr
                           key={dayItem.date}
-                          className={`hover:bg-muted/30 transition-colors ${
-                            isSunday ? "bg-blue-500/5 font-semibold" : ""
-                          }`}
+                          className={`hover:bg-muted/30 transition-colors ${isSunday ? "bg-blue-500/5 font-semibold" : ""
+                            }`}
                         >
                           <td className="py-2.5 px-3 font-medium text-foreground">
                             {formattedDate}
@@ -611,8 +620,9 @@ export default function EmployeeMonthlyAttendanceModal({
                     value24={editPunchIn}
                     onChange={(newIn) => {
                       setEditPunchIn(newIn);
-                      const calculated = calcOtAndWorking(newIn, editPunchOut);
+                      const calculated = calcOtAndWorking(newIn, editPunchOut, undefined, undefined, editIsSunday);
                       setEditOtHours(calculated.otHours);
+                      if (editIsSunday) setEditWorkingHours(8.0);
                     }}
                   />
                 </div>
@@ -626,8 +636,9 @@ export default function EmployeeMonthlyAttendanceModal({
                     value24={editPunchOut}
                     onChange={(newOut) => {
                       setEditPunchOut(newOut);
-                      const calculated = calcOtAndWorking(editPunchIn, newOut);
+                      const calculated = calcOtAndWorking(editPunchIn, newOut, undefined, undefined, editIsSunday);
                       setEditOtHours(calculated.otHours);
+                      if (editIsSunday) setEditWorkingHours(8.0);
                     }}
                   />
                 </div>
