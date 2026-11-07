@@ -19,7 +19,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -44,7 +44,7 @@ export default function PayrollEmployeesTab() {
   const updatePayroll = useUpdateEmployeePayroll();
   const generatePayroll = useGeneratePayroll();
   const deletePayroll = useDeletePayroll();
-  
+
   const userRole = useAuthStore((state: any) => state.role) || "operator";
   const canEdit = ["admin", "owner"].includes(userRole);
 
@@ -81,7 +81,7 @@ export default function PayrollEmployeesTab() {
 
   const generatePayslipPDF = (emp: any) => {
     const doc = new jsPDF();
-    
+
     // Header
     doc.setFontSize(22);
     doc.text("FOX ENTERPRISES", 105, 20, { align: "center" });
@@ -102,10 +102,10 @@ export default function PayrollEmployeesTab() {
       startY: 85,
       head: [["Present Days", "Half Days", "Absent Days", "OT Hours", "Sunday Hours"]],
       body: [[
-        emp.presentDays.toString(), 
-        emp.halfDays.toString(), 
-        emp.absentDays.toString(), 
-        emp.otHours.toString(), 
+        emp.presentDays.toString(),
+        emp.halfDays.toString(),
+        emp.absentDays.toString(),
+        emp.otHours.toString(),
         emp.sundayHours.toString()
       ]],
       theme: 'grid'
@@ -113,17 +113,27 @@ export default function PayrollEmployeesTab() {
 
     // Salary Breakdown
     const finalY = (doc as any).lastAutoTable.finalY + 10;
-    
+    const earnedBase = emp.earnedBaseSalary !== undefined ? emp.earnedBaseSalary : Math.round((emp.totalSalary - emp.otAmount - emp.sundayAmount) * 100) / 100;
+    const absentDeduction = Math.max(0, Math.round((emp.baseSalary - earnedBase) * 100) / 100);
+
+    const salaryBody: any[] = [
+      ["Base Salary (Monthly)", `Rs. ${emp.baseSalary.toFixed(2)}`],
+    ];
+    if (absentDeduction > 0) {
+      salaryBody.push([`Absent Deduction (${emp.absentDays}d)`, `- Rs. ${absentDeduction.toFixed(2)}`]);
+      salaryBody.push([`Earned Base Pay (${emp.paidDays || (30 - emp.absentDays)}d)`, `Rs. ${earnedBase.toFixed(2)}`]);
+    }
+    salaryBody.push(
+      ["Overtime Pay", `+ Rs. ${emp.otAmount.toFixed(2)}`],
+      ["Sunday / Festival Pay", `+ Rs. ${emp.sundayAmount.toFixed(2)}`],
+      ["Bonus", `+ Rs. ${emp.bonusAmount.toFixed(2)}`],
+      ["Advances / Deductions", `- Rs. ${emp.deductions.toFixed(2)}`]
+    );
+
     autoTable(doc, {
       startY: finalY,
       head: [["Earnings / Deductions", "Amount (INR)"]],
-      body: [
-        ["Base Salary", `Rs. ${emp.baseSalary.toFixed(2)}`],
-        ["Overtime Pay", `+ Rs. ${emp.otAmount.toFixed(2)}`],
-        ["Sunday Pay", `+ Rs. ${emp.sundayAmount.toFixed(2)}`],
-        ["Bonus", `+ Rs. ${emp.bonusAmount.toFixed(2)}`],
-        ["Advances / Deductions", `- Rs. ${emp.deductions.toFixed(2)}`]
-      ],
+      body: salaryBody,
       foot: [
         ["Net Final Salary", `Rs. ${emp.finalSalary.toFixed(2)}`]
       ],
@@ -163,18 +173,18 @@ export default function PayrollEmployeesTab() {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(excelData);
-    
+
     // Set column widths
     worksheet["!cols"] = [
-      { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 14 }, 
-      { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 }, 
-      { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 }, 
+      { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 14 },
+      { wch: 14 }, { wch: 10 }, { wch: 12 }, { wch: 10 },
+      { wch: 14 }, { wch: 16 }, { wch: 14 }, { wch: 16 },
       { wch: 12 }, { wch: 30 }, { wch: 24 }, { wch: 20 }, { wch: 10 }
     ];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, `Payroll_${selectedMonth}`);
-    
+
     XLSX.writeFile(workbook, `Payroll_Summary_${selectedMonth}.xlsx`);
     toast.success("Excel report downloaded successfully (.xlsx)");
   };
@@ -186,7 +196,7 @@ export default function PayrollEmployeesTab() {
     }
 
     const doc = new jsPDF("landscape");
-    
+
     // Title & Header
     doc.setFontSize(20);
     doc.text("FOX ENTERPRISES", 14, 18);
@@ -306,17 +316,28 @@ export default function PayrollEmployeesTab() {
     {
       id: "baseSalary",
       header: "Base",
-      accessor: (row) => (
-        <button
-          type="button"
-          onClick={() => setEditRecord(row)}
-          className="font-mono text-foreground font-semibold hover:text-primary hover:underline cursor-pointer flex items-center gap-1 group"
-          title="Click to edit Base Salary & recalculate OT / Sunday pay"
-        >
-          ₹{row.baseSalary}
-          <Edit size={11} className="opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
-        </button>
-      ),
+      accessor: (row) => {
+        const earnedBase = row.earnedBaseSalary !== undefined ? row.earnedBaseSalary : Math.round((row.totalSalary - row.otAmount - row.sundayAmount) * 100) / 100;
+        const hasDeduction = row.absentDays > 0 && earnedBase < row.baseSalary;
+        return (
+          <div className="flex flex-col">
+            <button
+              type="button"
+              onClick={() => setEditRecord(row)}
+              className="font-mono text-foreground font-semibold hover:text-primary hover:underline cursor-pointer flex items-center gap-1 group text-left"
+              title="Click to edit Base Salary & recalculate OT / Sunday pay"
+            >
+              ₹{row.baseSalary}
+              <Edit size={11} className="opacity-0 group-hover:opacity-100 text-primary transition-opacity" />
+            </button>
+            {hasDeduction && (
+              <span className="text-[10px] text-muted-foreground font-mono font-normal" title={`Base earned for ${row.paidDays || (30 - row.absentDays)} paid days (${row.absentDays}d absent)`}>
+                Earned: ₹{earnedBase}
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "otAmount",
@@ -346,7 +367,7 @@ export default function PayrollEmployeesTab() {
       id: "deductions",
       header: "Ded.",
       accessor: (row) => (
-        <button 
+        <button
           onClick={() => openAdvanceDeduct(row)}
           className="font-mono text-destructive font-semibold hover:underline hover:bg-destructive/10 px-2 py-0.5 rounded transition-all flex items-center gap-1 group cursor-pointer"
           title="Click to deduct / edit advance"
@@ -365,8 +386,8 @@ export default function PayrollEmployeesTab() {
       id: "status",
       header: "Status",
       accessor: (row) => (
-        <Badge 
-          variant="outline" 
+        <Badge
+          variant="outline"
           className={`cursor-pointer transition-colors hover:opacity-80 ${row.status === "Paid" ? "border-success/30 text-success bg-success/10" : "border-yellow-500/30 text-yellow-600 bg-yellow-500/10"}`}
           onClick={() => setEditRecord(row)}
         >
@@ -392,7 +413,7 @@ export default function PayrollEmployeesTab() {
             <DropdownMenuItem onClick={() => generatePayslipPDF(row)}>
               <Download className="mr-2 h-4 w-4 text-muted-foreground" /> Download Payslip
             </DropdownMenuItem>
-            
+
             {canEdit && (
               <>
                 <DropdownMenuSeparator />
@@ -471,602 +492,619 @@ export default function PayrollEmployeesTab() {
       </div>
 
       <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden flex flex-col w-full min-h-[500px]">
-      
-      {/* TOOLBAR */}
-      <div className="p-3 sm:p-3.5 border-b border-border bg-muted/10 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-        {/* Left: Search + Month + Actions (In-line flex) */}
-        <div className="flex items-center gap-2 flex-wrap min-w-0">
-          <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
-            <Input 
-              placeholder="Search employees..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 h-8.5 bg-background rounded-xl border-input w-full text-xs shadow-2xs"
-            />
-          </div>
 
-          {/* Month Selector */}
-          <div className="flex items-center gap-1.5 bg-background border border-input rounded-xl px-2.5 h-8.5 shrink-0 shadow-2xs">
-            <CalendarDays size={13} className="text-emerald-500 shrink-0" />
-            <span className="text-xs font-semibold text-muted-foreground shrink-0">Month:</span>
-            <select
-              value={selectedMonth}
-              onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1"
-            >
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
-                const now = new Date();
-                const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
-                const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-                const label = format(d, "MMMM yyyy");
-                return (
-                  <option key={val} value={val} className="bg-popover text-popover-foreground">
-                    {label}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
+        {/* TOOLBAR */}
+        <div className="p-3 sm:p-3.5 border-b border-border bg-muted/10 flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+          {/* Left: Search + Month + Actions (In-line flex) */}
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <div className="relative w-full sm:w-52 lg:w-60 shrink-0">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground w-3.5 h-3.5" />
+              <Input
+                placeholder="Search employees..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-8 h-8.5 bg-background rounded-xl border-input w-full text-xs shadow-2xs"
+              />
+            </div>
 
-          {/* Generate Payroll */}
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="rounded-xl h-8.5 px-3 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
-            onClick={() => {
-              generatePayroll.mutate(selectedMonth, {
-                onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
-              });
-            }}
-          >
-            <Calculator size={13} /> Generate Payroll
-          </Button>
+            {/* Month Selector */}
+            <div className="flex items-center gap-1.5 bg-background border border-input rounded-xl px-2.5 h-8.5 shrink-0 shadow-2xs">
+              <CalendarDays size={13} className="text-emerald-500 shrink-0" />
+              <span className="text-xs font-semibold text-muted-foreground shrink-0">Month:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-xs font-bold text-foreground focus:outline-none cursor-pointer pr-1"
+              >
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((offset) => {
+                  const now = new Date();
+                  const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+                  const val = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                  const label = format(d, "MMMM yyyy");
+                  return (
+                    <option key={val} value={val} className="bg-popover text-popover-foreground">
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
 
-          {/* Recalculate */}
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl h-8.5 px-3 border-border hover:bg-muted text-foreground font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
-            onClick={() => {
-              queryClient.invalidateQueries({ queryKey: ["employeePayroll"] });
-              queryClient.invalidateQueries({ queryKey: ["payrollSummary"] });
-              toast.success("Payroll and OT/Sunday calculations re-synced successfully");
-            }}
-            title="Refresh and sync all payroll, OT, and Sunday calculations"
-          >
-            <RefreshCw size={13} className="text-primary" /> Recalculate
-          </Button>
-
-          {canEdit && (
-            <Button 
-              variant="outline" 
+            {/* Generate Payroll */}
+            <Button
+              variant="outline"
               size="sm"
-              className="rounded-xl h-8.5 px-3 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+              className="rounded-xl h-8.5 px-3 border-emerald-500/30 text-emerald-600 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
               onClick={() => {
-                if (filteredEmployees.length > 0) {
-                  openAdvanceDeduct(filteredEmployees[0]);
-                } else {
-                  toast.error("No employee found in current view");
-                }
+                generatePayroll.mutate(selectedMonth, {
+                  onSuccess: () => toast.success(`Payroll generated for ${selectedMonth}`)
+                });
               }}
             >
-              <MinusCircle size={13} /> Deduct Advance
+              <Calculator size={13} /> Generate Payroll
             </Button>
-          )}
-        </div>
-        
-        {/* Right: Export Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="rounded-xl h-8.5 px-3 gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
-            onClick={exportToExcel}
-            title="Download full payroll summary in Excel (.xlsx) format"
-          >
-            <FileSpreadsheet size={14} className="text-emerald-600" /> Export Excel
-          </Button>
 
-          <Button 
-            variant="outline" 
-            size="sm"
-            className="rounded-xl h-8.5 px-3 gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
-            onClick={exportToPDFReport}
-            title="Download landscape PDF payroll report with totals"
-          >
-            <FileText size={14} className="text-red-600" /> Download PDF
-          </Button>
+            {/* Recalculate */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl h-8.5 px-3 border-border hover:bg-muted text-foreground font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ["employeePayroll"] });
+                queryClient.invalidateQueries({ queryKey: ["payrollSummary"] });
+                toast.success("Payroll and OT/Sunday calculations re-synced successfully");
+              }}
+              title="Refresh and sync all payroll, OT, and Sunday calculations"
+            >
+              <RefreshCw size={13} className="text-primary" /> Recalculate
+            </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="rounded-xl h-8.5 w-8.5 p-0 border-border cursor-pointer shadow-2xs" title="More Export Options">
-                <Download size={13} />
+            {canEdit && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl h-8.5 px-3 border-destructive/30 text-destructive bg-destructive/10 hover:bg-destructive/20 font-semibold text-xs whitespace-nowrap cursor-pointer shadow-2xs gap-1.5 shrink-0"
+                onClick={() => {
+                  if (filteredEmployees.length > 0) {
+                    openAdvanceDeduct(filteredEmployees[0]);
+                  } else {
+                    toast.error("No employee found in current view");
+                  }
+                }}
+              >
+                <MinusCircle size={13} /> Deduct Advance
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Export Options</DropdownMenuLabel>
-              <DropdownMenuItem onClick={exportToExcel}>
-                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" /> Excel Spreadsheet (.xlsx)
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={exportToPDFReport}>
-                <FileText className="mr-2 h-4 w-4 text-red-600" /> PDF Payroll Report (.pdf)
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={exportToCSV}>
-                <Download className="mr-2 h-4 w-4 text-blue-600" /> CSV File (.csv)
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* Mobile Payroll Cards List */}
-      <div className="md:hidden space-y-3 p-3 bg-muted/10">
-        {filteredEmployees.length === 0 ? (
-          <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
-            <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
-            <p className="text-sm font-semibold text-foreground">No payroll records found</p>
-            <p className="text-xs text-muted-foreground mt-1">Try generating payroll or selecting another month.</p>
-          </div>
-        ) : (
-          filteredEmployees.map((emp: any) => {
-            const gross = emp.totalSalary !== undefined ? emp.totalSalary : (emp.baseSalary + emp.otAmount + emp.sundayAmount + emp.bonusAmount);
-            const isPaid = (emp.status || "").toLowerCase() === "paid";
-
-            return (
-              <div key={emp.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs">
-                {/* Header */}
-                <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-xs font-bold text-primary">{emp.employeeId}</span>
-                      <span className="text-muted-foreground text-xs">•</span>
-                      <span className="font-semibold text-foreground text-xs truncate">{emp.employeeName}</span>
-                    </div>
-                    <p className="text-[11px] text-muted-foreground truncate">{emp.department} • <span className="capitalize">{emp.role || "worker"}</span></p>
-                  </div>
-                  <Badge 
-                    variant="outline" 
-                    className={cn(
-                      "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 cursor-pointer",
-                      isPaid ? "border-success/30 text-success bg-success/10" : "border-amber-500/30 text-amber-600 bg-amber-500/10"
-                    )}
-                    onClick={() => setEditRecord(emp)}
-                  >
-                    {emp.status || "Draft"}
-                  </Badge>
-                </div>
-
-                {/* Salary Breakdown 2x2 Grid */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Base Salary</span>
-                    <button
-                      type="button"
-                      onClick={() => setEditRecord(emp)}
-                      className="font-mono font-bold text-foreground hover:text-primary hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
-                      title="Edit Base Salary"
-                    >
-                      ₹{Number(emp.baseSalary || 0).toLocaleString()}
-                      <Edit size={10} className="text-primary" />
-                    </button>
-                  </div>
-
-                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OT & Sunday</span>
-                    <span className="font-mono font-semibold text-orange-600 dark:text-orange-400 block mt-0.5">
-                      +₹{(Number(emp.otAmount || 0) + Number(emp.sundayAmount || 0)).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Gross Pay</span>
-                    <span className="font-mono font-semibold text-blue-600 dark:text-blue-400 block mt-0.5">
-                      ₹{Number(gross || 0).toLocaleString()}
-                    </span>
-                  </div>
-
-                  <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
-                    <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Deductions</span>
-                    <button
-                      type="button"
-                      onClick={() => openAdvanceDeduct(emp)}
-                      className="font-mono font-semibold text-destructive hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
-                      title="Deduct advance"
-                    >
-                      {Number(emp.deductions || 0) > 0 ? `-₹${Number(emp.deductions).toLocaleString()}` : "₹0"}
-                      <MinusCircle size={10} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Net Final Pay Highlight Banner */}
-                <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2 flex items-center justify-between">
-                  <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Net Final Payable</span>
-                  <span className="font-mono text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
-                    ₹{Number(emp.finalSalary || 0).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Action Footer */}
-                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/60">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSelectedEmp(emp)}
-                    className="h-7 px-2 text-xs font-semibold cursor-pointer"
-                  >
-                    <FileText size={11} className="mr-1 text-muted-foreground" /> Details
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => generatePayslipPDF(emp)}
-                    className="h-7 px-2 text-xs font-semibold cursor-pointer"
-                  >
-                    <Download size={11} className="mr-1 text-muted-foreground" /> Payslip
-                  </Button>
-                  {canEdit && (
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 cursor-pointer"
-                        >
-                          <ChevronRight size={14} />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => openAdvanceDeduct(emp)}>
-                          <MinusCircle className="mr-2 h-4 w-4 text-destructive" /> Deduct Advance
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setEditRecord(emp)}>
-                          <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Salary
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => setMarkPaidRecord(emp)}>
-                          <CheckCircle className="mr-2 h-4 w-4 text-success" /> Mark as Paid
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => setHistoryRecord(emp)}>
-                          <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  )}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* Desktop Table View */}
-      <div className="hidden md:block flex-1 overflow-auto">
-        <DataTable 
-          columns={columns} 
-          data={filteredEmployees} 
-          rowId={(row) => row.id.toString()}
-        />
-      </div>
-
-      {/* PAYROLL DETAILS DRAWER */}
-      <Sheet open={!!selectedEmp} onOpenChange={(open) => !open && setSelectedEmp(null)}>
-        <SheetContent className="w-full max-w-[100vw] sm:max-w-lg overflow-y-auto p-4 sm:p-6" side="right">
-          {selectedEmp && (
-            <>
-              <SheetHeader className="p-0 mb-4 sm:mb-6">
-                <SheetTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center gap-2 sm:gap-3">
-                  <span>{selectedEmp.employeeName}</span>
-                  <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">{selectedEmp.status}</Badge>
-                </SheetTitle>
-                <SheetDescription className="text-xs sm:text-sm">
-                  {selectedEmp.employeeId} • {selectedEmp.department} • {selectedEmp.role}
-                </SheetDescription>
-              </SheetHeader>
-
-              <div className="space-y-5 sm:space-y-6">
-                
-                {/* Actions */}
-                <div className="flex gap-2 sm:gap-3 pb-4 sm:pb-6 border-b border-border">
-                  {canEdit && (
-                    <Button className="flex-1 bg-primary text-primary-foreground text-xs sm:text-sm h-9 sm:h-10" onClick={() => { setSelectedEmp(null); setEditRecord(selectedEmp); }}>Edit Payroll</Button>
-                  )}
-                  <Button variant="secondary" className="flex-1 text-xs sm:text-sm h-9 sm:h-10" onClick={() => generatePayslipPDF(selectedEmp)}><Download size={15} className="mr-1.5 sm:mr-2"/> Payslip</Button>
-                </div>
-
-                {/* Attendance Summary */}
-                <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4 flex items-center gap-2"><CalendarDays size={15}/> Attendance Summary</h4>
-                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                    <div className="bg-success/10 border border-success/20 p-2.5 sm:p-3 rounded-xl text-center">
-                      <p className="text-xl sm:text-2xl font-black text-success">{selectedEmp.presentDays}</p>
-                      <p className="text-[11px] sm:text-xs font-semibold text-success/80">Present</p>
-                    </div>
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-2.5 sm:p-3 rounded-xl text-center">
-                      <p className="text-xl sm:text-2xl font-black text-yellow-600">{selectedEmp.halfDays}</p>
-                      <p className="text-[11px] sm:text-xs font-semibold text-yellow-600/80">Half Days</p>
-                    </div>
-                    <div className="bg-destructive/10 border border-destructive/20 p-2.5 sm:p-3 rounded-xl text-center">
-                      <p className="text-xl sm:text-2xl font-black text-destructive">{selectedEmp.absentDays}</p>
-                      <p className="text-[11px] sm:text-xs font-semibold text-destructive/80">Absent</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2.5 sm:mt-3">
-                    <div className="bg-orange-500/10 border border-orange-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
-                      <span className="text-[11px] sm:text-xs font-semibold text-orange-600">OT Hours</span>
-                      <span className="font-black text-orange-600 text-sm sm:text-base">{selectedEmp.otHours}h</span>
-                    </div>
-                    <div className="bg-purple-500/10 border border-purple-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
-                      <span className="text-[11px] sm:text-xs font-semibold text-purple-600 truncate mr-1">Sun/Fest Hrs</span>
-                      <span className="font-black text-purple-600 text-sm sm:text-base shrink-0">{selectedEmp.sundayHours}h</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Salary Breakdown */}
-                <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4">Salary Breakdown</h4>
-                  <div className="bg-muted/30 border border-border rounded-xl p-3.5 sm:p-5 space-y-2.5 sm:space-y-3 font-mono text-xs sm:text-sm">
-                    <div className="flex justify-between"><span>Base Salary</span><span>₹{selectedEmp.baseSalary}</span></div>
-                    <div className="flex justify-between text-orange-500"><span>Overtime Pay</span><span>+ ₹{selectedEmp.otAmount}</span></div>
-                    <div className="flex justify-between text-purple-500"><span>Sunday / Festival Pay</span><span>+ ₹{selectedEmp.sundayAmount}</span></div>
-                    <div className="flex justify-between text-emerald-500"><span>Bonus</span><span>+ ₹{selectedEmp.bonusAmount}</span></div>
-                    <div className="flex justify-between text-destructive"><span>Deductions</span><span>- ₹{selectedEmp.deductions}</span></div>
-                    <div className="pt-2.5 sm:pt-3 mt-2.5 sm:mt-3 border-t border-border flex justify-between text-base sm:text-lg font-bold text-foreground">
-                      <span>Final Salary</span><span>₹{selectedEmp.finalSalary}</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
-
-      {/* Enterprise Admin Dialogs */}
-      <EditPayrollModal
-        record={editRecord}
-        open={!!editRecord}
-        onOpenChange={(open) => !open && setEditRecord(null)}
-        onSave={(data, reason) => {
-          if (!editRecord) return;
-          updatePayroll.mutate({ 
-            id: editRecord.id, 
-            data: { 
-              ...data, 
-              month: editRecord.month || selectedMonth,
-              reason: reason?.trim() || "Administrative salary adjustment"
-            } 
-          }, {
-            onSuccess: () => {
-              toast.success(`Payroll updated successfully for ${editRecord.employeeName}`);
-              setEditRecord(null);
-            },
-            onError: (err: any) => {
-              toast.error(err?.response?.data?.detail || "Failed to update payroll");
-            }
-          });
-        }}
-        isSaving={updatePayroll.isPending}
-      />
-
-      <ReasonPromptDialog
-        open={!!markPaidRecord}
-        onOpenChange={(open) => !open && setMarkPaidRecord(null)}
-        title="Mark Payroll as Paid"
-        description={`Confirm marking payroll for ${markPaidRecord?.employeeName} as PAID.`}
-        onSubmit={(reason) => {
-          if (!markPaidRecord) return;
-          updatePayroll.mutate({ 
-            id: markPaidRecord.id, 
-            data: { 
-              month: markPaidRecord.month || selectedMonth, 
-              status: "Paid", 
-              reason: reason?.trim() || "Marked as paid" 
-            } 
-          }, {
-            onSuccess: () => {
-              toast.success("Payroll marked as paid");
-              setMarkPaidRecord(null);
-            },
-            onError: (err: any) => {
-              toast.error(err?.response?.data?.detail || "Failed to mark as paid");
-            }
-          });
-        }}
-      />
-
-      <AuditHistoryDrawer
-        open={!!historyRecord}
-        onOpenChange={(open) => !open && setHistoryRecord(null)}
-        recordId={historyRecord?.id?.toString() || ""}
-        module="payroll"
-        title={`Audit History: Payroll for ${historyRecord?.employeeName}`}
-      />
-
-      {/* Quick Deduct / Record Advance Dialog */}
-      <Dialog open={!!advanceDeductEmp} onOpenChange={(open) => !open && setAdvanceDeductEmp(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
-              <MinusCircle className="w-5 h-5 text-destructive" />
-              Deduct / Record Advance
-            </DialogTitle>
-            <DialogDescription>
-              {advanceDeductEmp?.employeeName} ({advanceDeductEmp?.employeeId}) • {advanceDeductEmp?.department}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 my-2">
-            {/* Employee Select Card */}
-            <div className="bg-muted/40 border border-border p-3 rounded-xl flex justify-between items-center font-mono text-xs">
-              <div>
-                <span className="text-muted-foreground block font-sans text-xs">Select Employee:</span>
-                <select
-                  value={advanceDeductEmp?.id || ""}
-                  onChange={(e) => {
-                    const found = employees.find((emp: any) => emp.id === parseInt(e.target.value));
-                    if (found) openAdvanceDeduct(found);
-                  }}
-                  className="bg-background text-foreground font-bold text-xs border border-input rounded px-2 py-1 mt-1 focus:outline-none"
-                >
-                  {employees.map((emp: any) => (
-                    <option key={emp.id} value={emp.id}>{emp.employeeName} ({emp.employeeId})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="text-right">
-                <span className="text-muted-foreground block font-sans text-xs">Gross Pay (Earned):</span>
-                <span className="font-bold text-foreground text-xs font-mono">
-                  ₹{(advanceDeductEmp?.totalSalary !== undefined ? advanceDeductEmp.totalSalary : ((advanceDeductEmp?.baseSalary || 0) + (advanceDeductEmp?.otAmount || 0) + (advanceDeductEmp?.sundayAmount || 0) + (advanceDeductEmp?.bonusAmount || 0))).toFixed(2)}
-                </span>
-              </div>
-            </div>
-
-            {/* Quick Amount Preset Chips */}
-            <div className="space-y-1.5">
-              <span className="text-xs text-muted-foreground font-medium">Quick Amount Presets:</span>
-              <div className="flex flex-wrap gap-1.5">
-                {[500, 1000, 2000, 5000, 10000].map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setAdvanceAmountInput(amt.toString())}
-                    className={`text-xs px-2.5 py-1 rounded-md border font-mono font-medium transition-colors ${
-                      advanceAmountInput === amt.toString()
-                        ? "bg-destructive text-destructive-foreground border-destructive"
-                        : "bg-muted/50 hover:bg-muted text-foreground border-border"
-                    }`}
-                  >
-                    +₹{amt.toLocaleString("en-IN")}
-                  </button>
-                ))}
-                {advanceAmountInput && advanceAmountInput !== "0" && (
-                  <button
-                    type="button"
-                    onClick={() => setAdvanceAmountInput("0")}
-                    className="text-xs px-2.5 py-1 rounded-md border font-mono font-medium bg-secondary text-secondary-foreground border-border hover:bg-secondary/80 transition-colors"
-                  >
-                    Clear (₹0)
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="font-bold text-sm">Advance / Deduction Amount (₹) *</Label>
-                {advanceAmountInput && (
-                  <span className="text-xs text-muted-foreground font-mono">
-                    ₹{parseFloat(advanceAmountInput) || 0}
-                  </span>
-                )}
-              </div>
-              <Input 
-                type="number"
-                min="0"
-                placeholder="Enter amount (e.g. 2000)"
-                value={advanceAmountInput}
-                onChange={(e) => setAdvanceAmountInput(e.target.value)}
-                className="h-11 font-mono text-lg font-bold border-input"
-                autoFocus
-              />
-              {!advanceAmountInput && (
-                <p className="text-[11px] text-muted-foreground">
-                  * Kripya amount type karein ya upar presets me se chunein.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-semibold text-xs">Reason / Note</Label>
-              <Input 
-                placeholder="e.g. August Advance Deduction"
-                value={advanceReasonInput}
-                onChange={(e) => setAdvanceReasonInput(e.target.value)}
-                className="h-9 text-xs"
-              />
-            </div>
-
-            {/* Live Net Salary Preview Box */}
-            {advanceDeductEmp && (
-              <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex justify-between items-center">
-                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Net Payable Salary:</span>
-                <span className="text-lg font-black font-mono text-emerald-600">
-                  ₹{Math.max(0, ((advanceDeductEmp?.totalSalary !== undefined ? advanceDeductEmp.totalSalary : ((advanceDeductEmp?.baseSalary || 0) + (advanceDeductEmp?.otAmount || 0) + (advanceDeductEmp?.sundayAmount || 0) + (advanceDeductEmp?.bonusAmount || 0))) - (parseFloat(advanceAmountInput) || 0))).toFixed(2)}
-                </span>
-              </div>
             )}
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setAdvanceDeductEmp(null)} disabled={isSavingAdvance}>
-              Cancel
+          {/* Right: Export Actions */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl h-8.5 px-3 gap-1.5 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
+              onClick={exportToExcel}
+              title="Download full payroll summary in Excel (.xlsx) format"
+            >
+              <FileSpreadsheet size={14} className="text-emerald-600" /> Export Excel
             </Button>
-            <Button 
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2 font-bold cursor-pointer"
-              disabled={isSavingAdvance}
-              onClick={async () => {
-                if (!advanceDeductEmp) return;
-                
-                if (!advanceAmountInput || advanceAmountInput.trim() === "") {
-                  toast.error("Please enter an amount (e.g. 2000) or choose a preset");
-                  return;
-                }
 
-                const dedVal = parseFloat(advanceAmountInput);
-                if (isNaN(dedVal) || dedVal < 0) {
-                  toast.error("Please enter a valid amount (₹0 or more)");
-                  return;
-                }
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl h-8.5 px-3 gap-1.5 border-red-500/30 text-red-600 dark:text-red-400 bg-red-500/10 hover:bg-red-500/20 font-semibold text-xs shadow-2xs cursor-pointer whitespace-nowrap"
+              onClick={exportToPDFReport}
+              title="Download landscape PDF payroll report with totals"
+            >
+              <FileText size={14} className="text-red-600" /> Download PDF
+            </Button>
 
-                setIsSavingAdvance(true);
-                try {
-                  if (dedVal > 0) {
-                    await api.post("/payroll/advances", {
-                      worker_id: advanceDeductEmp.id,
-                      amount: dedVal,
-                      reason: advanceReasonInput || "Advance deduction",
-                      status: "Approved",
-                      deducted_in_payroll: true
-                    }).catch((err) => {
-                      console.warn("Advance request log note:", err);
-                    });
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-xl h-8.5 w-8.5 p-0 border-border cursor-pointer shadow-2xs" title="More Export Options">
+                  <Download size={13} />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>Export Options</DropdownMenuLabel>
+                <DropdownMenuItem onClick={exportToExcel}>
+                  <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" /> Excel Spreadsheet (.xlsx)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={exportToPDFReport}>
+                  <FileText className="mr-2 h-4 w-4 text-red-600" /> PDF Payroll Report (.pdf)
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={exportToCSV}>
+                  <Download className="mr-2 h-4 w-4 text-blue-600" /> CSV File (.csv)
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+
+        {/* Mobile Payroll Cards List */}
+        <div className="md:hidden space-y-3 p-3 bg-muted/10">
+          {filteredEmployees.length === 0 ? (
+            <div className="text-center py-12 bg-card rounded-xl border border-border p-6">
+              <Users size={32} className="mx-auto text-muted-foreground/40 mb-2" />
+              <p className="text-sm font-semibold text-foreground">No payroll records found</p>
+              <p className="text-xs text-muted-foreground mt-1">Try generating payroll or selecting another month.</p>
+            </div>
+          ) : (
+            filteredEmployees.map((emp: any) => {
+              const gross = emp.totalSalary !== undefined ? emp.totalSalary : (emp.baseSalary + emp.otAmount + emp.sundayAmount + emp.bonusAmount);
+              const isPaid = (emp.status || "").toLowerCase() === "paid";
+
+              return (
+                <div key={emp.id} className="bg-card border border-border rounded-xl p-3.5 space-y-2.5 shadow-2xs">
+                  {/* Header */}
+                  <div className="flex items-center justify-between gap-2 border-b border-border/60 pb-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-xs font-bold text-primary">{emp.employeeId}</span>
+                        <span className="text-muted-foreground text-xs">•</span>
+                        <span className="font-semibold text-foreground text-xs truncate">{emp.employeeName}</span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground truncate">{emp.department} • <span className="capitalize">{emp.role || "worker"}</span></p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 cursor-pointer",
+                        isPaid ? "border-success/30 text-success bg-success/10" : "border-amber-500/30 text-amber-600 bg-amber-500/10"
+                      )}
+                      onClick={() => setEditRecord(emp)}
+                    >
+                      {emp.status || "Draft"}
+                    </Badge>
+                  </div>
+
+                  {/* Salary Breakdown 2x2 Grid */}
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Base Salary</span>
+                      <button
+                        type="button"
+                        onClick={() => setEditRecord(emp)}
+                        className="font-mono font-bold text-foreground hover:text-primary hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                        title="Edit Base Salary"
+                      >
+                        ₹{Number(emp.baseSalary || 0).toLocaleString()}
+                        <Edit size={10} className="text-primary" />
+                      </button>
+                    </div>
+
+                    <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">OT & Sunday</span>
+                      <span className="font-mono font-semibold text-orange-600 dark:text-orange-400 block mt-0.5">
+                        +₹{(Number(emp.otAmount || 0) + Number(emp.sundayAmount || 0)).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Gross Pay</span>
+                      <span className="font-mono font-semibold text-blue-600 dark:text-blue-400 block mt-0.5">
+                        ₹{Number(gross || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="bg-muted/30 p-2 rounded-lg border border-border/40">
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider block">Deductions</span>
+                      <button
+                        type="button"
+                        onClick={() => openAdvanceDeduct(emp)}
+                        className="font-mono font-semibold text-destructive hover:underline cursor-pointer flex items-center gap-1 mt-0.5"
+                        title="Deduct advance"
+                      >
+                        {Number(emp.deductions || 0) > 0 ? `-₹${Number(emp.deductions).toLocaleString()}` : "₹0"}
+                        <MinusCircle size={10} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Net Final Pay Highlight Banner */}
+                  <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-lg px-3 py-2 flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Net Final Payable</span>
+                    <span className="font-mono text-sm sm:text-base font-extrabold text-emerald-600 dark:text-emerald-400">
+                      ₹{Number(emp.finalSalary || 0).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Action Footer */}
+                  <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-border/60">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedEmp(emp)}
+                      className="h-7 px-2 text-xs font-semibold cursor-pointer"
+                    >
+                      <FileText size={11} className="mr-1 text-muted-foreground" /> Details
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => generatePayslipPDF(emp)}
+                      className="h-7 px-2 text-xs font-semibold cursor-pointer"
+                    >
+                      <Download size={11} className="mr-1 text-muted-foreground" /> Payslip
+                    </Button>
+                    {canEdit && (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-7 w-7 p-0 cursor-pointer"
+                          >
+                            <ChevronRight size={14} />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => openAdvanceDeduct(emp)}>
+                            <MinusCircle className="mr-2 h-4 w-4 text-destructive" /> Deduct Advance
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEditRecord(emp)}>
+                            <Edit className="mr-2 h-4 w-4 text-primary" /> Edit Salary
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setMarkPaidRecord(emp)}>
+                            <CheckCircle className="mr-2 h-4 w-4 text-success" /> Mark as Paid
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setHistoryRecord(emp)}>
+                            <History className="mr-2 h-4 w-4 text-muted-foreground" /> Audit History
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="hidden md:block flex-1 overflow-auto">
+          <DataTable
+            columns={columns}
+            data={filteredEmployees}
+            rowId={(row) => row.id.toString()}
+          />
+        </div>
+
+        {/* PAYROLL DETAILS DRAWER */}
+        <Sheet open={!!selectedEmp} onOpenChange={(open) => !open && setSelectedEmp(null)}>
+          <SheetContent className="w-full max-w-[100vw] sm:max-w-lg overflow-y-auto p-4 sm:p-6" side="right">
+            {selectedEmp && (
+              <>
+                <SheetHeader className="p-0 mb-4 sm:mb-6">
+                  <SheetTitle className="text-xl sm:text-2xl font-bold flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span>{selectedEmp.employeeName}</span>
+                    <Badge variant="outline" className="bg-yellow-500/10 text-yellow-600 border-yellow-500/30 text-xs">{selectedEmp.status}</Badge>
+                  </SheetTitle>
+                  <SheetDescription className="text-xs sm:text-sm">
+                    {selectedEmp.employeeId} • {selectedEmp.department} • {selectedEmp.role}
+                  </SheetDescription>
+                </SheetHeader>
+
+                <div className="space-y-5 sm:space-y-6">
+
+                  {/* Actions */}
+                  <div className="flex gap-2 sm:gap-3 pb-4 sm:pb-6 border-b border-border">
+                    {canEdit && (
+                      <Button className="flex-1 bg-primary text-primary-foreground text-xs sm:text-sm h-9 sm:h-10" onClick={() => { setSelectedEmp(null); setEditRecord(selectedEmp); }}>Edit Payroll</Button>
+                    )}
+                    <Button variant="secondary" className="flex-1 text-xs sm:text-sm h-9 sm:h-10" onClick={() => generatePayslipPDF(selectedEmp)}><Download size={15} className="mr-1.5 sm:mr-2" /> Payslip</Button>
+                  </div>
+
+                  {/* Attendance Summary */}
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4 flex items-center gap-2"><CalendarDays size={15} /> Attendance Summary</h4>
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                      <div className="bg-success/10 border border-success/20 p-2.5 sm:p-3 rounded-xl text-center">
+                        <p className="text-xl sm:text-2xl font-black text-success">{selectedEmp.presentDays}</p>
+                        <p className="text-[11px] sm:text-xs font-semibold text-success/80">Present</p>
+                      </div>
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-2.5 sm:p-3 rounded-xl text-center">
+                        <p className="text-xl sm:text-2xl font-black text-yellow-600">{selectedEmp.halfDays}</p>
+                        <p className="text-[11px] sm:text-xs font-semibold text-yellow-600/80">Half Days</p>
+                      </div>
+                      <div className="bg-destructive/10 border border-destructive/20 p-2.5 sm:p-3 rounded-xl text-center">
+                        <p className="text-xl sm:text-2xl font-black text-destructive">{selectedEmp.absentDays}</p>
+                        <p className="text-[11px] sm:text-xs font-semibold text-destructive/80">Absent</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 mt-2.5 sm:mt-3">
+                      <div className="bg-orange-500/10 border border-orange-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
+                        <span className="text-[11px] sm:text-xs font-semibold text-orange-600">OT Hours</span>
+                        <span className="font-black text-orange-600 text-sm sm:text-base">{selectedEmp.otHours}h</span>
+                      </div>
+                      <div className="bg-purple-500/10 border border-purple-500/20 p-2.5 sm:p-3 rounded-xl flex justify-between items-center">
+                        <span className="text-[11px] sm:text-xs font-semibold text-purple-600 truncate mr-1">Sun/Fest Hrs</span>
+                        <span className="font-black text-purple-600 text-sm sm:text-base shrink-0">{selectedEmp.sundayHours}h</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Salary Breakdown */}
+                  <div>
+                    <h4 className="font-bold text-xs sm:text-sm text-muted-foreground uppercase tracking-wider mb-3 sm:mb-4">Salary Breakdown</h4>
+                    {(() => {
+                      const earnedBase = selectedEmp.earnedBaseSalary !== undefined ? selectedEmp.earnedBaseSalary : Math.round((selectedEmp.totalSalary - selectedEmp.otAmount - selectedEmp.sundayAmount) * 100) / 100;
+                      const absentDeduction = Math.max(0, Math.round((selectedEmp.baseSalary - earnedBase) * 100) / 100);
+                      return (
+                        <div className="bg-muted/30 border border-border rounded-xl p-3.5 sm:p-5 space-y-2.5 sm:space-y-3 font-mono text-xs sm:text-sm">
+                          <div className="flex justify-between"><span>Base Salary (Monthly)</span><span>₹{selectedEmp.baseSalary}</span></div>
+                          {absentDeduction > 0 && (
+                            <div className="flex justify-between text-destructive">
+                              <span>Absent Deduction ({selectedEmp.absentDays}d)</span>
+                              <span>- ₹{absentDeduction}</span>
+                            </div>
+                          )}
+                          {absentDeduction > 0 && (
+                            <div className="flex justify-between font-semibold text-foreground/80 bg-muted/50 px-2 py-1 rounded">
+                              <span>Earned Base ({selectedEmp.paidDays || (30 - selectedEmp.absentDays)}d)</span>
+                              <span>₹{earnedBase}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between text-orange-500"><span>Overtime Pay</span><span>+ ₹{selectedEmp.otAmount}</span></div>
+                          <div className="flex justify-between text-purple-500"><span>Sunday / Festival Pay</span><span>+ ₹{selectedEmp.sundayAmount}</span></div>
+                          <div className="flex justify-between text-emerald-500"><span>Bonus</span><span>+ ₹{selectedEmp.bonusAmount}</span></div>
+                          <div className="flex justify-between text-destructive"><span>Advance Deductions</span><span>- ₹{selectedEmp.deductions}</span></div>
+                          <div className="pt-2.5 sm:pt-3 mt-2.5 sm:mt-3 border-t border-border flex justify-between text-base sm:text-lg font-bold text-foreground">
+                            <span>Final Salary</span><span>₹{selectedEmp.finalSalary}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                </div>
+              </>
+            )}
+          </SheetContent>
+        </Sheet>
+
+        {/* Enterprise Admin Dialogs */}
+        <EditPayrollModal
+          record={editRecord}
+          open={!!editRecord}
+          onOpenChange={(open) => !open && setEditRecord(null)}
+          onSave={(data, reason) => {
+            if (!editRecord) return;
+            updatePayroll.mutate({
+              id: editRecord.id,
+              data: {
+                ...data,
+                month: editRecord.month || selectedMonth,
+                reason: reason?.trim() || "Administrative salary adjustment"
+              }
+            }, {
+              onSuccess: () => {
+                toast.success(`Payroll updated successfully for ${editRecord.employeeName}`);
+                setEditRecord(null);
+              },
+              onError: (err: any) => {
+                toast.error(err?.response?.data?.detail || "Failed to update payroll");
+              }
+            });
+          }}
+          isSaving={updatePayroll.isPending}
+        />
+
+        <ReasonPromptDialog
+          open={!!markPaidRecord}
+          onOpenChange={(open) => !open && setMarkPaidRecord(null)}
+          title="Mark Payroll as Paid"
+          description={`Confirm marking payroll for ${markPaidRecord?.employeeName} as PAID.`}
+          onSubmit={(reason) => {
+            if (!markPaidRecord) return;
+            updatePayroll.mutate({
+              id: markPaidRecord.id,
+              data: {
+                month: markPaidRecord.month || selectedMonth,
+                status: "Paid",
+                reason: reason?.trim() || "Marked as paid"
+              }
+            }, {
+              onSuccess: () => {
+                toast.success("Payroll marked as paid");
+                setMarkPaidRecord(null);
+              },
+              onError: (err: any) => {
+                toast.error(err?.response?.data?.detail || "Failed to mark as paid");
+              }
+            });
+          }}
+        />
+
+        <AuditHistoryDrawer
+          open={!!historyRecord}
+          onOpenChange={(open) => !open && setHistoryRecord(null)}
+          recordId={historyRecord?.id?.toString() || ""}
+          module="payroll"
+          title={`Audit History: Payroll for ${historyRecord?.employeeName}`}
+        />
+
+        {/* Quick Deduct / Record Advance Dialog */}
+        <Dialog open={!!advanceDeductEmp} onOpenChange={(open) => !open && setAdvanceDeductEmp(null)}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg font-bold text-foreground">
+                <MinusCircle className="w-5 h-5 text-destructive" />
+                Deduct / Record Advance
+              </DialogTitle>
+              <DialogDescription>
+                {advanceDeductEmp?.employeeName} ({advanceDeductEmp?.employeeId}) • {advanceDeductEmp?.department}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 my-2">
+              {/* Employee Select Card */}
+              <div className="bg-muted/40 border border-border p-3 rounded-xl flex justify-between items-center font-mono text-xs">
+                <div>
+                  <span className="text-muted-foreground block font-sans text-xs">Select Employee:</span>
+                  <select
+                    value={advanceDeductEmp?.id || ""}
+                    onChange={(e) => {
+                      const found = employees.find((emp: any) => emp.id === parseInt(e.target.value));
+                      if (found) openAdvanceDeduct(found);
+                    }}
+                    className="bg-background text-foreground font-bold text-xs border border-input rounded px-2 py-1 mt-1 focus:outline-none"
+                  >
+                    {employees.map((emp: any) => (
+                      <option key={emp.id} value={emp.id}>{emp.employeeName} ({emp.employeeId})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="text-right">
+                  <span className="text-muted-foreground block font-sans text-xs">Gross Pay (Earned):</span>
+                  <span className="font-bold text-foreground text-xs font-mono">
+                    ₹{(advanceDeductEmp?.totalSalary !== undefined ? advanceDeductEmp.totalSalary : ((advanceDeductEmp?.baseSalary || 0) + (advanceDeductEmp?.otAmount || 0) + (advanceDeductEmp?.sundayAmount || 0) + (advanceDeductEmp?.bonusAmount || 0))).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Amount Preset Chips */}
+              <div className="space-y-1.5">
+                <span className="text-xs text-muted-foreground font-medium">Quick Amount Presets:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[500, 1000, 2000, 5000, 10000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAdvanceAmountInput(amt.toString())}
+                      className={`text-xs px-2.5 py-1 rounded-md border font-mono font-medium transition-colors ${advanceAmountInput === amt.toString()
+                          ? "bg-destructive text-destructive-foreground border-destructive"
+                          : "bg-muted/50 hover:bg-muted text-foreground border-border"
+                        }`}
+                    >
+                      +₹{amt.toLocaleString("en-IN")}
+                    </button>
+                  ))}
+                  {advanceAmountInput && advanceAmountInput !== "0" && (
+                    <button
+                      type="button"
+                      onClick={() => setAdvanceAmountInput("0")}
+                      className="text-xs px-2.5 py-1 rounded-md border font-mono font-medium bg-secondary text-secondary-foreground border-border hover:bg-secondary/80 transition-colors"
+                    >
+                      Clear (₹0)
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="font-bold text-sm">Advance / Deduction Amount (₹) *</Label>
+                  {advanceAmountInput && (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      ₹{parseFloat(advanceAmountInput) || 0}
+                    </span>
+                  )}
+                </div>
+                <Input
+                  type="number"
+                  min="0"
+                  placeholder="Enter amount (e.g. 2000)"
+                  value={advanceAmountInput}
+                  onChange={(e) => setAdvanceAmountInput(e.target.value)}
+                  className="h-11 font-mono text-lg font-bold border-input"
+                  autoFocus
+                />
+                {!advanceAmountInput && (
+                  <p className="text-[11px] text-muted-foreground">
+                    * Kripya amount type karein ya upar presets me se chunein.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label className="font-semibold text-xs">Reason / Note</Label>
+                <Input
+                  placeholder="e.g. August Advance Deduction"
+                  value={advanceReasonInput}
+                  onChange={(e) => setAdvanceReasonInput(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              </div>
+
+              {/* Live Net Salary Preview Box */}
+              {advanceDeductEmp && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 p-3 rounded-xl flex justify-between items-center">
+                  <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">Net Payable Salary:</span>
+                  <span className="text-lg font-black font-mono text-emerald-600">
+                    ₹{Math.max(0, ((advanceDeductEmp?.totalSalary !== undefined ? advanceDeductEmp.totalSalary : ((advanceDeductEmp?.baseSalary || 0) + (advanceDeductEmp?.otAmount || 0) + (advanceDeductEmp?.sundayAmount || 0) + (advanceDeductEmp?.bonusAmount || 0))) - (parseFloat(advanceAmountInput) || 0))).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setAdvanceDeductEmp(null)} disabled={isSavingAdvance}>
+                Cancel
+              </Button>
+              <Button
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-2 font-bold cursor-pointer"
+                disabled={isSavingAdvance}
+                onClick={async () => {
+                  if (!advanceDeductEmp) return;
+
+                  if (!advanceAmountInput || advanceAmountInput.trim() === "") {
+                    toast.error("Please enter an amount (e.g. 2000) or choose a preset");
+                    return;
                   }
 
-                  await updatePayroll.mutateAsync({
-                    id: advanceDeductEmp.id,
-                    data: {
-                      month: selectedMonth,
-                      deductions: dedVal,
-                      reason: advanceReasonInput || "Advance deduction"
-                    }
-                  });
+                  const dedVal = parseFloat(advanceAmountInput);
+                  if (isNaN(dedVal) || dedVal < 0) {
+                    toast.error("Please enter a valid amount (₹0 or more)");
+                    return;
+                  }
 
-                  toast.success(`Advance deduction of ₹${dedVal.toFixed(2)} saved for ${advanceDeductEmp.employeeName}`);
-                  setAdvanceDeductEmp(null);
-                } catch (err: any) {
-                  toast.error(err?.response?.data?.detail || "Failed to update advance deduction");
-                } finally {
-                  setIsSavingAdvance(false);
-                }
-              }}
-            >
-              {isSavingAdvance ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin mr-1" />
-                  Saving...
-                </>
-              ) : (
-                "Save Advance Deduction"
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+                  setIsSavingAdvance(true);
+                  try {
+                    if (dedVal > 0) {
+                      await api.post("/payroll/advances", {
+                        worker_id: advanceDeductEmp.id,
+                        amount: dedVal,
+                        reason: advanceReasonInput || "Advance deduction",
+                        status: "Approved",
+                        deducted_in_payroll: true
+                      }).catch((err) => {
+                        console.warn("Advance request log note:", err);
+                      });
+                    }
+
+                    await updatePayroll.mutateAsync({
+                      id: advanceDeductEmp.id,
+                      data: {
+                        month: selectedMonth,
+                        deductions: dedVal,
+                        reason: advanceReasonInput || "Advance deduction"
+                      }
+                    });
+
+                    toast.success(`Advance deduction of ₹${dedVal.toFixed(2)} saved for ${advanceDeductEmp.employeeName}`);
+                    setAdvanceDeductEmp(null);
+                  } catch (err: any) {
+                    toast.error(err?.response?.data?.detail || "Failed to update advance deduction");
+                  } finally {
+                    setIsSavingAdvance(false);
+                  }
+                }}
+              >
+                {isSavingAdvance ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Advance Deduction"
+                )}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
       </div>
     </div>
