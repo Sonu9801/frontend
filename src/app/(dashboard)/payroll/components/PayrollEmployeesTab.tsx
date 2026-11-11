@@ -4,7 +4,7 @@ import React, { useState, useMemo } from "react";
 import { DataTable, ColumnDef } from "@/components/ui/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2, RefreshCw, Users, IndianRupee, Clock } from "lucide-react";
+import { Download, FileText, Search, ChevronRight, Calculator, CalendarDays, Edit, History, CheckCircle, Trash2, MinusCircle, Plus, FileSpreadsheet, Loader2, RefreshCw, Users, IndianRupee, Clock, Banknote, Undo2 } from "lucide-react";
 import { KPICard } from "@/components/ui/KPICard";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -380,20 +380,88 @@ export default function PayrollEmployeesTab() {
     {
       id: "finalSalary",
       header: "Final (₹)",
-      accessor: (row) => <span className="font-bold text-emerald-600 font-mono">₹{row.finalSalary}</span>,
+      accessor: (row) => {
+        const isPaid = (row.status || "").toLowerCase() === "paid";
+        return (
+          <div className="flex items-center gap-2 group">
+            <span className={`font-bold font-mono ${isPaid ? "text-success" : "text-emerald-600"}`}>
+              ₹{row.finalSalary}
+            </span>
+            {canEdit && !isPaid && (
+              <button
+                type="button"
+                title="Click to Mark as Paid"
+                onClick={() => setMarkPaidRecord(row)}
+                className="opacity-0 group-hover:opacity-100 transition-all flex items-center gap-0.5 text-[10px] font-bold text-white bg-success hover:bg-success/80 px-1.5 py-0.5 rounded-md whitespace-nowrap"
+                disabled={updatePayroll.isPending}
+              >
+                <Banknote size={10} />
+                Pay
+              </button>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "status",
       header: "Status",
-      accessor: (row) => (
-        <Badge
-          variant="outline"
-          className={`cursor-pointer transition-colors hover:opacity-80 ${row.status === "Paid" ? "border-success/30 text-success bg-success/10" : "border-yellow-500/30 text-yellow-600 bg-yellow-500/10"}`}
-          onClick={() => setEditRecord(row)}
-        >
-          {row.status}
-        </Badge>
-      ),
+      accessor: (row) => {
+        const isPaid = (row.status || "").toLowerCase() === "paid";
+        const isDraft = !isPaid;
+        const isLoading = updatePayroll.isPending;
+
+        if (isPaid) {
+          return (
+            <div className="flex items-center gap-1.5 group">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-success/10 text-success border border-success/25 select-none">
+                <CheckCircle size={11} />
+                Paid
+              </span>
+              {canEdit && (
+                <button
+                  type="button"
+                  title="Revert to Draft"
+                  onClick={() => {
+                    if (!confirm(`${row.employeeName} ko Draft mein revert karna chahte ho?`)) return;
+                    updatePayroll.mutate({
+                      id: row.id,
+                      data: { month: row.month || selectedMonth, status: "Draft", reason: "Reverted to draft" }
+                    }, {
+                      onSuccess: () => toast.success(`${row.employeeName} reverted to Draft`),
+                      onError: (err: any) => toast.error(err?.response?.data?.detail || "Failed to revert")
+                    });
+                  }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive p-0.5 rounded"
+                  disabled={isLoading}
+                >
+                  <Undo2 size={12} />
+                </button>
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <div className="flex items-center gap-1.5 group">
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-yellow-500/10 text-yellow-600 border border-yellow-500/25 select-none">
+              <Clock size={10} />
+              {row.status || "Draft"}
+            </span>
+            {canEdit && (
+              <button
+                type="button"
+                title="Mark as Paid"
+                onClick={() => setMarkPaidRecord(row)}
+                className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-success"
+                disabled={isLoading}
+              >
+                <Banknote size={13} />
+              </button>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "actions",
