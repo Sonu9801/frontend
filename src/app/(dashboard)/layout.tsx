@@ -17,9 +17,25 @@ export default function DashboardLayout({
   const router = useRouter();
   const { isAuthenticated, initialize } = useAuthStore();
   const [loading, setLoading] = useState(true);
+  // Track if running as installed PWA or on a small screen
+  const [isMobileView, setIsMobileView] = useState(false);
   
   // Hook up WebSocket client
   useWebSocket();
+
+  useEffect(() => {
+    // Detect PWA standalone mode OR small screen
+    const checkMobile = () => {
+      const isStandalone = 
+        window.matchMedia("(display-mode: standalone)").matches ||
+        (window.navigator as any).standalone === true;
+      const isSmallScreen = window.innerWidth < 768;
+      setIsMobileView(isStandalone || isSmallScreen);
+    };
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     initialize();
@@ -91,21 +107,25 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background font-body">
-      {/* Desktop Sidebar */}
-      <div className="hidden md:flex h-full flex-shrink-0 z-40">
-        <React.Suspense fallback={<div className="w-16 h-full bg-sidebar border-r border-sidebar-border" />}>
-          <Sidebar />
-        </React.Suspense>
-      </div>
+      {/* Desktop Sidebar — hidden on mobile/PWA */}
+      {!isMobileView && (
+        <div className="hidden md:flex h-full flex-shrink-0 z-40">
+          <React.Suspense fallback={<div className="w-16 h-full bg-sidebar border-r border-sidebar-border" />}>
+            <Sidebar />
+          </React.Suspense>
+        </div>
+      )}
       
       <div className="flex flex-col flex-1 h-full min-w-0 overflow-hidden">
-        {/* Desktop TopBar */}
-        <div className="hidden md:block flex-shrink-0 z-30">
-          <TopBar />
-        </div>
+        {/* Desktop TopBar — hidden on mobile/PWA */}
+        {!isMobileView && (
+          <div className="hidden md:block flex-shrink-0 z-30">
+            <TopBar />
+          </div>
+        )}
         
-        {/* Mobile TopBar */}
-        <MobileTopBar />
+        {/* Mobile TopBar — always shown on mobile/PWA */}
+        {isMobileView && <MobileTopBar />}
 
         <main
           className="flex-1 overflow-y-auto [overscroll-behavior:contain] bg-background"
@@ -114,8 +134,8 @@ export default function DashboardLayout({
           {children}
         </main>
         
-        {/* Mobile Bottom Navigation */}
-        <MobileBottomNav />
+        {/* Mobile Bottom Navigation — always shown on mobile/PWA */}
+        {isMobileView && <MobileBottomNav />}
       </div>
     </div>
   );

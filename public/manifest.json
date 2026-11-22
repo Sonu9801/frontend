@@ -3,10 +3,13 @@
   "short_name": "FoxFlow",
   "description": "Manufacturing Execution System (MES) for fabrication industries",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
   "background_color": "#09090b",
   "theme_color": "#6366f1",
-  "orientation": "portrait",
+  "orientation": "portrait-primary",
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192x192.png",

@@ -396,4 +396,35 @@ button, a, [role="button"], input, select, textarea {
   -webkit-overflow-scrolling: touch;
 }
 
+/* Safe area insets for PWA / notch phones */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.pl-safe {
+  padding-left: env(safe-area-inset-left, 0px);
+}
+.pr-safe {
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* PWA Standalone mode detection — force mobile nav visible in standalone */
+@media all and (display-mode: standalone) {
+  .pwa-hidden-standalone {
+    display: none !important;
+  }
+  .pwa-show-standalone {
+    display: flex !important;
+  }
+}
+
+/* Force mobile layout on small screens regardless of zoom */
+@media screen and (max-width: 767px) {
+  .mobile-force-hidden {
+    display: none !important;
+  }
+}
+
 
